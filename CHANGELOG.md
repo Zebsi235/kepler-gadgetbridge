@@ -3,6 +3,11 @@
 #### 0.91.1
 
 * Casio: Fix connection issues after first pairing
+* Fix occasional crash when leaving activity list
+* Garmin: Fix unknown transfer notification
+* Huawei: Fix connection stuck on authentication on newer firmware
+* OpenTracks integration: Remove unsupported elevation field
+* Xiaomi-protobuf: Fix GPS dropping mid-workout on newer firmware
 
 #### 0.91.0
 
