@@ -1,5 +1,9 @@
 ### Changelog
 
+#### 0.91.1
+
+* Casio: Fix connection issues after first pairing
+
 #### 0.91.0
 
 * Initial support for Braun iCheck 7 BPW4500 blood pressure monitor
