@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<androidx.preference.PreferenceScreen xmlns:android="http://schemas.android.com/apk/res/android">
+    <MultiSelectListPreference
+        android:defaultValue="@array/pref_f91kepler_popup_categories_default"
+        android:entries="@array/pref_f91kepler_popup_categories_entries"
+        android:entryValues="@array/pref_f91kepler_popup_categories_values"
+        android:icon="@drawable/ic_message_outline"
+        android:key="f91kepler_popup_categories"
+        android:summary="@string/pref_f91kepler_popup_categories_summary"
+        android:title="@string/pref_f91kepler_popup_categories_title" />
+</androidx.preference.PreferenceScreen>

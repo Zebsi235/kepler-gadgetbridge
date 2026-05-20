@@ -1,0 +1,57 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="45sp"
+    android:height="45sp"
+    android:viewportWidth="30"
+    android:viewportHeight="30">
+    <!-- F-91 case with orbital planet on LCD — ties to the Kepler name -->
+    <!-- Light underlay (offset down-right) — shadow stack -->
+    <path
+        android:fillColor="?attr/deviceIconLight"
+        android:pathData="M9.5 6.4h11a1.3 1.3 0 0 1 1.3 1.3v15.6a1.3 1.3 0 0 1-1.3 1.3h-11a1.3 1.3 0 0 1-1.3-1.3V7.7A1.3 1.3 0 0 1 9.5 6.4z"
+        android:strokeWidth="3.4" />
+    <!-- Dark underlay (offset up-left) -->
+    <path
+        android:fillColor="?attr/deviceIconDark"
+        android:pathData="M9.3 5.6h11a1.3 1.3 0 0 1 1.3 1.3v15.6a1.3 1.3 0 0 1-1.3 1.3h-11a1.3 1.3 0 0 1-1.3-1.3V6.9A1.3 1.3 0 0 1 9.3 5.6z"
+        android:strokeWidth="3.4" />
+    <!-- Primary case body -->
+    <path
+        android:fillColor="?attr/deviceIconPrimary"
+        android:pathData="M9.4 6h11a1.3 1.3 0 0 1 1.3 1.3v15.6a1.3 1.3 0 0 1-1.3 1.3h-11a1.3 1.3 0 0 1-1.3-1.3V7.3A1.3 1.3 0 0 1 9.4 6z"
+        android:strokeWidth="3.4" />
+    <!-- Resin strap stubs (F-91W signature) -->
+    <path
+        android:fillColor="?attr/deviceIconPrimary"
+        android:pathData="M11.5 2.4h7v3.6h-7zm0 24h7v3.2h-7z"
+        android:strokeWidth="3.4" />
+    <!-- LCD area -->
+    <path
+        android:fillColor="?attr/deviceIconOnPrimary"
+        android:pathData="M10.4 8.4h9.2v8h-9.2z"
+        android:strokeWidth="3.4" />
+    <!-- Orbital ellipse around the planet -->
+    <path
+        android:fillColor="?attr/deviceIconPrimary"
+        android:pathData="M15 10.6 a3.8 1.4 0 1 0 0.01 0 z M15 11 a3.4 1.0 0 1 1 -0.01 0 z"
+        android:strokeWidth="3.4" />
+    <!-- Planet body -->
+    <path
+        android:fillColor="?attr/deviceIconPrimary"
+        android:pathData="M15 12.4 a1 1 0 1 0 0.01 0 z"
+        android:strokeWidth="3.4" />
+    <!-- Brand strip -->
+    <path
+        android:fillColor="?attr/deviceIconOnPrimary"
+        android:pathData="M11 18.4h8v0.9h-8zm0 2.2h8v0.9h-8z"
+        android:strokeWidth="3.4" />
+    <!-- Right buttons -->
+    <path
+        android:fillColor="?attr/deviceIconDark"
+        android:pathData="M21.7 9.2h1.2v1.4h-1.2zm0 5h1.2v1.4h-1.2zm0 5h1.2v1.4h-1.2z"
+        android:strokeWidth="3.4" />
+    <!-- Left LIGHT button -->
+    <path
+        android:fillColor="?attr/deviceIconDark"
+        android:pathData="M7.1 14.2h1.2v1.4H7.1z"
+        android:strokeWidth="3.4" />
+</vector>

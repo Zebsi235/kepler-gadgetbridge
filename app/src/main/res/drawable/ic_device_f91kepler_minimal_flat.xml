@@ -1,0 +1,27 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="45sp"
+    android:height="45sp"
+    android:viewportWidth="30"
+    android:viewportHeight="30">
+    <!-- Flat single-tone F-91 silhouette, no shadow stack -->
+    <!-- Case body — single tone -->
+    <path
+        android:fillColor="?attr/deviceIconPrimary"
+        android:pathData="M9.4 6h11a1.3 1.3 0 0 1 1.3 1.3v15.6a1.3 1.3 0 0 1-1.3 1.3h-11a1.3 1.3 0 0 1-1.3-1.3V7.3A1.3 1.3 0 0 1 9.4 6z"
+        android:strokeWidth="3.4" />
+    <!-- Strap stubs -->
+    <path
+        android:fillColor="?attr/deviceIconPrimary"
+        android:pathData="M11.5 2.4h7v3.6h-7zm0 24h7v3.2h-7z"
+        android:strokeWidth="3.4" />
+    <!-- Tall LCD area, full height of case -->
+    <path
+        android:fillColor="?attr/deviceIconOnPrimary"
+        android:pathData="M10.6 8.4h8.8v13.2h-8.8z"
+        android:strokeWidth="3.4" />
+    <!-- Four-digit readout suggestion -->
+    <path
+        android:fillColor="?attr/deviceIconPrimary"
+        android:pathData="M11.4 9.6h7.2v2.2h-7.2zm0 3.2h7.2v2.2h-7.2zm0 3.2h7.2v2.2h-7.2zm0 3.2h7.2v1.8h-7.2z"
+        android:strokeWidth="3.4" />
+</vector>

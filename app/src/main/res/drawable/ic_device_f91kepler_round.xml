@@ -1,0 +1,42 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="45sp"
+    android:height="45sp"
+    android:viewportWidth="30"
+    android:viewportHeight="30">
+    <!-- Round smartwatch silhouette, totally different from the Casio look -->
+    <!-- Light underlay -->
+    <path
+        android:fillColor="?attr/deviceIconLight"
+        android:pathData="M15 6.4 a8.4 8.4 0 1 0 0.01 0 z"
+        android:strokeWidth="3.4" />
+    <!-- Dark underlay -->
+    <path
+        android:fillColor="?attr/deviceIconDark"
+        android:pathData="M15 5.6 a8.4 8.4 0 1 0 0.01 0 z"
+        android:strokeWidth="3.4" />
+    <!-- Round case body -->
+    <path
+        android:fillColor="?attr/deviceIconPrimary"
+        android:pathData="M15 6 a8.4 8.4 0 1 0 0.01 0 z"
+        android:strokeWidth="3.4" />
+    <!-- Strap stubs -->
+    <path
+        android:fillColor="?attr/deviceIconPrimary"
+        android:pathData="M11.5 1.6h7v3h-7zm0 23.8h7v3h-7z"
+        android:strokeWidth="3.4" />
+    <!-- Display face -->
+    <path
+        android:fillColor="?attr/deviceIconOnPrimary"
+        android:pathData="M15 8 a6.6 6.6 0 1 0 0.01 0 z"
+        android:strokeWidth="3.4" />
+    <!-- '91' on display -->
+    <path
+        android:fillColor="?attr/deviceIconPrimary"
+        android:pathData="M12.4 11.6h1v6.8h-1zm3 0h2.2v6.8h-2.2zm0 0h2.2v1h-2.2zm0 2.8h2.2v1h-2.2z"
+        android:strokeWidth="3.4" />
+    <!-- Crown -->
+    <path
+        android:fillColor="?attr/deviceIconDark"
+        android:pathData="M23 13.4h1.2v3.2H23z"
+        android:strokeWidth="3.4" />
+</vector>

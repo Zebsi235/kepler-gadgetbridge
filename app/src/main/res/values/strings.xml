@@ -2108,6 +2108,16 @@
     <string name="devicetype_mismartscale" translatable="false">Mi Smart Scale 2</string>
     <string name="devicetype_micompositionscale" translatable="false">Mi Body Composition Scale 2</string>
     <string name="devicetype_itag" translatable="false">iTag</string>
+    <string name="devicetype_f91kepler" translatable="false">F91 Kepler</string>
+    <string name="pref_f91kepler_dst_title">Force daylight saving</string>
+    <string name="pref_f91kepler_dst_summary">Write the DST flag to the watch even when the phone\'s timezone already includes the offset. Most users should leave this off.</string>
+    <string name="pref_f91kepler_popup_categories_title">Full-screen popups</string>
+    <string name="pref_f91kepler_popup_categories_summary">Which notification categories trigger a 5-second full-screen popup on the watch face. The bar icon updates regardless.</string>
+    <string name="pref_f91kepler_popup_category_email">Email</string>
+    <string name="pref_f91kepler_popup_category_text">Text / chat</string>
+    <string name="pref_f91kepler_popup_category_voicemail">Voicemail</string>
+    <string name="pref_f91kepler_popup_category_missedcall">Missed call</string>
+    <string name="f91kepler_find_device_message" translatable="false">⏰ Find me</string>
     <string name="devicetype_idasen" translatable="false">IKEA Idasen Desk</string>
     <string name="devicetype_bfh16" translatable="false">BFH-16</string>
     <string name="devicetype_mijia_lywsd02" translatable="false">Mijia Smart Clock</string>

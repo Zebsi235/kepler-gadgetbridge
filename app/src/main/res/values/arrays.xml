@@ -5788,4 +5788,20 @@
         <item>audio_card</item>
         <item>aux</item>
     </string-array>
+
+    <string-array name="pref_f91kepler_popup_categories_entries">
+        <item>@string/pref_f91kepler_popup_category_email</item>
+        <item>@string/pref_f91kepler_popup_category_text</item>
+        <item>@string/pref_f91kepler_popup_category_voicemail</item>
+        <item>@string/pref_f91kepler_popup_category_missedcall</item>
+    </string-array>
+    <string-array name="pref_f91kepler_popup_categories_values" translatable="false">
+        <item>email</item>
+        <item>text</item>
+        <item>voicemail</item>
+        <item>missedcall</item>
+    </string-array>
+    <string-array name="pref_f91kepler_popup_categories_default" translatable="false">
+        <item>text</item>
+    </string-array>
 </resources>
