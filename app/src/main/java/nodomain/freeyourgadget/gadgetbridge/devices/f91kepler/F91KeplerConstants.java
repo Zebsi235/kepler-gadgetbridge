@@ -41,12 +41,15 @@ public final class F91KeplerConstants {
     public static final UUID UUID_CHAR_INCOMING_TEXT = base("A2F3");
 
     // Clock Service: time (uint32 LE epoch), timezone (int16 LE seconds west),
-    // time mode (0=12h/1=24h), DST (0/1). All R/W.
+    // time mode (0=12h/1=24h), DST (0/1), alarm time (uint32 LE absolute epoch,
+    // 0=disabled), alarm enabled (0/1). All R/W.
     public static final UUID UUID_SERVICE_CLOCK = base("B2F0");
     public static final UUID UUID_CHAR_TIME = base("B2F1");
     public static final UUID UUID_CHAR_TIMEZONE = base("B2F2");
     public static final UUID UUID_CHAR_TIME_MODE = base("B2F3");
     public static final UUID UUID_CHAR_DST = base("B2F4");
+    public static final UUID UUID_CHAR_ALARM_TIME = base("B2F5");
+    public static final UUID UUID_CHAR_ALARM_ENABLED = base("B2F6");
 
     // Device Control Service: command (W) + diagnostics (R, 10 bytes).
     public static final UUID UUID_SERVICE_DEVICE_CONTROL = base("C2F0");

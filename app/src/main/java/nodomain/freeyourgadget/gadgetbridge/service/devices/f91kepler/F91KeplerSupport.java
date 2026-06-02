@@ -22,6 +22,8 @@ import org.apache.commons.lang3.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.util.ArrayList;
+import java.util.Calendar;
 import java.util.TimeZone;
 
 import nodomain.freeyourgadget.gadgetbridge.GBApplication;
@@ -29,9 +31,11 @@ import nodomain.freeyourgadget.gadgetbridge.activities.devicesettings.DeviceSett
 import nodomain.freeyourgadget.gadgetbridge.deviceevents.GBDeviceEventBatteryInfo;
 import nodomain.freeyourgadget.gadgetbridge.devices.f91kepler.F91KeplerConstants;
 import nodomain.freeyourgadget.gadgetbridge.impl.GBDevice;
+import nodomain.freeyourgadget.gadgetbridge.model.Alarm;
 import nodomain.freeyourgadget.gadgetbridge.model.CallSpec;
 import nodomain.freeyourgadget.gadgetbridge.model.NotificationSpec;
 import nodomain.freeyourgadget.gadgetbridge.model.NotificationType;
+import nodomain.freeyourgadget.gadgetbridge.util.AlarmUtils;
 import nodomain.freeyourgadget.gadgetbridge.service.btle.AbstractBTLESingleDeviceSupport;
 import nodomain.freeyourgadget.gadgetbridge.service.btle.GattService;
 import nodomain.freeyourgadget.gadgetbridge.service.btle.TransactionBuilder;
@@ -205,6 +209,43 @@ public class F91KeplerSupport extends AbstractBTLESingleDeviceSupport {
         final String name = StringUtils.firstNonBlank(callSpec.name, callSpec.number);
         final TransactionBuilder builder = createTransactionBuilder("incoming call");
         builder.write(F91KeplerConstants.UUID_CHAR_INCOMING_CALL, F91KeplerProtocol.contactName(name));
+        builder.queue();
+    }
+
+    // --- Alarms -------------------------------------------------------------
+
+    @Override
+    public void onSetAlarms(final ArrayList<? extends Alarm> alarms) {
+        // The firmware Alarm Service holds a single one-shot alarm: CHAR5
+        // AlarmTime (absolute UTC epoch, 0 = disabled) + CHAR6 AlarmEnabled.
+        // Pick the soonest enabled, in-use alarm's next occurrence; if none,
+        // disable. (The watch auto-disables after firing, so a repeating alarm
+        // effectively fires once until Gadgetbridge re-syncs — recurring is a
+        // firmware follow-up, see FW91 #73.)
+        Calendar soonest = null;
+        for (final Alarm alarm : alarms) {
+            if (alarm == null || alarm.getUnused() || !alarm.getEnabled()) {
+                continue;
+            }
+            final Calendar next = AlarmUtils.toCalendar(alarm); // next h:m, rolls to tomorrow if past
+            if (soonest == null || next.before(soonest)) {
+                soonest = next;
+            }
+        }
+
+        final TransactionBuilder builder = createTransactionBuilder("set alarms");
+        if (soonest == null) {
+            builder.write(F91KeplerConstants.UUID_CHAR_ALARM_ENABLED, F91KeplerProtocol.alarmEnabled(false));
+            builder.write(F91KeplerConstants.UUID_CHAR_ALARM_TIME, F91KeplerProtocol.alarmTime(0L));
+        } else {
+            // Write the time first, then enable: the firmware only arms when
+            // AlarmEnabled && AlarmTime != 0. getTimeInMillis() is UTC, matching
+            // the watch's UTC clock.
+            final long epochSeconds = soonest.getTimeInMillis() / 1000L;
+            builder.write(F91KeplerConstants.UUID_CHAR_ALARM_TIME, F91KeplerProtocol.alarmTime(epochSeconds));
+            builder.write(F91KeplerConstants.UUID_CHAR_ALARM_ENABLED, F91KeplerProtocol.alarmEnabled(true));
+            LOG.debug("F91 alarm armed for {} (epoch {})", soonest.getTime(), epochSeconds);
+        }
         builder.queue();
     }
 

@@ -67,6 +67,23 @@ final class F91KeplerProtocol {
     }
 
     /**
+     * Alarm time characteristic: absolute next-fire Unix epoch seconds as uint32
+     * little-endian (4 bytes); 0 = disabled. Same wire format as {@link #time},
+     * and compared against the watch's UTC clock, so this must be a UTC epoch.
+     */
+    static byte[] alarmTime(final long epochSeconds) {
+        return ByteBuffer.allocate(4)
+                .order(ByteOrder.LITTLE_ENDIAN)
+                .putInt((int) (epochSeconds & 0xFFFFFFFFL))
+                .array();
+    }
+
+    /** Alarm enabled characteristic: 0x00 = off, 0x01 = on. */
+    static byte[] alarmEnabled(final boolean enabled) {
+        return new byte[]{(byte) (enabled ? 0x01 : 0x00)};
+    }
+
+    /**
      * Incoming Call / Incoming Text name: raw UTF-8, no length prefix, no null
      * terminator, truncated to {@link F91KeplerConstants#CONTACT_NAME_MAX_BYTES}
      * without splitting a multi-byte codepoint mid-sequence.
