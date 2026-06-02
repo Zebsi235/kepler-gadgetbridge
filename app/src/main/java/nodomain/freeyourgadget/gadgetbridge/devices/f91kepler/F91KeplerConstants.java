@@ -56,6 +56,23 @@ public final class F91KeplerConstants {
     public static final UUID UUID_CHAR_DEVICE_COMMAND = base("C2F1");
     public static final UUID UUID_CHAR_DIAGNOSTICS = base("C2F2");
 
+    // Weather Service (firmware P4): temperature (int8, already in the user's
+    // unit -- the watch shows a bare integer + degree mark) + condition enum.
+    // Both write-only.
+    public static final UUID UUID_SERVICE_WEATHER = base("E2F0");
+    public static final UUID UUID_CHAR_WEATHER_TEMP = base("E2F1");
+    public static final UUID UUID_CHAR_WEATHER_CONDITION = base("E2F2");
+
+    // Weather condition enum, 1:1 with the firmware's f91_weather.h / icon table.
+    public static final int WX_SUN = 0;
+    public static final int WX_HALF_SUN = 1;   // partly cloudy
+    public static final int WX_CLOUD = 2;
+    public static final int WX_RAIN = 3;
+    public static final int WX_HEAVY_RAIN = 4;
+    public static final int WX_SNOW = 5;
+    public static final int WX_STORM = 6;
+    public static final int WX_FOG = 7;
+
     // Device Control command codes (f91_device_control_service.h).
     public static final byte CMD_RESET = 0x01;
     public static final byte CMD_DISPLAY_ON = 0x10;

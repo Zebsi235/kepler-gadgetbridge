@@ -119,4 +119,40 @@ final class F91KeplerProtocol {
         }
         return out.toByteArray();
     }
+
+    /**
+     * Weather Temperature characteristic: a single signed byte, already in the
+     * user's display unit (Gadgetbridge converts C/F; the watch shows a bare
+     * integer + degree mark). Clamped to the int8 range.
+     */
+    static byte[] weatherTemperature(final int tempInUnit) {
+        final int clamped = Math.max(-128, Math.min(127, tempInUnit));
+        return new byte[]{(byte) clamped};
+    }
+
+    /** Weather Condition characteristic: a single byte 0..7 (clamped). */
+    static byte[] weatherCondition(final int cond) {
+        final int clamped = Math.max(0, Math.min(7, cond));
+        return new byte[]{(byte) clamped};
+    }
+
+    /**
+     * Map an OpenWeatherMap condition code (group by hundreds) to the watch's
+     * 0..7 condition enum (see F91KeplerConstants.WX_*).
+     */
+    static int owmToCondition(final int owm) {
+        switch (owm / 100) {
+            case 2:  return F91KeplerConstants.WX_STORM;       // 2xx thunderstorm
+            case 3:  return F91KeplerConstants.WX_RAIN;        // 3xx drizzle
+            case 5:  return (owm <= 501) ? F91KeplerConstants.WX_RAIN
+                                         : F91KeplerConstants.WX_HEAVY_RAIN; // 5xx rain
+            case 6:  return F91KeplerConstants.WX_SNOW;        // 6xx snow
+            case 7:  return F91KeplerConstants.WX_FOG;         // 7xx atmosphere (mist/fog/haze)
+            case 8:
+                if (owm == 800) return F91KeplerConstants.WX_SUN;            // clear
+                if (owm == 801 || owm == 802) return F91KeplerConstants.WX_HALF_SUN; // few/scattered
+                return F91KeplerConstants.WX_CLOUD;            // broken/overcast
+            default: return F91KeplerConstants.WX_CLOUD;
+        }
+    }
 }

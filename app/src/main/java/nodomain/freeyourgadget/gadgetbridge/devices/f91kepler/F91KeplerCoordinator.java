@@ -73,6 +73,13 @@ public class F91KeplerCoordinator extends AbstractBLEDeviceCoordinator {
     }
 
     @Override
+    public boolean supportsWeather(@NonNull final GBDevice device) {
+        // Firmware Weather Service (E2F0): F91KeplerSupport.onSendWeather pushes
+        // the current temperature (user's unit) + condition enum. Screen-os P4.
+        return true;
+    }
+
+    @Override
     public int getAlarmSlotCount(final GBDevice device) {
         // The firmware Alarm Service holds a single one-shot alarm
         // (CHAR5 AlarmTime + CHAR6 AlarmEnabled). See F91KeplerSupport#onSetAlarms.

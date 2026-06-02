@@ -83,4 +83,32 @@ public class F91KeplerProtocolTest {
         // Decodes cleanly back to 10 'ä' with no replacement char.
         assertEquals("ääääääääää", new String(out, StandardCharsets.UTF_8));
     }
+
+    @Test
+    public void weatherTemperature_isSignedByteClampedToInt8() {
+        assertArrayEquals(new byte[]{23}, F91KeplerProtocol.weatherTemperature(23));
+        assertArrayEquals(new byte[]{(byte) -5}, F91KeplerProtocol.weatherTemperature(-5));
+        assertArrayEquals(new byte[]{127}, F91KeplerProtocol.weatherTemperature(200));    // clamp high
+        assertArrayEquals(new byte[]{(byte) -128}, F91KeplerProtocol.weatherTemperature(-200)); // clamp low
+    }
+
+    @Test
+    public void weatherCondition_clampsToEnumRange() {
+        assertArrayEquals(new byte[]{0}, F91KeplerProtocol.weatherCondition(0));
+        assertArrayEquals(new byte[]{7}, F91KeplerProtocol.weatherCondition(7));
+        assertArrayEquals(new byte[]{7}, F91KeplerProtocol.weatherCondition(99)); // out of range
+    }
+
+    @Test
+    public void owmToCondition_mapsGroupsToWatchEnum() {
+        assertEquals(F91KeplerConstants.WX_STORM, F91KeplerProtocol.owmToCondition(211));
+        assertEquals(F91KeplerConstants.WX_RAIN, F91KeplerProtocol.owmToCondition(300));
+        assertEquals(F91KeplerConstants.WX_RAIN, F91KeplerProtocol.owmToCondition(500));
+        assertEquals(F91KeplerConstants.WX_HEAVY_RAIN, F91KeplerProtocol.owmToCondition(502));
+        assertEquals(F91KeplerConstants.WX_SNOW, F91KeplerProtocol.owmToCondition(601));
+        assertEquals(F91KeplerConstants.WX_FOG, F91KeplerProtocol.owmToCondition(741));
+        assertEquals(F91KeplerConstants.WX_SUN, F91KeplerProtocol.owmToCondition(800));
+        assertEquals(F91KeplerConstants.WX_HALF_SUN, F91KeplerProtocol.owmToCondition(801));
+        assertEquals(F91KeplerConstants.WX_CLOUD, F91KeplerProtocol.owmToCondition(804));
+    }
 }

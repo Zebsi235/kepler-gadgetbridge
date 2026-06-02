@@ -36,6 +36,8 @@ import nodomain.freeyourgadget.gadgetbridge.model.Alarm;
 import nodomain.freeyourgadget.gadgetbridge.model.CallSpec;
 import nodomain.freeyourgadget.gadgetbridge.model.NotificationSpec;
 import nodomain.freeyourgadget.gadgetbridge.model.NotificationType;
+import nodomain.freeyourgadget.gadgetbridge.model.WeatherSpec;
+import nodomain.freeyourgadget.gadgetbridge.model.weather.Weather;
 import nodomain.freeyourgadget.gadgetbridge.util.AlarmUtils;
 import nodomain.freeyourgadget.gadgetbridge.service.btle.AbstractBTLESingleDeviceSupport;
 import nodomain.freeyourgadget.gadgetbridge.service.btle.GattService;
@@ -73,6 +75,7 @@ public class F91KeplerSupport extends AbstractBTLESingleDeviceSupport {
         addSupportedService(F91KeplerConstants.UUID_SERVICE_NOTIFICATION);
         addSupportedService(F91KeplerConstants.UUID_SERVICE_CLOCK);
         addSupportedService(F91KeplerConstants.UUID_SERVICE_DEVICE_CONTROL);
+        addSupportedService(F91KeplerConstants.UUID_SERVICE_WEATHER);
         addSupportedService(GattService.UUID_SERVICE_BATTERY_SERVICE);
         addSupportedService(GattService.UUID_SERVICE_DEVICE_INFORMATION);
 
@@ -239,6 +242,32 @@ public class F91KeplerSupport extends AbstractBTLESingleDeviceSupport {
         final TransactionBuilder builder = createTransactionBuilder("incoming call");
         builder.write(F91KeplerConstants.UUID_CHAR_INCOMING_CALL, F91KeplerProtocol.contactName(name));
         builder.queue();
+    }
+
+    // --- Weather ------------------------------------------------------------
+
+    @Override
+    public void onSendWeather() {
+        final WeatherSpec weatherSpec = Weather.getWeatherSpec();
+        if (weatherSpec == null) {
+            return;
+        }
+        // GB stores temperatures in Kelvin; the watch shows a bare integer in the
+        // user's unit (no C/F letter on the face), so convert here per the
+        // measurement-system preference.
+        final double kelvin = weatherSpec.getCurrentTemp();
+        final int celsius = (int) Math.round(kelvin - 273.15);
+        final int temp = useFahrenheit() ? (int) Math.round(celsius * 9.0 / 5.0 + 32.0) : celsius;
+        final int cond = F91KeplerProtocol.owmToCondition(weatherSpec.getCurrentConditionCode());
+
+        final TransactionBuilder builder = createTransactionBuilder("send weather");
+        builder.write(F91KeplerConstants.UUID_CHAR_WEATHER_TEMP, F91KeplerProtocol.weatherTemperature(temp));
+        builder.write(F91KeplerConstants.UUID_CHAR_WEATHER_CONDITION, F91KeplerProtocol.weatherCondition(cond));
+        builder.queue();
+    }
+
+    private boolean useFahrenheit() {
+        return "imperial".equals(GBApplication.getPrefs().getString("measurement_system", "metric"));
     }
 
     // --- Alarms -------------------------------------------------------------
