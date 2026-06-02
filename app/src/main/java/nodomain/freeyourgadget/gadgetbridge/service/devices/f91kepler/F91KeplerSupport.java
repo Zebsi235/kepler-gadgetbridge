@@ -29,6 +29,7 @@ import java.util.TimeZone;
 import nodomain.freeyourgadget.gadgetbridge.GBApplication;
 import nodomain.freeyourgadget.gadgetbridge.activities.devicesettings.DeviceSettingsPreferenceConst;
 import nodomain.freeyourgadget.gadgetbridge.deviceevents.GBDeviceEventBatteryInfo;
+import nodomain.freeyourgadget.gadgetbridge.deviceevents.GBDeviceEventVersionInfo;
 import nodomain.freeyourgadget.gadgetbridge.devices.f91kepler.F91KeplerConstants;
 import nodomain.freeyourgadget.gadgetbridge.impl.GBDevice;
 import nodomain.freeyourgadget.gadgetbridge.model.Alarm;
@@ -42,6 +43,8 @@ import nodomain.freeyourgadget.gadgetbridge.service.btle.TransactionBuilder;
 import nodomain.freeyourgadget.gadgetbridge.service.btle.profiles.IntentListener;
 import nodomain.freeyourgadget.gadgetbridge.service.btle.profiles.battery.BatteryInfo;
 import nodomain.freeyourgadget.gadgetbridge.service.btle.profiles.battery.BatteryInfoProfile;
+import nodomain.freeyourgadget.gadgetbridge.service.btle.profiles.deviceinfo.DeviceInfo;
+import nodomain.freeyourgadget.gadgetbridge.service.btle.profiles.deviceinfo.DeviceInfoProfile;
 
 /**
  * Talks the F91 Kepler's native GATT services (see {@link F91KeplerConstants}).
@@ -60,7 +63,9 @@ public class F91KeplerSupport extends AbstractBTLESingleDeviceSupport {
     private static final Logger LOG = LoggerFactory.getLogger(F91KeplerSupport.class);
 
     private final GBDeviceEventBatteryInfo batteryCmd = new GBDeviceEventBatteryInfo();
+    private final GBDeviceEventVersionInfo versionCmd = new GBDeviceEventVersionInfo();
     private final BatteryInfoProfile<F91KeplerSupport> batteryInfoProfile;
+    private final DeviceInfoProfile<F91KeplerSupport> deviceInfoProfile;
     private final F91KeplerNotificationTracker notificationTracker = new F91KeplerNotificationTracker();
 
     public F91KeplerSupport() {
@@ -69,6 +74,7 @@ public class F91KeplerSupport extends AbstractBTLESingleDeviceSupport {
         addSupportedService(F91KeplerConstants.UUID_SERVICE_CLOCK);
         addSupportedService(F91KeplerConstants.UUID_SERVICE_DEVICE_CONTROL);
         addSupportedService(GattService.UUID_SERVICE_BATTERY_SERVICE);
+        addSupportedService(GattService.UUID_SERVICE_DEVICE_INFORMATION);
 
         final IntentListener batteryListener = intent -> {
             if (BatteryInfoProfile.ACTION_BATTERY_INFO.equals(intent.getAction())) {
@@ -78,6 +84,15 @@ public class F91KeplerSupport extends AbstractBTLESingleDeviceSupport {
         batteryInfoProfile = new BatteryInfoProfile<>(this);
         batteryInfoProfile.addListener(batteryListener);
         addSupportedProfile(batteryInfoProfile);
+
+        final IntentListener deviceInfoListener = intent -> {
+            if (DeviceInfoProfile.ACTION_DEVICE_INFO.equals(intent.getAction())) {
+                handleDeviceInfo(intent.getParcelableExtra(DeviceInfoProfile.EXTRA_DEVICE_INFO));
+            }
+        };
+        deviceInfoProfile = new DeviceInfoProfile<>(this);
+        deviceInfoProfile.addListener(deviceInfoListener);
+        addSupportedProfile(deviceInfoProfile);
     }
 
     @Override
@@ -93,6 +108,7 @@ public class F91KeplerSupport extends AbstractBTLESingleDeviceSupport {
         }
         addTimeMode(builder);
         addDst(builder);
+        deviceInfoProfile.requestDeviceInfo(builder);
         builder.setDeviceState(GBDevice.State.INITIALIZED);
         batteryInfoProfile.requestBatteryInfo(builder);
         batteryInfoProfile.enableNotify(builder, true);
@@ -105,6 +121,19 @@ public class F91KeplerSupport extends AbstractBTLESingleDeviceSupport {
         }
         batteryCmd.level = (short) info.getPercentCharged();
         handleGBDeviceEvent(batteryCmd);
+    }
+
+    private void handleDeviceInfo(final DeviceInfo info) {
+        if (info == null) {
+            return;
+        }
+        // The firmware DIS exposes the firmware-revision string (0x2A26) only;
+        // hardware revision is absent, so leave versionCmd.hwVersion at its default.
+        final String fw = info.getFirmwareRevision();
+        if (fw != null) {
+            versionCmd.fwVersion = fw;
+        }
+        handleGBDeviceEvent(versionCmd);
     }
 
     // --- Time ---------------------------------------------------------------
