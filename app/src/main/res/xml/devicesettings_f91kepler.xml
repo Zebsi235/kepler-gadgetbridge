@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<androidx.preference.PreferenceScreen xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <SwitchPreferenceCompat
+        android:defaultValue="false"
+        android:key="f91_dst"
+        android:summary="@string/f91_pref_summary_dst"
+        android:title="@string/f91_pref_title_dst" />
+
+    <SwitchPreferenceCompat
+        android:defaultValue="false"
+        android:key="f91_notification_popup"
+        android:summary="@string/f91_pref_summary_notification_popup"
+        android:title="@string/f91_pref_title_notification_popup" />
+
+</androidx.preference.PreferenceScreen>

@@ -56,6 +56,7 @@ import nodomain.freeyourgadget.gadgetbridge.devices.earfun.EarFunAirSCoordinator
 import nodomain.freeyourgadget.gadgetbridge.devices.evenrealities.G1DeviceCoordinator;
 import nodomain.freeyourgadget.gadgetbridge.devices.femometer.FemometerVinca2DeviceCoordinator;
 import nodomain.freeyourgadget.gadgetbridge.devices.fitpro.FitProDeviceCoordinator;
+import nodomain.freeyourgadget.gadgetbridge.devices.f91kepler.F91KeplerCoordinator;
 import nodomain.freeyourgadget.gadgetbridge.devices.fitpro.colacao.ColaCao21Coordinator;
 import nodomain.freeyourgadget.gadgetbridge.devices.fitpro.colacao.ColaCao23Coordinator;
 import nodomain.freeyourgadget.gadgetbridge.devices.flipper.zero.FlipperZeroCoordinator;
@@ -638,6 +639,7 @@ public enum DeviceType {
     BOHEMIC_SMART_BRACELET(BohemicSmartBraceletDeviceCoordinator.class),
     SMAQ2OSS(SMAQ2OSSCoordinator.class),
     FITPRO(FitProDeviceCoordinator.class),
+    F91_KEPLER(F91KeplerCoordinator.class),
     COLACAO21(ColaCao21Coordinator.class),
     COLACAO23(ColaCao23Coordinator.class),
     LAXASFIT_Q11(LaxasFitCoordinator.class),

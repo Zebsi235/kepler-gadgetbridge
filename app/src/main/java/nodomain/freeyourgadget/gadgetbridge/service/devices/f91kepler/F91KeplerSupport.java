@@ -1,0 +1,255 @@
+/*  Copyright (C) 2026 Zebsi235
+
+    This file is part of Gadgetbridge.
+
+    Gadgetbridge is free software: you can redistribute it and/or modify
+    it under the terms of the GNU Affero General Public License as published
+    by the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    Gadgetbridge is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU Affero General Public License for more details.
+
+    You should have received a copy of the GNU Affero General Public License
+    along with this program.  If not, see <https://www.gnu.org/licenses/>. */
+package nodomain.freeyourgadget.gadgetbridge.service.devices.f91kepler;
+
+import android.text.format.DateFormat;
+
+import org.apache.commons.lang3.StringUtils;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+import java.util.TimeZone;
+
+import nodomain.freeyourgadget.gadgetbridge.GBApplication;
+import nodomain.freeyourgadget.gadgetbridge.activities.devicesettings.DeviceSettingsPreferenceConst;
+import nodomain.freeyourgadget.gadgetbridge.deviceevents.GBDeviceEventBatteryInfo;
+import nodomain.freeyourgadget.gadgetbridge.devices.f91kepler.F91KeplerConstants;
+import nodomain.freeyourgadget.gadgetbridge.impl.GBDevice;
+import nodomain.freeyourgadget.gadgetbridge.model.CallSpec;
+import nodomain.freeyourgadget.gadgetbridge.model.NotificationSpec;
+import nodomain.freeyourgadget.gadgetbridge.model.NotificationType;
+import nodomain.freeyourgadget.gadgetbridge.service.btle.AbstractBTLESingleDeviceSupport;
+import nodomain.freeyourgadget.gadgetbridge.service.btle.GattService;
+import nodomain.freeyourgadget.gadgetbridge.service.btle.TransactionBuilder;
+import nodomain.freeyourgadget.gadgetbridge.service.btle.profiles.IntentListener;
+import nodomain.freeyourgadget.gadgetbridge.service.btle.profiles.battery.BatteryInfo;
+import nodomain.freeyourgadget.gadgetbridge.service.btle.profiles.battery.BatteryInfoProfile;
+
+/**
+ * Talks the F91 Kepler's native GATT services (see {@link F91KeplerConstants}).
+ * Maps Gadgetbridge's callbacks onto the watch's capabilities:
+ * <ul>
+ *   <li>{@link #onSetTime()} → Time + TimeZone characteristics</li>
+ *   <li>{@link #onNotification} / {@link #onDeleteNotification} → bar bitmask
+ *       (+ optional sender popup)</li>
+ *   <li>{@link #onSetCallState} → incoming-call popup</li>
+ *   <li>battery → standard Battery Service (read + notify)</li>
+ *   <li>{@link #onFindDevice} → flash the display, {@link #onReset} → reboot</li>
+ *   <li>{@link #onSendConfiguration} → 12/24h time mode + DST flag</li>
+ * </ul>
+ */
+public class F91KeplerSupport extends AbstractBTLESingleDeviceSupport {
+    private static final Logger LOG = LoggerFactory.getLogger(F91KeplerSupport.class);
+
+    private final GBDeviceEventBatteryInfo batteryCmd = new GBDeviceEventBatteryInfo();
+    private final BatteryInfoProfile<F91KeplerSupport> batteryInfoProfile;
+    private final F91KeplerNotificationTracker notificationTracker = new F91KeplerNotificationTracker();
+
+    public F91KeplerSupport() {
+        super(LOG);
+        addSupportedService(F91KeplerConstants.UUID_SERVICE_NOTIFICATION);
+        addSupportedService(F91KeplerConstants.UUID_SERVICE_CLOCK);
+        addSupportedService(F91KeplerConstants.UUID_SERVICE_DEVICE_CONTROL);
+        addSupportedService(GattService.UUID_SERVICE_BATTERY_SERVICE);
+
+        final IntentListener batteryListener = intent -> {
+            if (BatteryInfoProfile.ACTION_BATTERY_INFO.equals(intent.getAction())) {
+                handleBatteryInfo(intent.getParcelableExtra(BatteryInfoProfile.EXTRA_BATTERY_INFO));
+            }
+        };
+        batteryInfoProfile = new BatteryInfoProfile<>(this);
+        batteryInfoProfile.addListener(batteryListener);
+        addSupportedProfile(batteryInfoProfile);
+    }
+
+    @Override
+    public boolean useAutoConnect() {
+        return false;
+    }
+
+    @Override
+    protected TransactionBuilder initializeDevice(final TransactionBuilder builder) {
+        builder.setDeviceState(GBDevice.State.INITIALIZING);
+        if (GBApplication.getPrefs().syncTime()) {
+            addSetTime(builder);
+        }
+        addTimeMode(builder);
+        addDst(builder);
+        builder.setDeviceState(GBDevice.State.INITIALIZED);
+        batteryInfoProfile.requestBatteryInfo(builder);
+        batteryInfoProfile.enableNotify(builder, true);
+        return builder;
+    }
+
+    private void handleBatteryInfo(final BatteryInfo info) {
+        if (info == null) {
+            return;
+        }
+        batteryCmd.level = (short) info.getPercentCharged();
+        handleGBDeviceEvent(batteryCmd);
+    }
+
+    // --- Time ---------------------------------------------------------------
+
+    @Override
+    public void onSetTime() {
+        final TransactionBuilder builder = createTransactionBuilder("set time");
+        addSetTime(builder);
+        builder.queue();
+    }
+
+    private void addSetTime(final TransactionBuilder builder) {
+        final long nowMillis = System.currentTimeMillis();
+        // Java's getOffset() returns ms EAST of UTC (incl. DST); firmware stores
+        // signed seconds WEST of UTC, so negate. Mirrors the companion app's
+        // TimeSyncScheduler — the convention this firmware renders correctly.
+        final int secondsWest = -(TimeZone.getDefault().getOffset(nowMillis) / 1000);
+        builder.write(F91KeplerConstants.UUID_CHAR_TIME, F91KeplerProtocol.time(nowMillis / 1000L));
+        builder.write(F91KeplerConstants.UUID_CHAR_TIMEZONE, F91KeplerProtocol.timezoneWest(secondsWest));
+    }
+
+    private void addTimeMode(final TransactionBuilder builder) {
+        builder.write(F91KeplerConstants.UUID_CHAR_TIME_MODE, F91KeplerProtocol.timeMode(is24HourMode()));
+    }
+
+    private void addDst(final TransactionBuilder builder) {
+        final boolean dst = GBApplication.getDeviceSpecificSharedPrefs(getDevice().getAddress())
+                .getBoolean(F91KeplerConstants.PREF_DST, false);
+        builder.write(F91KeplerConstants.UUID_CHAR_DST, F91KeplerProtocol.dst(dst));
+    }
+
+    private boolean is24HourMode() {
+        final String pref = GBApplication.getDeviceSpecificSharedPrefs(getDevice().getAddress())
+                .getString(DeviceSettingsPreferenceConst.PREF_TIMEFORMAT,
+                        DeviceSettingsPreferenceConst.PREF_TIMEFORMAT_AUTO);
+        if (DeviceSettingsPreferenceConst.PREF_TIMEFORMAT_24H.equals(pref)) {
+            return true;
+        }
+        if (DeviceSettingsPreferenceConst.PREF_TIMEFORMAT_12H.equals(pref)) {
+            return false;
+        }
+        return DateFormat.is24HourFormat(getContext());
+    }
+
+    // --- Notifications ------------------------------------------------------
+
+    @Override
+    public void onNotification(final NotificationSpec notificationSpec) {
+        final F91KeplerNotificationTracker.Category category = categorize(notificationSpec);
+        notificationTracker.add(notificationSpec.getId(), category);
+
+        final TransactionBuilder builder = createTransactionBuilder("notification");
+        builder.write(F91KeplerConstants.UUID_CHAR_NOTIFICATION_BAR, notificationTracker.bitmask());
+
+        if (isNotificationPopupEnabled()) {
+            final String sender = StringUtils.firstNonBlank(
+                    notificationSpec.sender, notificationSpec.title, notificationSpec.sourceName);
+            if (StringUtils.isNotBlank(sender)) {
+                builder.write(F91KeplerConstants.UUID_CHAR_INCOMING_TEXT, F91KeplerProtocol.contactName(sender));
+            }
+        }
+        builder.queue();
+    }
+
+    @Override
+    public void onDeleteNotification(final int id) {
+        notificationTracker.remove(id);
+        final TransactionBuilder builder = createTransactionBuilder("delete notification");
+        builder.write(F91KeplerConstants.UUID_CHAR_NOTIFICATION_BAR, notificationTracker.bitmask());
+        builder.queue();
+    }
+
+    private static F91KeplerNotificationTracker.Category categorize(final NotificationSpec spec) {
+        final NotificationType type = spec.type;
+        if (type == null) {
+            return F91KeplerNotificationTracker.Category.TEXT;
+        }
+        if (type == NotificationType.GENERIC_EMAIL || type.name().contains("MAIL")) {
+            return F91KeplerNotificationTracker.Category.EMAIL;
+        }
+        if (type == NotificationType.GENERIC_PHONE) {
+            // Live calls arrive via onSetCallState; a GENERIC_PHONE notification
+            // is typically a missed-call / voicemail alert.
+            return F91KeplerNotificationTracker.Category.MISSED_CALL;
+        }
+        return F91KeplerNotificationTracker.Category.TEXT;
+    }
+
+    private boolean isNotificationPopupEnabled() {
+        return GBApplication.getDeviceSpecificSharedPrefs(getDevice().getAddress())
+                .getBoolean(F91KeplerConstants.PREF_NOTIFICATION_POPUP, false);
+    }
+
+    // --- Calls --------------------------------------------------------------
+
+    @Override
+    public void onSetCallState(final CallSpec callSpec) {
+        if (callSpec.command != CallSpec.CALL_INCOMING) {
+            // The watch auto-clears the popup after ~5s; nothing to do on accept/end.
+            return;
+        }
+        final String name = StringUtils.firstNonBlank(callSpec.name, callSpec.number);
+        final TransactionBuilder builder = createTransactionBuilder("incoming call");
+        builder.write(F91KeplerConstants.UUID_CHAR_INCOMING_CALL, F91KeplerProtocol.contactName(name));
+        builder.queue();
+    }
+
+    // --- Device control -----------------------------------------------------
+
+    @Override
+    public void onFindDevice(final boolean start) {
+        final TransactionBuilder builder = createTransactionBuilder("find device");
+        if (start) {
+            // rev-A has no buzzer; the closest "find" signal is lighting the OLED.
+            builder.write(F91KeplerConstants.UUID_CHAR_DEVICE_COMMAND, F91KeplerConstants.CMD_DISPLAY_ON);
+            builder.write(F91KeplerConstants.UUID_CHAR_DEVICE_COMMAND, F91KeplerConstants.CMD_DISPLAY_TEST_TEXT);
+        } else {
+            builder.write(F91KeplerConstants.UUID_CHAR_DEVICE_COMMAND, F91KeplerConstants.CMD_DISPLAY_OFF);
+        }
+        builder.queue();
+    }
+
+    @Override
+    public void onReset(final int flags) {
+        final TransactionBuilder builder = createTransactionBuilder("reset");
+        builder.write(F91KeplerConstants.UUID_CHAR_DEVICE_COMMAND, F91KeplerConstants.CMD_RESET);
+        builder.queue();
+    }
+
+    // --- Settings -----------------------------------------------------------
+
+    @Override
+    public void onSendConfiguration(final String config) {
+        super.onSendConfiguration(config);
+        switch (config) {
+            case DeviceSettingsPreferenceConst.PREF_TIMEFORMAT: {
+                final TransactionBuilder builder = createTransactionBuilder("set time mode");
+                addTimeMode(builder);
+                builder.queue();
+                break;
+            }
+            case F91KeplerConstants.PREF_DST: {
+                final TransactionBuilder builder = createTransactionBuilder("set dst");
+                addDst(builder);
+                builder.queue();
+                break;
+            }
+            default:
+                break;
+        }
+    }
+}
