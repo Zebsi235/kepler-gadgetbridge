@@ -21,6 +21,7 @@ import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.nio.charset.StandardCharsets;
 
+import nodomain.freeyourgadget.gadgetbridge.deviceevents.GBDeviceEventMusicControl;
 import nodomain.freeyourgadget.gadgetbridge.devices.f91kepler.F91KeplerConstants;
 
 /**
@@ -153,6 +154,20 @@ final class F91KeplerProtocol {
                 if (owm == 801 || owm == 802) return F91KeplerConstants.WX_HALF_SUN; // few/scattered
                 return F91KeplerConstants.WX_CLOUD;            // broken/overcast
             default: return F91KeplerConstants.WX_CLOUD;
+        }
+    }
+
+    /**
+     * Decode a PlaybackCmd notification byte (Music Control service, D2F1) into a
+     * media-control event. Returns {@link GBDeviceEventMusicControl.Event#UNKNOWN}
+     * for any unrecognized value so the caller can ignore it.
+     */
+    static GBDeviceEventMusicControl.Event musicCommand(final byte cmd) {
+        switch (cmd) {
+            case F91KeplerConstants.MUSIC_CMD_PLAY_PAUSE: return GBDeviceEventMusicControl.Event.PLAYPAUSE;
+            case F91KeplerConstants.MUSIC_CMD_NEXT:       return GBDeviceEventMusicControl.Event.NEXT;
+            case F91KeplerConstants.MUSIC_CMD_PREV:       return GBDeviceEventMusicControl.Event.PREVIOUS;
+            default:                                      return GBDeviceEventMusicControl.Event.UNKNOWN;
         }
     }
 }

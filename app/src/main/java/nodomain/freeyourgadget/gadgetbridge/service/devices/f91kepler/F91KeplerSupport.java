@@ -16,6 +16,8 @@
     along with this program.  If not, see <https://www.gnu.org/licenses/>. */
 package nodomain.freeyourgadget.gadgetbridge.service.devices.f91kepler;
 
+import android.bluetooth.BluetoothGatt;
+import android.bluetooth.BluetoothGattCharacteristic;
 import android.text.format.DateFormat;
 
 import org.apache.commons.lang3.StringUtils;
@@ -29,6 +31,7 @@ import java.util.TimeZone;
 import nodomain.freeyourgadget.gadgetbridge.GBApplication;
 import nodomain.freeyourgadget.gadgetbridge.activities.devicesettings.DeviceSettingsPreferenceConst;
 import nodomain.freeyourgadget.gadgetbridge.deviceevents.GBDeviceEventBatteryInfo;
+import nodomain.freeyourgadget.gadgetbridge.deviceevents.GBDeviceEventMusicControl;
 import nodomain.freeyourgadget.gadgetbridge.deviceevents.GBDeviceEventVersionInfo;
 import nodomain.freeyourgadget.gadgetbridge.devices.f91kepler.F91KeplerConstants;
 import nodomain.freeyourgadget.gadgetbridge.impl.GBDevice;
@@ -76,6 +79,7 @@ public class F91KeplerSupport extends AbstractBTLESingleDeviceSupport {
         addSupportedService(F91KeplerConstants.UUID_SERVICE_CLOCK);
         addSupportedService(F91KeplerConstants.UUID_SERVICE_DEVICE_CONTROL);
         addSupportedService(F91KeplerConstants.UUID_SERVICE_WEATHER);
+        addSupportedService(F91KeplerConstants.UUID_SERVICE_MUSIC);
         addSupportedService(GattService.UUID_SERVICE_BATTERY_SERVICE);
         addSupportedService(GattService.UUID_SERVICE_DEVICE_INFORMATION);
 
@@ -115,7 +119,30 @@ public class F91KeplerSupport extends AbstractBTLESingleDeviceSupport {
         builder.setDeviceState(GBDevice.State.INITIALIZED);
         batteryInfoProfile.requestBatteryInfo(builder);
         batteryInfoProfile.enableNotify(builder, true);
+        // Subscribe to the Music Control PlaybackCmd notify (P6): the watch is a
+        // media remote, so each button press arrives as a notification.
+        builder.notify(F91KeplerConstants.UUID_CHAR_MUSIC_CMD, true);
         return builder;
+    }
+
+    /**
+     * The watch's Music screen pushes a playback command over the Music Control
+     * notify (D2F1). Translate it into a media-control event for the active media
+     * player. Other notifications fall through to the base handler.
+     */
+    @Override
+    public boolean onCharacteristicChanged(final BluetoothGatt gatt,
+                                           final BluetoothGattCharacteristic characteristic,
+                                           final byte[] value) {
+        if (F91KeplerConstants.UUID_CHAR_MUSIC_CMD.equals(characteristic.getUuid())
+                && value != null && value.length >= 1) {
+            final GBDeviceEventMusicControl.Event event = F91KeplerProtocol.musicCommand(value[0]);
+            if (event != GBDeviceEventMusicControl.Event.UNKNOWN) {
+                handleGBDeviceEvent(new GBDeviceEventMusicControl(event));
+                return true;
+            }
+        }
+        return super.onCharacteristicChanged(gatt, characteristic, value);
     }
 
     private void handleBatteryInfo(final BatteryInfo info) {

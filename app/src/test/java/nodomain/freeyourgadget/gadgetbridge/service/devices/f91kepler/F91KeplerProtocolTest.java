@@ -23,6 +23,7 @@ import org.junit.Test;
 
 import java.nio.charset.StandardCharsets;
 
+import nodomain.freeyourgadget.gadgetbridge.deviceevents.GBDeviceEventMusicControl;
 import nodomain.freeyourgadget.gadgetbridge.devices.f91kepler.F91KeplerConstants;
 
 /**
@@ -110,5 +111,21 @@ public class F91KeplerProtocolTest {
         assertEquals(F91KeplerConstants.WX_SUN, F91KeplerProtocol.owmToCondition(800));
         assertEquals(F91KeplerConstants.WX_HALF_SUN, F91KeplerProtocol.owmToCondition(801));
         assertEquals(F91KeplerConstants.WX_CLOUD, F91KeplerProtocol.owmToCondition(804));
+    }
+
+    @Test
+    public void musicCommand_mapsPlaybackBytesToMediaEvents() {
+        assertEquals(GBDeviceEventMusicControl.Event.PLAYPAUSE,
+                F91KeplerProtocol.musicCommand(F91KeplerConstants.MUSIC_CMD_PLAY_PAUSE));
+        assertEquals(GBDeviceEventMusicControl.Event.NEXT,
+                F91KeplerProtocol.musicCommand(F91KeplerConstants.MUSIC_CMD_NEXT));
+        assertEquals(GBDeviceEventMusicControl.Event.PREVIOUS,
+                F91KeplerProtocol.musicCommand(F91KeplerConstants.MUSIC_CMD_PREV));
+    }
+
+    @Test
+    public void musicCommand_unknownByteIsUnknownEvent() {
+        assertEquals(GBDeviceEventMusicControl.Event.UNKNOWN,
+                F91KeplerProtocol.musicCommand((byte) 0x7F));
     }
 }

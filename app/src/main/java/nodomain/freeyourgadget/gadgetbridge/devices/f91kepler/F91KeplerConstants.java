@@ -63,6 +63,17 @@ public final class F91KeplerConstants {
     public static final UUID UUID_CHAR_WEATHER_TEMP = base("E2F1");
     public static final UUID UUID_CHAR_WEATHER_CONDITION = base("E2F2");
 
+    // Music Control Service (firmware P6): a single NOTIFY-only PlaybackCmd char.
+    // The watch pushes a playback command (the watch is a remote); Gadgetbridge
+    // subscribes and drives the phone's media session.
+    public static final UUID UUID_SERVICE_MUSIC = base("D2F0");
+    public static final UUID UUID_CHAR_MUSIC_CMD = base("D2F1");
+
+    // PlaybackCmd byte values, 1:1 with the firmware's f91_music.h music_cmd_t.
+    public static final byte MUSIC_CMD_PLAY_PAUSE = 0x00;
+    public static final byte MUSIC_CMD_NEXT = 0x01;
+    public static final byte MUSIC_CMD_PREV = 0x02;
+
     // Weather condition enum, 1:1 with the firmware's f91_weather.h / icon table.
     public static final int WX_SUN = 0;
     public static final int WX_HALF_SUN = 1;   // partly cloudy
