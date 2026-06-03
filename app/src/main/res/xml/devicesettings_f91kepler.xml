@@ -13,4 +13,34 @@
         android:summary="@string/f91_pref_summary_notification_popup"
         android:title="@string/f91_pref_title_notification_popup" />
 
+    <PreferenceCategory
+        android:key="f91_pref_category_modes"
+        android:title="@string/f91_pref_header_modes">
+
+        <Preference
+            android:selectable="false"
+            android:summary="@string/f91_pref_summary_modes" />
+
+        <SwitchPreferenceCompat
+            android:defaultValue="true"
+            android:key="f91_mode_timer"
+            android:title="@string/f91_pref_title_mode_timer" />
+
+        <SwitchPreferenceCompat
+            android:defaultValue="true"
+            android:key="f91_mode_music"
+            android:title="@string/f91_pref_title_mode_music" />
+
+        <SwitchPreferenceCompat
+            android:defaultValue="true"
+            android:key="f91_mode_stopwatch"
+            android:title="@string/f91_pref_title_mode_stopwatch" />
+
+        <SwitchPreferenceCompat
+            android:defaultValue="true"
+            android:key="f91_mode_info"
+            android:title="@string/f91_pref_title_mode_info" />
+
+    </PreferenceCategory>
+
 </androidx.preference.PreferenceScreen>

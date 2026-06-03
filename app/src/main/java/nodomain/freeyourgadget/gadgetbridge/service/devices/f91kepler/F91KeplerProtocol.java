@@ -170,4 +170,21 @@ final class F91KeplerProtocol {
             default:                                      return GBDeviceEventMusicControl.Event.UNKNOWN;
         }
     }
+
+    /**
+     * ModeOrder characteristic (UI Config, F2F1): the enabled modes as a byte
+     * array of mode ids in display order. Main is always first (the pinned home);
+     * the optional modes follow, each included only when enabled, in the watch's
+     * canonical order (Timer, Music, Stopwatch, Info).
+     */
+    static byte[] modeOrder(final boolean timer, final boolean music,
+                            final boolean stopwatch, final boolean info) {
+        final ByteArrayOutputStream out = new ByteArrayOutputStream();
+        out.write(F91KeplerConstants.MODE_MAIN);
+        if (timer)     out.write(F91KeplerConstants.MODE_TIMER);
+        if (music)     out.write(F91KeplerConstants.MODE_MUSIC);
+        if (stopwatch) out.write(F91KeplerConstants.MODE_STOPWATCH);
+        if (info)      out.write(F91KeplerConstants.MODE_INFO);
+        return out.toByteArray();
+    }
 }

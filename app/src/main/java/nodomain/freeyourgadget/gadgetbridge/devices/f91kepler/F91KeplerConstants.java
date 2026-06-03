@@ -74,6 +74,27 @@ public final class F91KeplerConstants {
     public static final byte MUSIC_CMD_NEXT = 0x01;
     public static final byte MUSIC_CMD_PREV = 0x02;
 
+    // UI Config Service (firmware P7): a single ModeOrder char carrying the
+    // enabled set + display order of the watch's modes as a 1..5 byte array of
+    // mode ids. READ + encrypted-WRITE.
+    public static final UUID UUID_SERVICE_UI_CONFIG = base("F2F0");
+    public static final UUID UUID_CHAR_MODE_ORDER = base("F2F1");
+
+    // Mode (screen) ids, 1:1 with the firmware's screen_id_t. MODE_MAIN is the
+    // pinned home (always present, index 0); the rest are optional.
+    public static final byte MODE_MAIN = 0;
+    public static final byte MODE_TIMER = 1;
+    public static final byte MODE_MUSIC = 2;
+    public static final byte MODE_STOPWATCH = 3;
+    public static final byte MODE_INFO = 4;
+
+    // Per-mode enable preference keys (devicesettings_f91kepler.xml). Main has no
+    // toggle -- it is always enabled.
+    public static final String PREF_MODE_TIMER = "f91_mode_timer";
+    public static final String PREF_MODE_MUSIC = "f91_mode_music";
+    public static final String PREF_MODE_STOPWATCH = "f91_mode_stopwatch";
+    public static final String PREF_MODE_INFO = "f91_mode_info";
+
     // Weather condition enum, 1:1 with the firmware's f91_weather.h / icon table.
     public static final int WX_SUN = 0;
     public static final int WX_HALF_SUN = 1;   // partly cloudy

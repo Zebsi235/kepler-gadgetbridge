@@ -128,4 +128,22 @@ public class F91KeplerProtocolTest {
         assertEquals(GBDeviceEventMusicControl.Event.UNKNOWN,
                 F91KeplerProtocol.musicCommand((byte) 0x7F));
     }
+
+    @Test
+    public void modeOrder_allEnabledIsCanonicalFullOrder() {
+        assertArrayEquals(new byte[]{0, 1, 2, 3, 4},
+                F91KeplerProtocol.modeOrder(true, true, true, true));
+    }
+
+    @Test
+    public void modeOrder_mainOnlyWhenAllDisabled() {
+        assertArrayEquals(new byte[]{0}, F91KeplerProtocol.modeOrder(false, false, false, false));
+    }
+
+    @Test
+    public void modeOrder_subsetKeepsCanonicalOrder() {
+        // Timer off, Music on, Stopwatch off, Info on -> {Main, Music, Info}.
+        assertArrayEquals(new byte[]{0, 2, 4},
+                F91KeplerProtocol.modeOrder(false, true, false, true));
+    }
 }

@@ -18,6 +18,7 @@ package nodomain.freeyourgadget.gadgetbridge.service.devices.f91kepler;
 
 import android.bluetooth.BluetoothGatt;
 import android.bluetooth.BluetoothGattCharacteristic;
+import android.content.SharedPreferences;
 import android.text.format.DateFormat;
 
 import org.apache.commons.lang3.StringUtils;
@@ -80,6 +81,7 @@ public class F91KeplerSupport extends AbstractBTLESingleDeviceSupport {
         addSupportedService(F91KeplerConstants.UUID_SERVICE_DEVICE_CONTROL);
         addSupportedService(F91KeplerConstants.UUID_SERVICE_WEATHER);
         addSupportedService(F91KeplerConstants.UUID_SERVICE_MUSIC);
+        addSupportedService(F91KeplerConstants.UUID_SERVICE_UI_CONFIG);
         addSupportedService(GattService.UUID_SERVICE_BATTERY_SERVICE);
         addSupportedService(GattService.UUID_SERVICE_DEVICE_INFORMATION);
 
@@ -374,8 +376,33 @@ public class F91KeplerSupport extends AbstractBTLESingleDeviceSupport {
                 builder.queue();
                 break;
             }
+            case F91KeplerConstants.PREF_MODE_TIMER:
+            case F91KeplerConstants.PREF_MODE_MUSIC:
+            case F91KeplerConstants.PREF_MODE_STOPWATCH:
+            case F91KeplerConstants.PREF_MODE_INFO: {
+                final TransactionBuilder builder = createTransactionBuilder("set mode order");
+                addModeOrder(builder);
+                builder.queue();
+                break;
+            }
             default:
                 break;
         }
+    }
+
+    /**
+     * Build the ModeOrder from the per-mode enable prefs (Main is always present)
+     * and write it to the UI Config char. The watch validates, applies, and
+     * persists it (P7).
+     */
+    private void addModeOrder(final TransactionBuilder builder) {
+        final SharedPreferences prefs =
+                GBApplication.getDeviceSpecificSharedPrefs(getDevice().getAddress());
+        final byte[] order = F91KeplerProtocol.modeOrder(
+                prefs.getBoolean(F91KeplerConstants.PREF_MODE_TIMER, true),
+                prefs.getBoolean(F91KeplerConstants.PREF_MODE_MUSIC, true),
+                prefs.getBoolean(F91KeplerConstants.PREF_MODE_STOPWATCH, true),
+                prefs.getBoolean(F91KeplerConstants.PREF_MODE_INFO, true));
+        builder.write(F91KeplerConstants.UUID_CHAR_MODE_ORDER, order);
     }
 }
