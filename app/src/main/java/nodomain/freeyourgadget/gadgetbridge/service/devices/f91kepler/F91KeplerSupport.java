@@ -124,6 +124,11 @@ public class F91KeplerSupport extends AbstractBTLESingleDeviceSupport {
         // Subscribe to the Music Control PlaybackCmd notify (P6): the watch is a
         // media remote, so each button press arrives as a notification.
         builder.notify(F91KeplerConstants.UUID_CHAR_MUSIC_CMD, true);
+        // Re-push the cached weather on connect: the watch's weather is volatile
+        // (RAM only, wiped on reset/reconnect), and GB otherwise only sends on a
+        // weather refresh -- so without this a reconnect leaves the slot empty
+        // until the next refresh. No-op if GB has no weather yet.
+        addWeather(builder);
         return builder;
     }
 
@@ -277,6 +282,17 @@ public class F91KeplerSupport extends AbstractBTLESingleDeviceSupport {
 
     @Override
     public void onSendWeather() {
+        final TransactionBuilder builder = createTransactionBuilder("send weather");
+        addWeather(builder);
+        builder.queue();
+    }
+
+    /**
+     * Append the current cached weather (if any) to a transaction. Shared by
+     * {@link #onSendWeather()} and {@link #initializeDevice} so a reconnect
+     * restores the watch's volatile weather. No-op when GB has no weather yet.
+     */
+    private void addWeather(final TransactionBuilder builder) {
         final WeatherSpec weatherSpec = Weather.getWeatherSpec();
         if (weatherSpec == null) {
             return;
@@ -289,10 +305,8 @@ public class F91KeplerSupport extends AbstractBTLESingleDeviceSupport {
         final int temp = useFahrenheit() ? (int) Math.round(celsius * 9.0 / 5.0 + 32.0) : celsius;
         final int cond = F91KeplerProtocol.owmToCondition(weatherSpec.getCurrentConditionCode());
 
-        final TransactionBuilder builder = createTransactionBuilder("send weather");
         builder.write(F91KeplerConstants.UUID_CHAR_WEATHER_TEMP, F91KeplerProtocol.weatherTemperature(temp));
         builder.write(F91KeplerConstants.UUID_CHAR_WEATHER_CONDITION, F91KeplerProtocol.weatherCondition(cond));
-        builder.queue();
     }
 
     private boolean useFahrenheit() {
