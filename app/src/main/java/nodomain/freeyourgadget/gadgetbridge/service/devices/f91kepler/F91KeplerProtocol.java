@@ -171,20 +171,59 @@ final class F91KeplerProtocol {
         }
     }
 
+    /** Displayed widths the watch truncates to; we pre-truncate to keep the
+     *  write within the firmware's NotificationEntry max (3 + app + sender). */
+    private static final int NOTIF_APP_MAX = 11;
+    private static final int NOTIF_SENDER_MAX = 20;
+
     /**
-     * ModeOrder characteristic (UI Config, F2F1): the enabled modes as a byte
-     * array of mode ids in display order. Main is always first (the pinned home);
-     * the optional modes follow, each included only when enabled, in the watch's
-     * canonical order (Timer, Music, Stopwatch, Info).
+     * NotificationEntry characteristic (A2F4): one history slot as
+     * {@code [slot][total][appLen][app UTF-8][sender UTF-8]}. app/sender are
+     * truncated (UTF-8 safe). total = how many entries are currently active
+     * (the watch shows that many; total 0 clears the list).
      */
-    static byte[] modeOrder(final boolean timer, final boolean music,
-                            final boolean stopwatch, final boolean info) {
+    static byte[] notificationEntry(final int slot, final int total,
+                                    final String app, final String sender) {
+        final byte[] appB = truncateUtf8(app == null ? "" : app, NOTIF_APP_MAX);
+        final byte[] senB = truncateUtf8(sender == null ? "" : sender, NOTIF_SENDER_MAX);
+        final ByteArrayOutputStream out = new ByteArrayOutputStream();
+        out.write(slot & 0xFF);
+        out.write(total & 0xFF);
+        out.write(appB.length & 0xFF);
+        out.write(appB, 0, appB.length);
+        out.write(senB, 0, senB.length);
+        return out.toByteArray();
+    }
+
+    /**
+     * ModeOrder characteristic (UI Config, F2F1): Main (always first) followed by
+     * the optional modes, ordered by their configured position (1..5); a position
+     * &lt;= 0 means the mode is off (omitted). Ties are broken by canonical id so
+     * the result is deterministic. Positions are given in canonical order
+     * (Notifications, Timer, Music, Stopwatch, Info).
+     */
+    static byte[] modeOrder(final int posNotif, final int posTimer, final int posMusic,
+                            final int posStopwatch, final int posInfo) {
+        final byte[] ids = { F91KeplerConstants.MODE_NOTIF, F91KeplerConstants.MODE_TIMER,
+                             F91KeplerConstants.MODE_MUSIC, F91KeplerConstants.MODE_STOPWATCH,
+                             F91KeplerConstants.MODE_INFO };
+        final int[] pos = { posNotif, posTimer, posMusic, posStopwatch, posInfo };
+        final boolean[] used = new boolean[ids.length];
+
         final ByteArrayOutputStream out = new ByteArrayOutputStream();
         out.write(F91KeplerConstants.MODE_MAIN);
-        if (timer)     out.write(F91KeplerConstants.MODE_TIMER);
-        if (music)     out.write(F91KeplerConstants.MODE_MUSIC);
-        if (stopwatch) out.write(F91KeplerConstants.MODE_STOPWATCH);
-        if (info)      out.write(F91KeplerConstants.MODE_INFO);
+        for (int k = 0; k < ids.length; k++) {
+            int best = -1;
+            for (int i = 0; i < ids.length; i++) {
+                if (used[i] || pos[i] <= 0) continue;
+                if (best == -1 || pos[i] < pos[best] || (pos[i] == pos[best] && i < best)) {
+                    best = i;
+                }
+            }
+            if (best == -1) break;
+            used[best] = true;
+            out.write(ids[best]);
+        }
         return out.toByteArray();
     }
 }

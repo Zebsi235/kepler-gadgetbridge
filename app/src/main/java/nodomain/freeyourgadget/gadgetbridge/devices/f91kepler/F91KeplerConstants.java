@@ -39,6 +39,8 @@ public final class F91KeplerConstants {
     public static final UUID UUID_CHAR_NOTIFICATION_BAR = base("A2F1");
     public static final UUID UUID_CHAR_INCOMING_CALL = base("A2F2");
     public static final UUID UUID_CHAR_INCOMING_TEXT = base("A2F3");
+    // NotificationEntry (history feed, write-only): [slot][total][appLen][app][sender].
+    public static final UUID UUID_CHAR_NOTIFICATION_ENTRY = base("A2F4");
 
     // Clock Service: time (uint32 LE epoch), timezone (int16 LE seconds west),
     // time mode (0=12h/1=24h), DST (0/1), alarm time (uint32 LE absolute epoch,
@@ -83,17 +85,21 @@ public final class F91KeplerConstants {
     // Mode (screen) ids, 1:1 with the firmware's screen_id_t. MODE_MAIN is the
     // pinned home (always present, index 0); the rest are optional.
     public static final byte MODE_MAIN = 0;
-    public static final byte MODE_TIMER = 1;
-    public static final byte MODE_MUSIC = 2;
-    public static final byte MODE_STOPWATCH = 3;
-    public static final byte MODE_INFO = 4;
+    public static final byte MODE_NOTIF = 1;
+    public static final byte MODE_TIMER = 2;
+    public static final byte MODE_MUSIC = 3;
+    public static final byte MODE_STOPWATCH = 4;
+    public static final byte MODE_INFO = 5;
 
-    // Per-mode enable preference keys (devicesettings_f91kepler.xml). Main has no
-    // toggle -- it is always enabled.
-    public static final String PREF_MODE_TIMER = "f91_mode_timer";
-    public static final String PREF_MODE_MUSIC = "f91_mode_music";
-    public static final String PREF_MODE_STOPWATCH = "f91_mode_stopwatch";
-    public static final String PREF_MODE_INFO = "f91_mode_info";
+    // Per-mode position preference keys (Watch-modes ordering). Value is "0"=off
+    // or "1".."5" = display position; the watch order is Main, then the optional
+    // modes sorted by position (ties broken by canonical id). Main has no pref
+    // (always first).
+    public static final String PREF_MODE_POS_NOTIF = "f91_mode_pos_notif";
+    public static final String PREF_MODE_POS_TIMER = "f91_mode_pos_timer";
+    public static final String PREF_MODE_POS_MUSIC = "f91_mode_pos_music";
+    public static final String PREF_MODE_POS_STOPWATCH = "f91_mode_pos_stopwatch";
+    public static final String PREF_MODE_POS_INFO = "f91_mode_pos_info";
 
     // Weather condition enum, 1:1 with the firmware's f91_weather.h / icon table.
     public static final int WX_SUN = 0;

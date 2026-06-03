@@ -27,6 +27,8 @@ import org.slf4j.LoggerFactory;
 
 import java.util.ArrayList;
 import java.util.Calendar;
+import java.util.Iterator;
+import java.util.List;
 import java.util.TimeZone;
 
 import nodomain.freeyourgadget.gadgetbridge.GBApplication;
@@ -73,6 +75,20 @@ public class F91KeplerSupport extends AbstractBTLESingleDeviceSupport {
     private final BatteryInfoProfile<F91KeplerSupport> batteryInfoProfile;
     private final DeviceInfoProfile<F91KeplerSupport> deviceInfoProfile;
     private final F91KeplerNotificationTracker notificationTracker = new F91KeplerNotificationTracker();
+
+    /** Recent notifications for the watch's Notifications mode, newest first,
+     *  capped at the firmware's ring size. GB owns the active set; the watch is
+     *  told the current top-N (so dismissals are reflected). */
+    private static final int F91_RECENT_MAX = 5;
+    private final List<RecentNotif> recent = new ArrayList<>();
+    private static final class RecentNotif {
+        final int id;
+        final String app;
+        final String sender;
+        RecentNotif(final int id, final String app, final String sender) {
+            this.id = id; this.app = app; this.sender = sender;
+        }
+    }
 
     public F91KeplerSupport() {
         super(LOG);
@@ -129,6 +145,8 @@ public class F91KeplerSupport extends AbstractBTLESingleDeviceSupport {
         // weather refresh -- so without this a reconnect leaves the slot empty
         // until the next refresh. No-op if GB has no weather yet.
         addWeather(builder);
+        // Likewise re-push the notification history (also volatile on the watch).
+        addRecentNotifications(builder);
         return builder;
     }
 
@@ -221,6 +239,7 @@ public class F91KeplerSupport extends AbstractBTLESingleDeviceSupport {
     public void onNotification(final NotificationSpec notificationSpec) {
         final F91KeplerNotificationTracker.Category category = categorize(notificationSpec);
         notificationTracker.add(notificationSpec.getId(), category);
+        addRecent(notificationSpec);
 
         final TransactionBuilder builder = createTransactionBuilder("notification");
         builder.write(F91KeplerConstants.UUID_CHAR_NOTIFICATION_BAR, notificationTracker.bitmask());
@@ -232,15 +251,55 @@ public class F91KeplerSupport extends AbstractBTLESingleDeviceSupport {
                 builder.write(F91KeplerConstants.UUID_CHAR_INCOMING_TEXT, F91KeplerProtocol.contactName(sender));
             }
         }
+        addRecentNotifications(builder);   // push the updated history list to the watch
         builder.queue();
     }
 
     @Override
     public void onDeleteNotification(final int id) {
         notificationTracker.remove(id);
+        removeRecent(id);
         final TransactionBuilder builder = createTransactionBuilder("delete notification");
         builder.write(F91KeplerConstants.UUID_CHAR_NOTIFICATION_BAR, notificationTracker.bitmask());
+        addRecentNotifications(builder);   // reflect the dismissal in the history list
         builder.queue();
+    }
+
+    // --- Notification history (Notifications mode) --------------------------
+
+    private void addRecent(final NotificationSpec spec) {
+        final String app = StringUtils.firstNonBlank(spec.sourceName, "");
+        final String sender = StringUtils.firstNonBlank(spec.sender, spec.title, "notification");
+        removeRecent(spec.getId());                    // de-dupe by id
+        recent.add(0, new RecentNotif(spec.getId(), app, sender));   // newest first
+        while (recent.size() > F91_RECENT_MAX) {
+            recent.remove(recent.size() - 1);
+        }
+    }
+
+    private void removeRecent(final int id) {
+        for (final Iterator<RecentNotif> it = recent.iterator(); it.hasNext(); ) {
+            if (it.next().id == id) {
+                it.remove();
+                break;
+            }
+        }
+    }
+
+    /** Push the current top-N recent notifications (or a clear when empty) to the
+     *  watch's NotificationEntry char. */
+    private void addRecentNotifications(final TransactionBuilder builder) {
+        final int total = recent.size();
+        if (total == 0) {
+            builder.write(F91KeplerConstants.UUID_CHAR_NOTIFICATION_ENTRY,
+                          F91KeplerProtocol.notificationEntry(0, 0, "", ""));
+            return;
+        }
+        for (int i = 0; i < total; i++) {
+            final RecentNotif e = recent.get(i);
+            builder.write(F91KeplerConstants.UUID_CHAR_NOTIFICATION_ENTRY,
+                          F91KeplerProtocol.notificationEntry(i, total, e.app, e.sender));
+        }
     }
 
     private static F91KeplerNotificationTracker.Category categorize(final NotificationSpec spec) {
@@ -390,10 +449,11 @@ public class F91KeplerSupport extends AbstractBTLESingleDeviceSupport {
                 builder.queue();
                 break;
             }
-            case F91KeplerConstants.PREF_MODE_TIMER:
-            case F91KeplerConstants.PREF_MODE_MUSIC:
-            case F91KeplerConstants.PREF_MODE_STOPWATCH:
-            case F91KeplerConstants.PREF_MODE_INFO: {
+            case F91KeplerConstants.PREF_MODE_POS_NOTIF:
+            case F91KeplerConstants.PREF_MODE_POS_TIMER:
+            case F91KeplerConstants.PREF_MODE_POS_MUSIC:
+            case F91KeplerConstants.PREF_MODE_POS_STOPWATCH:
+            case F91KeplerConstants.PREF_MODE_POS_INFO: {
                 final TransactionBuilder builder = createTransactionBuilder("set mode order");
                 addModeOrder(builder);
                 builder.queue();
@@ -405,18 +465,28 @@ public class F91KeplerSupport extends AbstractBTLESingleDeviceSupport {
     }
 
     /**
-     * Build the ModeOrder from the per-mode enable prefs (Main is always present)
-     * and write it to the UI Config char. The watch validates, applies, and
-     * persists it (P7).
+     * Build the ModeOrder from the per-mode position prefs (Main is always first;
+     * each optional mode's position 1..5 sets its slot, "0" = off) and write it
+     * to the UI Config char. The watch validates, applies, and persists it.
+     * Defaults give the canonical order Notifications, Timer, Music, Stopwatch, Info.
      */
     private void addModeOrder(final TransactionBuilder builder) {
         final SharedPreferences prefs =
                 GBApplication.getDeviceSpecificSharedPrefs(getDevice().getAddress());
         final byte[] order = F91KeplerProtocol.modeOrder(
-                prefs.getBoolean(F91KeplerConstants.PREF_MODE_TIMER, true),
-                prefs.getBoolean(F91KeplerConstants.PREF_MODE_MUSIC, true),
-                prefs.getBoolean(F91KeplerConstants.PREF_MODE_STOPWATCH, true),
-                prefs.getBoolean(F91KeplerConstants.PREF_MODE_INFO, true));
+                modePos(prefs, F91KeplerConstants.PREF_MODE_POS_NOTIF, 1),
+                modePos(prefs, F91KeplerConstants.PREF_MODE_POS_TIMER, 2),
+                modePos(prefs, F91KeplerConstants.PREF_MODE_POS_MUSIC, 3),
+                modePos(prefs, F91KeplerConstants.PREF_MODE_POS_STOPWATCH, 4),
+                modePos(prefs, F91KeplerConstants.PREF_MODE_POS_INFO, 5));
         builder.write(F91KeplerConstants.UUID_CHAR_MODE_ORDER, order);
+    }
+
+    private static int modePos(final SharedPreferences prefs, final String key, final int def) {
+        try {
+            return Integer.parseInt(prefs.getString(key, Integer.toString(def)));
+        } catch (final NumberFormatException e) {
+            return def;
+        }
     }
 }

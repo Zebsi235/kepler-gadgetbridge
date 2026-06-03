@@ -130,20 +130,60 @@ public class F91KeplerProtocolTest {
     }
 
     @Test
-    public void modeOrder_allEnabledIsCanonicalFullOrder() {
-        assertArrayEquals(new byte[]{0, 1, 2, 3, 4},
-                F91KeplerProtocol.modeOrder(true, true, true, true));
+    public void modeOrder_defaultPositionsAreCanonicalFullOrder() {
+        // positions notif..info = 1..5 -> Main + canonical order.
+        assertArrayEquals(new byte[]{0, 1, 2, 3, 4, 5},
+                F91KeplerProtocol.modeOrder(1, 2, 3, 4, 5));
     }
 
     @Test
-    public void modeOrder_mainOnlyWhenAllDisabled() {
-        assertArrayEquals(new byte[]{0}, F91KeplerProtocol.modeOrder(false, false, false, false));
+    public void modeOrder_allOffIsMainOnly() {
+        assertArrayEquals(new byte[]{0}, F91KeplerProtocol.modeOrder(0, 0, 0, 0, 0));
     }
 
     @Test
-    public void modeOrder_subsetKeepsCanonicalOrder() {
-        // Timer off, Music on, Stopwatch off, Info on -> {Main, Music, Info}.
+    public void modeOrder_reversedPositionsReorders() {
+        // notif=5,timer=4,music=3,stopwatch=2,info=1 -> sorted by position:
+        // Main, Info(5), Stopwatch(4), Music(3), Timer(2), Notif(1).
+        assertArrayEquals(new byte[]{0, 5, 4, 3, 2, 1},
+                F91KeplerProtocol.modeOrder(5, 4, 3, 2, 1));
+    }
+
+    @Test
+    public void modeOrder_offModesAreOmitted() {
+        // Only Timer (pos 1) and Stopwatch (pos 2) on -> Main, Timer, Stopwatch.
         assertArrayEquals(new byte[]{0, 2, 4},
-                F91KeplerProtocol.modeOrder(false, true, false, true));
+                F91KeplerProtocol.modeOrder(0, 1, 0, 2, 0));
+    }
+
+    @Test
+    public void modeOrder_tiesBreakByCanonicalId() {
+        // Timer and Music both at position 1 -> Timer (lower canonical id) first.
+        assertArrayEquals(new byte[]{0, 2, 3},
+                F91KeplerProtocol.modeOrder(0, 1, 1, 0, 0));
+    }
+
+    @Test
+    public void notificationEntry_packsSlotTotalAppSender() {
+        // slot 0, total 2, app "Chat", sender "John".
+        assertArrayEquals(
+                new byte[]{0, 2, 4, 'C', 'h', 'a', 't', 'J', 'o', 'h', 'n'},
+                F91KeplerProtocol.notificationEntry(0, 2, "Chat", "John"));
+    }
+
+    @Test
+    public void notificationEntry_emptyClearsList() {
+        assertArrayEquals(new byte[]{0, 0, 0},
+                F91KeplerProtocol.notificationEntry(0, 0, "", ""));
+    }
+
+    @Test
+    public void notificationEntry_truncatesLongFields() {
+        final byte[] out = F91KeplerProtocol.notificationEntry(
+                1, 3, "VeryLongAppName", "AnExtremelyLongSenderNameHere");
+        assertEquals(1, out[0]);
+        assertEquals(3, out[1]);
+        assertEquals(11, out[2]);                 // app truncated to 11
+        assertEquals(3 + 11 + 20, out.length);    // sender truncated to 20
     }
 }

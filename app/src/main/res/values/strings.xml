@@ -2115,7 +2115,9 @@
     <string name="f91_pref_title_notification_popup">Show sender as full-screen popup</string>
     <string name="f91_pref_summary_notification_popup">Briefly show the sender name on the watch for each notification, in addition to the bar icon</string>
     <string name="f91_pref_header_modes">Watch modes</string>
-    <string name="f91_pref_summary_modes">Choose which modes appear when cycling screens with the top button (the clock face is always shown)</string>
+    <string name="f91_pref_summary_modes">Set each mode\'s position when cycling screens with the top button (Off = hidden). The clock face is always first.</string>
+    <string name="f91_mode_position_off">Off</string>
+    <string name="f91_pref_title_mode_notif">Notifications mode</string>
     <string name="f91_pref_title_mode_timer">Timer mode</string>
     <string name="f91_pref_title_mode_music">Music mode</string>
     <string name="f91_pref_title_mode_stopwatch">Stopwatch mode</string>

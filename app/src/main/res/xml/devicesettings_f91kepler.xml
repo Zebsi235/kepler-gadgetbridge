@@ -1,5 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
-<androidx.preference.PreferenceScreen xmlns:android="http://schemas.android.com/apk/res/android">
+<androidx.preference.PreferenceScreen
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto">
 
     <SwitchPreferenceCompat
         android:defaultValue="false"
@@ -21,25 +23,45 @@
             android:selectable="false"
             android:summary="@string/f91_pref_summary_modes" />
 
-        <SwitchPreferenceCompat
-            android:defaultValue="true"
-            android:key="f91_mode_timer"
-            android:title="@string/f91_pref_title_mode_timer" />
+        <ListPreference
+            android:defaultValue="1"
+            android:entries="@array/f91_mode_position"
+            android:entryValues="@array/f91_mode_position_values"
+            android:key="f91_mode_pos_notif"
+            android:title="@string/f91_pref_title_mode_notif"
+            app:useSimpleSummaryProvider="true" />
 
-        <SwitchPreferenceCompat
-            android:defaultValue="true"
-            android:key="f91_mode_music"
-            android:title="@string/f91_pref_title_mode_music" />
+        <ListPreference
+            android:defaultValue="2"
+            android:entries="@array/f91_mode_position"
+            android:entryValues="@array/f91_mode_position_values"
+            android:key="f91_mode_pos_timer"
+            android:title="@string/f91_pref_title_mode_timer"
+            app:useSimpleSummaryProvider="true" />
 
-        <SwitchPreferenceCompat
-            android:defaultValue="true"
-            android:key="f91_mode_stopwatch"
-            android:title="@string/f91_pref_title_mode_stopwatch" />
+        <ListPreference
+            android:defaultValue="3"
+            android:entries="@array/f91_mode_position"
+            android:entryValues="@array/f91_mode_position_values"
+            android:key="f91_mode_pos_music"
+            android:title="@string/f91_pref_title_mode_music"
+            app:useSimpleSummaryProvider="true" />
 
-        <SwitchPreferenceCompat
-            android:defaultValue="true"
-            android:key="f91_mode_info"
-            android:title="@string/f91_pref_title_mode_info" />
+        <ListPreference
+            android:defaultValue="4"
+            android:entries="@array/f91_mode_position"
+            android:entryValues="@array/f91_mode_position_values"
+            android:key="f91_mode_pos_stopwatch"
+            android:title="@string/f91_pref_title_mode_stopwatch"
+            app:useSimpleSummaryProvider="true" />
+
+        <ListPreference
+            android:defaultValue="5"
+            android:entries="@array/f91_mode_position"
+            android:entryValues="@array/f91_mode_position_values"
+            android:key="f91_mode_pos_info"
+            android:title="@string/f91_pref_title_mode_info"
+            app:useSimpleSummaryProvider="true" />
 
     </PreferenceCategory>
 
