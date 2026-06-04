@@ -21,6 +21,7 @@ import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.nio.charset.StandardCharsets;
 
+import nodomain.freeyourgadget.gadgetbridge.deviceevents.GBDeviceEventFindPhone;
 import nodomain.freeyourgadget.gadgetbridge.deviceevents.GBDeviceEventMusicControl;
 import nodomain.freeyourgadget.gadgetbridge.devices.f91kepler.F91KeplerConstants;
 
@@ -168,6 +169,19 @@ final class F91KeplerProtocol {
             case F91KeplerConstants.MUSIC_CMD_NEXT:       return GBDeviceEventMusicControl.Event.NEXT;
             case F91KeplerConstants.MUSIC_CMD_PREV:       return GBDeviceEventMusicControl.Event.PREVIOUS;
             default:                                      return GBDeviceEventMusicControl.Event.UNKNOWN;
+        }
+    }
+
+    /**
+     * Decode a FindPhoneCmd notification byte (Find Phone service, D3F1) into a
+     * find-phone event (0 ring -> START, 1 stop -> STOP). Returns
+     * {@link GBDeviceEventFindPhone.Event#UNKNOWN} for any unrecognized value.
+     */
+    static GBDeviceEventFindPhone.Event findPhoneCommand(final byte cmd) {
+        switch (cmd) {
+            case F91KeplerConstants.FIND_PHONE_CMD_RING: return GBDeviceEventFindPhone.Event.START;
+            case F91KeplerConstants.FIND_PHONE_CMD_STOP: return GBDeviceEventFindPhone.Event.STOP;
+            default:                                     return GBDeviceEventFindPhone.Event.UNKNOWN;
         }
     }
 

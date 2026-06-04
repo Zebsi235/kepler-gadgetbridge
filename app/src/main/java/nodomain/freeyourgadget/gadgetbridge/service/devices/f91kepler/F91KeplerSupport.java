@@ -34,6 +34,7 @@ import java.util.TimeZone;
 import nodomain.freeyourgadget.gadgetbridge.GBApplication;
 import nodomain.freeyourgadget.gadgetbridge.activities.devicesettings.DeviceSettingsPreferenceConst;
 import nodomain.freeyourgadget.gadgetbridge.deviceevents.GBDeviceEventBatteryInfo;
+import nodomain.freeyourgadget.gadgetbridge.deviceevents.GBDeviceEventFindPhone;
 import nodomain.freeyourgadget.gadgetbridge.deviceevents.GBDeviceEventMusicControl;
 import nodomain.freeyourgadget.gadgetbridge.deviceevents.GBDeviceEventVersionInfo;
 import nodomain.freeyourgadget.gadgetbridge.devices.f91kepler.F91KeplerConstants;
@@ -97,6 +98,7 @@ public class F91KeplerSupport extends AbstractBTLESingleDeviceSupport {
         addSupportedService(F91KeplerConstants.UUID_SERVICE_DEVICE_CONTROL);
         addSupportedService(F91KeplerConstants.UUID_SERVICE_WEATHER);
         addSupportedService(F91KeplerConstants.UUID_SERVICE_MUSIC);
+        addSupportedService(F91KeplerConstants.UUID_SERVICE_FIND_PHONE);
         addSupportedService(F91KeplerConstants.UUID_SERVICE_UI_CONFIG);
         addSupportedService(GattService.UUID_SERVICE_BATTERY_SERVICE);
         addSupportedService(GattService.UUID_SERVICE_DEVICE_INFORMATION);
@@ -140,6 +142,9 @@ public class F91KeplerSupport extends AbstractBTLESingleDeviceSupport {
         // Subscribe to the Music Control PlaybackCmd notify (P6): the watch is a
         // media remote, so each button press arrives as a notification.
         builder.notify(F91KeplerConstants.UUID_CHAR_MUSIC_CMD, true);
+        // Subscribe to the Find Phone notify: a button on the watch's Find Phone
+        // mode rings/stops this phone.
+        builder.notify(F91KeplerConstants.UUID_CHAR_FIND_PHONE_CMD, true);
         // Re-push the cached weather on connect: the watch's weather is volatile
         // (RAM only, wiped on reset/reconnect), and GB otherwise only sends on a
         // weather refresh -- so without this a reconnect leaves the slot empty
@@ -164,6 +169,16 @@ public class F91KeplerSupport extends AbstractBTLESingleDeviceSupport {
             final GBDeviceEventMusicControl.Event event = F91KeplerProtocol.musicCommand(value[0]);
             if (event != GBDeviceEventMusicControl.Event.UNKNOWN) {
                 handleGBDeviceEvent(new GBDeviceEventMusicControl(event));
+                return true;
+            }
+        }
+        if (F91KeplerConstants.UUID_CHAR_FIND_PHONE_CMD.equals(characteristic.getUuid())
+                && value != null && value.length >= 1) {
+            final GBDeviceEventFindPhone.Event event = F91KeplerProtocol.findPhoneCommand(value[0]);
+            if (event != GBDeviceEventFindPhone.Event.UNKNOWN) {
+                final GBDeviceEventFindPhone fp = new GBDeviceEventFindPhone();
+                fp.event = event;
+                handleGBDeviceEvent(fp);
                 return true;
             }
         }

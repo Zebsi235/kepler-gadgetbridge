@@ -76,6 +76,15 @@ public final class F91KeplerConstants {
     public static final byte MUSIC_CMD_NEXT = 0x01;
     public static final byte MUSIC_CMD_PREV = 0x02;
 
+    // Find Phone Service: a single NOTIFY-only FindPhoneCmd char. The watch
+    // pushes a ring/stop command; Gadgetbridge rings the phone (GBDeviceEventFindPhone).
+    public static final UUID UUID_SERVICE_FIND_PHONE = base("D3F0");
+    public static final UUID UUID_CHAR_FIND_PHONE_CMD = base("D3F1");
+
+    // FindPhoneCmd byte values, 1:1 with the firmware's f91_find_phone.h.
+    public static final byte FIND_PHONE_CMD_RING = 0x00;
+    public static final byte FIND_PHONE_CMD_STOP = 0x01;
+
     // UI Config Service (firmware P7): a single ModeOrder char carrying the
     // enabled set + display order of the watch's modes as a 1..5 byte array of
     // mode ids. READ + encrypted-WRITE.
