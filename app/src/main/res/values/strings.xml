@@ -2122,6 +2122,8 @@
     <string name="f91_pref_title_mode_music">Music mode</string>
     <string name="f91_pref_title_mode_stopwatch">Stopwatch mode</string>
     <string name="f91_pref_title_mode_info">Info mode</string>
+    <string name="f91_pref_title_mode_flashlight">Flashlight mode</string>
+    <string name="f91_pref_title_mode_findphone">Find Phone mode</string>
     <string name="devicetype_polarh9" translatable="false">Polar H9</string>
     <string name="devicetype_polarh10" translatable="false">Polar H10</string>
     <string name="devicetype_sonyswr12" translatable="false">Sony SWR12</string>

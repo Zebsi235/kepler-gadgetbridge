@@ -63,6 +63,22 @@
             android:title="@string/f91_pref_title_mode_info"
             app:useSimpleSummaryProvider="true" />
 
+        <ListPreference
+            android:defaultValue="6"
+            android:entries="@array/f91_mode_position"
+            android:entryValues="@array/f91_mode_position_values"
+            android:key="f91_mode_pos_flashlight"
+            android:title="@string/f91_pref_title_mode_flashlight"
+            app:useSimpleSummaryProvider="true" />
+
+        <ListPreference
+            android:defaultValue="7"
+            android:entries="@array/f91_mode_position"
+            android:entryValues="@array/f91_mode_position_values"
+            android:key="f91_mode_pos_findphone"
+            android:title="@string/f91_pref_title_mode_findphone"
+            app:useSimpleSummaryProvider="true" />
+
     </PreferenceCategory>
 
 </androidx.preference.PreferenceScreen>

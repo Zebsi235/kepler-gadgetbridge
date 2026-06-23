@@ -99,6 +99,8 @@ public final class F91KeplerConstants {
     public static final byte MODE_MUSIC = 3;
     public static final byte MODE_STOPWATCH = 4;
     public static final byte MODE_INFO = 5;
+    public static final byte MODE_FLASHLIGHT = 6;
+    public static final byte MODE_FINDPHONE = 7;
 
     // Per-mode position preference keys (Watch-modes ordering). Value is "0"=off
     // or "1".."5" = display position; the watch order is Main, then the optional
@@ -109,6 +111,8 @@ public final class F91KeplerConstants {
     public static final String PREF_MODE_POS_MUSIC = "f91_mode_pos_music";
     public static final String PREF_MODE_POS_STOPWATCH = "f91_mode_pos_stopwatch";
     public static final String PREF_MODE_POS_INFO = "f91_mode_pos_info";
+    public static final String PREF_MODE_POS_FLASHLIGHT = "f91_mode_pos_flashlight";
+    public static final String PREF_MODE_POS_FINDPHONE = "f91_mode_pos_findphone";
 
     // Weather condition enum, 1:1 with the firmware's f91_weather.h / icon table.
     public static final int WX_SUN = 0;

@@ -468,7 +468,9 @@ public class F91KeplerSupport extends AbstractBTLESingleDeviceSupport {
             case F91KeplerConstants.PREF_MODE_POS_TIMER:
             case F91KeplerConstants.PREF_MODE_POS_MUSIC:
             case F91KeplerConstants.PREF_MODE_POS_STOPWATCH:
-            case F91KeplerConstants.PREF_MODE_POS_INFO: {
+            case F91KeplerConstants.PREF_MODE_POS_INFO:
+            case F91KeplerConstants.PREF_MODE_POS_FLASHLIGHT:
+            case F91KeplerConstants.PREF_MODE_POS_FINDPHONE: {
                 final TransactionBuilder builder = createTransactionBuilder("set mode order");
                 addModeOrder(builder);
                 builder.queue();
@@ -481,9 +483,10 @@ public class F91KeplerSupport extends AbstractBTLESingleDeviceSupport {
 
     /**
      * Build the ModeOrder from the per-mode position prefs (Main is always first;
-     * each optional mode's position 1..5 sets its slot, "0" = off) and write it
+     * each optional mode's position 1..7 sets its slot, "0" = off) and write it
      * to the UI Config char. The watch validates, applies, and persists it.
-     * Defaults give the canonical order Notifications, Timer, Music, Stopwatch, Info.
+     * Defaults give the canonical order Notifications, Timer, Music, Stopwatch,
+     * Info, Flashlight, Find Phone.
      */
     private void addModeOrder(final TransactionBuilder builder) {
         final SharedPreferences prefs =
@@ -493,7 +496,9 @@ public class F91KeplerSupport extends AbstractBTLESingleDeviceSupport {
                 modePos(prefs, F91KeplerConstants.PREF_MODE_POS_TIMER, 2),
                 modePos(prefs, F91KeplerConstants.PREF_MODE_POS_MUSIC, 3),
                 modePos(prefs, F91KeplerConstants.PREF_MODE_POS_STOPWATCH, 4),
-                modePos(prefs, F91KeplerConstants.PREF_MODE_POS_INFO, 5));
+                modePos(prefs, F91KeplerConstants.PREF_MODE_POS_INFO, 5),
+                modePos(prefs, F91KeplerConstants.PREF_MODE_POS_FLASHLIGHT, 6),
+                modePos(prefs, F91KeplerConstants.PREF_MODE_POS_FINDPHONE, 7));
         builder.write(F91KeplerConstants.UUID_CHAR_MODE_ORDER, order);
     }
 

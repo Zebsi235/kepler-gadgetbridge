@@ -211,17 +211,20 @@ final class F91KeplerProtocol {
 
     /**
      * ModeOrder characteristic (UI Config, F2F1): Main (always first) followed by
-     * the optional modes, ordered by their configured position (1..5); a position
+     * the optional modes, ordered by their configured position (1..7); a position
      * &lt;= 0 means the mode is off (omitted). Ties are broken by canonical id so
      * the result is deterministic. Positions are given in canonical order
-     * (Notifications, Timer, Music, Stopwatch, Info).
+     * (Notifications, Timer, Music, Stopwatch, Info, Flashlight, Find Phone).
      */
     static byte[] modeOrder(final int posNotif, final int posTimer, final int posMusic,
-                            final int posStopwatch, final int posInfo) {
+                            final int posStopwatch, final int posInfo,
+                            final int posFlashlight, final int posFindphone) {
         final byte[] ids = { F91KeplerConstants.MODE_NOTIF, F91KeplerConstants.MODE_TIMER,
                              F91KeplerConstants.MODE_MUSIC, F91KeplerConstants.MODE_STOPWATCH,
-                             F91KeplerConstants.MODE_INFO };
-        final int[] pos = { posNotif, posTimer, posMusic, posStopwatch, posInfo };
+                             F91KeplerConstants.MODE_INFO, F91KeplerConstants.MODE_FLASHLIGHT,
+                             F91KeplerConstants.MODE_FINDPHONE };
+        final int[] pos = { posNotif, posTimer, posMusic, posStopwatch, posInfo,
+                            posFlashlight, posFindphone };
         final boolean[] used = new boolean[ids.length];
 
         final ByteArrayOutputStream out = new ByteArrayOutputStream();
