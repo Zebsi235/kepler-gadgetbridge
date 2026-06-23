@@ -113,7 +113,7 @@ android {
 
         // Note: always bump BOTH versionCode and versionName!
         versionName "0.91.1"
-        versionCode 248
+        versionCode 249
         vectorDrawables.useSupportLibrary = true
         buildConfigField "String", "GIT_HASH_SHORT", "\"${getGitHashShort()}\""
         buildConfigField "boolean", "INTERNET_ACCESS", "false"
