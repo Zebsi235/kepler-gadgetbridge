@@ -112,8 +112,11 @@ android {
         minSdk = 23
 
         // Note: always bump BOTH versionCode and versionName!
+        // versionName tracks the upstream GB base (0.91.1, unchanged); this is a
+        // Kepler-only feature increment, so only versionCode bumps (249 -> 250).
+        // Release tag: v0.91.1-kepler-2.
         versionName "0.91.1"
-        versionCode 249
+        versionCode 250
         vectorDrawables.useSupportLibrary = true
         buildConfigField "String", "GIT_HASH_SHORT", "\"${getGitHashShort()}\""
         buildConfigField "boolean", "INTERNET_ACCESS", "false"
