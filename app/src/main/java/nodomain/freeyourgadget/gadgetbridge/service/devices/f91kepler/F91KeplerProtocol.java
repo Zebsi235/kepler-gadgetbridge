@@ -122,6 +122,30 @@ final class F91KeplerProtocol {
         return out.toByteArray();
     }
 
+    /** App label is capped first so the sender keeps the rest of the budget;
+     *  ~8 glyphs is what fits the popup's tile-side text column. */
+    private static final int POPUP_APP_MAX = 8;
+
+    /**
+     * Incoming Text popup (A2F3): {@code [appLen][app UTF-8][sender UTF-8]} so the
+     * watch's split-tile popup can show the originating app label above the
+     * sender name. The whole payload must fit the firmware's
+     * {@link F91KeplerConstants#CONTACT_NAME_MAX_BYTES}-byte characteristic, so
+     * the app is capped first and the sender takes the remainder. Backward
+     * compatible on the watch: a real appLen is small (&lt; 0x20), so a legacy
+     * bare-name write is still recognised and rendered without an app label.
+     */
+    static byte[] incomingTextPopup(final String app, final String sender) {
+        final byte[] appB = truncateUtf8(app == null ? "" : app, POPUP_APP_MAX);
+        final int senderBudget = F91KeplerConstants.CONTACT_NAME_MAX_BYTES - 1 - appB.length;
+        final byte[] senB = truncateUtf8(sender == null ? "" : sender, Math.max(0, senderBudget));
+        final ByteArrayOutputStream out = new ByteArrayOutputStream();
+        out.write(appB.length & 0xFF);
+        out.write(appB, 0, appB.length);
+        out.write(senB, 0, senB.length);
+        return out.toByteArray();
+    }
+
     /**
      * Weather Temperature characteristic: a single signed byte, already in the
      * user's display unit (Gadgetbridge converts C/F; the watch shows a bare

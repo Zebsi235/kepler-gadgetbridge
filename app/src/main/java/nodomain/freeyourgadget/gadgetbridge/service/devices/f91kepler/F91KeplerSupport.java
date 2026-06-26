@@ -263,7 +263,12 @@ public class F91KeplerSupport extends AbstractBTLESingleDeviceSupport {
             final String sender = StringUtils.firstNonBlank(
                     notificationSpec.sender, notificationSpec.title, notificationSpec.sourceName);
             if (StringUtils.isNotBlank(sender)) {
-                builder.write(F91KeplerConstants.UUID_CHAR_INCOMING_TEXT, F91KeplerProtocol.contactName(sender));
+                // Split-tile popup: send the app label (sourceName) + sender so the
+                // watch can show "<app> / <sender> / TEXT". The serializer keeps the
+                // whole payload within the characteristic's byte budget.
+                final String app = StringUtils.firstNonBlank(notificationSpec.sourceName, "");
+                builder.write(F91KeplerConstants.UUID_CHAR_INCOMING_TEXT,
+                              F91KeplerProtocol.incomingTextPopup(app, sender));
             }
         }
         addRecentNotifications(builder);   // push the updated history list to the watch
