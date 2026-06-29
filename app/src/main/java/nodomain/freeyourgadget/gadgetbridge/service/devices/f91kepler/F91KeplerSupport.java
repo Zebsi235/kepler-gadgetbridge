@@ -64,7 +64,8 @@ import nodomain.freeyourgadget.gadgetbridge.service.btle.profiles.deviceinfo.Dev
  *       (+ optional sender popup)</li>
  *   <li>{@link #onSetCallState} → incoming-call popup</li>
  *   <li>battery → standard Battery Service (read + notify)</li>
- *   <li>{@link #onFindDevice} → flash the display, {@link #onReset} → reboot</li>
+ *   <li>{@link #onFindDevice} → flash the "FIND" alert on the watch,
+ *       {@link #onReset} → reboot</li>
  *   <li>{@link #onSendConfiguration} → 12/24h time mode + DST flag</li>
  * </ul>
  */
@@ -434,13 +435,11 @@ public class F91KeplerSupport extends AbstractBTLESingleDeviceSupport {
     @Override
     public void onFindDevice(final boolean start) {
         final TransactionBuilder builder = createTransactionBuilder("find device");
-        if (start) {
-            // rev-A has no buzzer; the closest "find" signal is lighting the OLED.
-            builder.write(F91KeplerConstants.UUID_CHAR_DEVICE_COMMAND, F91KeplerConstants.CMD_DISPLAY_ON);
-            builder.write(F91KeplerConstants.UUID_CHAR_DEVICE_COMMAND, F91KeplerConstants.CMD_DISPLAY_TEST_TEXT);
-        } else {
-            builder.write(F91KeplerConstants.UUID_CHAR_DEVICE_COMMAND, F91KeplerConstants.CMD_DISPLAY_OFF);
-        }
+        // rev-A has no buzzer; the loudest "find" signal is a full-screen
+        // alert that blinks the panel on/off. The firmware starts it (FIND_ON)
+        // / stops it (FIND_OFF); any watch button also dismisses it.
+        builder.write(F91KeplerConstants.UUID_CHAR_DEVICE_COMMAND,
+                start ? F91KeplerConstants.CMD_FIND_ON : F91KeplerConstants.CMD_FIND_OFF);
         builder.queue();
     }
 

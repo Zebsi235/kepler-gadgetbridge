@@ -130,6 +130,8 @@ public final class F91KeplerConstants {
     public static final byte CMD_DISPLAY_OFF = 0x11;
     public static final byte CMD_DISPLAY_CLEAR = 0x12;
     public static final byte CMD_DISPLAY_TEST_TEXT = 0x13;
+    public static final byte CMD_FIND_ON = 0x14;   // flash the "FIND" alert on the watch (find my watch)
+    public static final byte CMD_FIND_OFF = 0x15;  // stop the flashing alert
 
     // Notification bar bitmask bits (f91_notification.h).
     public static final int BIT_EMAIL = 0x01;
