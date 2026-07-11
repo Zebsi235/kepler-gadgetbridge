@@ -9,6 +9,9 @@ name: Watch upstream Gadgetbridge
 # to trigger build.yml, which publishes the release. Merges routinely hit conflicts
 # (the 0.92.2 sync hit five), so the agent is told to preserve Kepler customizations
 # and to bail to a human if conflicts are pervasive.
+#
+# The issue body lives in .github/agent-sync-task.md ($UPSTREAM/$BASE placeholders,
+# expanded with envsubst) so this workflow stays valid YAML.
 
 on:
   schedule:
@@ -32,16 +35,12 @@ jobs:
           GH_REPO: ${{ github.repository }}
         run: |
           set -euo pipefail
+          API=https://codeberg.org/api/v1/repos/Freeyourgadget/Gadgetbridge
 
           # Latest upstream release tag (fall back to the newest semver tag).
-          UPSTREAM=$(curl -fsSL "https://codeberg.org/api/v1/repos/Freeyourgadget/Gadgetbridge/releases/latest" \
-                      | python3 -c "import sys,json; print(json.load(sys.stdin).get('tag_name',''))" 2>/dev/null || true)
+          UPSTREAM=$(curl -fsSL "$API/releases/latest" | python3 -c "import sys,json; print(json.load(sys.stdin).get('tag_name',''))" 2>/dev/null || true)
           if [ -z "$UPSTREAM" ]; then
-            UPSTREAM=$(curl -fsSL "https://codeberg.org/api/v1/repos/Freeyourgadget/Gadgetbridge/tags?limit=50" \
-                        | python3 -c "import sys,json,re; \
-tags=[t['name'] for t in json.load(sys.stdin) if re.fullmatch(r'[0-9]+\.[0-9]+\.[0-9]+', t['name'])]; \
-tags.sort(key=lambda v: tuple(int(x) for x in v.split('.'))); \
-print(tags[-1] if tags else '')")
+            UPSTREAM=$(curl -fsSL "$API/tags?limit=50" | python3 -c "import sys,json,re; ts=[t['name'] for t in json.load(sys.stdin) if re.fullmatch(r'[0-9]+[.][0-9]+[.][0-9]+', t['name'])]; ts.sort(key=lambda v: tuple(int(x) for x in v.split('.'))); print(ts[-1] if ts else '')")
           fi
 
           # This fork's current upstream base = versionName in app/build.gradle.
@@ -52,59 +51,27 @@ print(tags[-1] if tags else '')")
             echo "Could not determine one of the versions; skipping."; exit 0
           fi
 
-          NEWER=$(python3 -c "
-import sys
-def t(v): return tuple(int(x) for x in v.split('.'))
-print('yes' if t('$UPSTREAM') > t('$BASE') else 'no')
-")
+          NEWER=$(python3 -c "t=lambda v: tuple(int(x) for x in v.split('.')); print('yes' if t('$UPSTREAM')>t('$BASE') else 'no')")
           if [ "$NEWER" != "yes" ]; then
             echo "Fork is up to date with upstream ($BASE >= $UPSTREAM)."; exit 0
           fi
 
-          TITLE="Upstream Gadgetbridge $UPSTREAM released — sync & cut v$UPSTREAM-kepler"
+          TITLE="Upstream Gadgetbridge $UPSTREAM released - sync & cut v$UPSTREAM-kepler"
 
-          # Skip if a sync for this version is already in flight. The agent CLOSES
-          # the issue the moment it opens the PR, so checking open issues alone would
-          # let this re-fire daily and spawn a duplicate PR until the merge lands —
-          # hence the open-PR check too. Once merged, versionName == $UPSTREAM and
-          # the NEWER guard above stops it for good.
-          if gh issue list --state open --search "in:title $UPSTREAM" --json title \
-               | python3 -c "import sys,json; sys.exit(0 if any('$UPSTREAM' in i['title'] for i in json.load(sys.stdin)) else 1)"; then
+          # Skip if a sync for this version is already in flight. The agent CLOSES the
+          # issue the moment it opens the PR, so checking open issues alone would let
+          # this re-fire daily and spawn a duplicate PR until the merge lands — hence
+          # the open-PR check too. Once merged, versionName == $UPSTREAM and the NEWER
+          # guard above stops it for good.
+          OPEN_ISSUES=$(gh issue list --state open --search "in:title $UPSTREAM" --json title --jq 'length' || echo 0)
+          if [ "${OPEN_ISSUES:-0}" != "0" ]; then
             echo "Tracking issue for $UPSTREAM already open; nothing to do."; exit 0
           fi
-          if gh pr list --state open --search "in:title $UPSTREAM" --json title \
-               | python3 -c "import sys,json; sys.exit(0 if any('$UPSTREAM' in i['title'] for i in json.load(sys.stdin)) else 1)"; then
+          OPEN_PRS=$(gh pr list --state open --search "in:title $UPSTREAM" --json title --jq 'length' || echo 0)
+          if [ "${OPEN_PRS:-0}" != "0" ]; then
             echo "Open sync PR for $UPSTREAM already exists; nothing to do."; exit 0
           fi
 
-          gh issue create --label agent-task --label complex --title "$TITLE" --body "$(cat <<EOF
-Upstream **Gadgetbridge $UPSTREAM** is newer than this fork's current base (**$BASE**). This issue is picked up automatically by the Autonomous Issue Agent, which opens a PR merging upstream into \`feat/f91kepler-device\`. A human then reviews/merges and tags the release.
-
-## Task (for the agent)
-You are on a branch based off \`feat/f91kepler-device\`. Do all work here and open a PR into \`feat/f91kepler-device\`. Do **NOT** tag, build, or publish.
-
-1. Add/refresh the upstream remote and fetch it:
-   \`\`\`bash
-   git remote add upstream https://codeberg.org/Freeyourgadget/Gadgetbridge.git 2>/dev/null || \\
-   git remote set-url upstream https://codeberg.org/Freeyourgadget/Gadgetbridge.git
-   git fetch upstream --tags
-   \`\`\`
-2. Merge upstream release \`$UPSTREAM\` into the working branch (fall back to \`upstream/master\` if the tag isn't present):
-   \`\`\`bash
-   git merge $UPSTREAM || git merge upstream/master
-   \`\`\`
-3. Resolve conflicts. Favor **our** F91/Kepler device code where it and upstream touch the same lines; take upstream changes everywhere else. Do not revert unrelated upstream improvements.
-4. In \`app/build.gradle\`, set \`versionName\` to \`$UPSTREAM\` and bump \`versionCode\` to greater than upstream's merged value. (This is what stops this watcher from re-opening the issue.)
-5. If submodules changed (\`.gitmodules\` present), run \`git submodule update --init --recursive\`.
-6. Do **NOT** run a full Gradle build (too heavy here). Verify no \`<<<<<<<\`/\`=======\`/\`>>>>>>>\` markers remain and \`git status\` is clean, then commit.
-
-## Acceptance
-- PR opened into \`feat/f91kepler-device\` merging \`$UPSTREAM\`, with no conflict markers, Kepler customizations preserved, and \`versionName\` = \`$UPSTREAM\`.
-- PR body summarizes the upstream range merged and any conflicts resolved.
-- If conflicts are pervasive or ambiguous, stop and describe the situation in the PR for a human to finish rather than guessing.
-
-## After merge (human)
-Review & merge the PR, then \`git tag -a v$UPSTREAM-kepler -m "..."\` and push the tag — that triggers **Build & Release (Kepler)** to build the signed APK and publish the release.
-EOF
-)"
+          BODY=$(UPSTREAM="$UPSTREAM" BASE="$BASE" envsubst '$UPSTREAM $BASE' < .github/agent-sync-task.md)
+          gh issue create --label agent-task --label complex --title "$TITLE" --body "$BODY"
           echo "Opened agent-task issue: $TITLE"
