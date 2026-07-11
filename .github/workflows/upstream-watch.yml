@@ -1,14 +1,14 @@
 name: Watch upstream Gadgetbridge
 
 # Checks daily whether upstream Gadgetbridge (Codeberg) has cut a newer release than
-# the version this fork is currently based on. If so it opens a tracking issue so the
-# sync + release can be done deliberately.
+# the version this fork is currently based on. If so it opens an `agent-task` issue
+# that the Autonomous Issue Agent picks up and turns into a PR merging upstream into
+# feat/f91kepler-device.
 #
-# Why an issue rather than an automatic merge+publish: syncing upstream into the Kepler
-# branch routinely produces merge conflicts that need human judgement (the 0.92.2 sync
-# hit five). Auto-merging unattended risks publishing a broken or mis-resolved build.
-# Once a sync is done and a v<version>-kepler tag is pushed, build.yml publishes the
-# release automatically.
+# The agent only opens the PR — a human reviews/merges it, then tags v<version>-kepler
+# to trigger build.yml, which publishes the release. Merges routinely hit conflicts
+# (the 0.92.2 sync hit five), so the agent is told to preserve Kepler customizations
+# and to bail to a human if conflicts are pervasive.
 
 on:
   schedule:
@@ -62,23 +62,49 @@ print('yes' if t('$UPSTREAM') > t('$BASE') else 'no')
           fi
 
           TITLE="Upstream Gadgetbridge $UPSTREAM released — sync & cut v$UPSTREAM-kepler"
-          # Skip if an open issue for this exact version already exists.
+
+          # Skip if a sync for this version is already in flight. The agent CLOSES
+          # the issue the moment it opens the PR, so checking open issues alone would
+          # let this re-fire daily and spawn a duplicate PR until the merge lands —
+          # hence the open-PR check too. Once merged, versionName == $UPSTREAM and
+          # the NEWER guard above stops it for good.
           if gh issue list --state open --search "in:title $UPSTREAM" --json title \
                | python3 -c "import sys,json; sys.exit(0 if any('$UPSTREAM' in i['title'] for i in json.load(sys.stdin)) else 1)"; then
             echo "Tracking issue for $UPSTREAM already open; nothing to do."; exit 0
           fi
+          if gh pr list --state open --search "in:title $UPSTREAM" --json title \
+               | python3 -c "import sys,json; sys.exit(0 if any('$UPSTREAM' in i['title'] for i in json.load(sys.stdin)) else 1)"; then
+            echo "Open sync PR for $UPSTREAM already exists; nothing to do."; exit 0
+          fi
 
-          gh issue create --title "$TITLE" --body "$(cat <<EOF
-Upstream **Gadgetbridge $UPSTREAM** is newer than this fork's current base (**$BASE**).
+          gh issue create --label agent-task --label complex --title "$TITLE" --body "$(cat <<EOF
+Upstream **Gadgetbridge $UPSTREAM** is newer than this fork's current base (**$BASE**). This issue is picked up automatically by the Autonomous Issue Agent, which opens a PR merging upstream into \`feat/f91kepler-device\`. A human then reviews/merges and tags the release.
 
-To ship it as a Kepler release:
+## Task (for the agent)
+You are on a branch based off \`feat/f91kepler-device\`. Do all work here and open a PR into \`feat/f91kepler-device\`. Do **NOT** tag, build, or publish.
 
-1. \`git fetch upstream && git checkout feat/f91kepler-device\`
-2. \`git merge upstream/master\` and resolve conflicts (bump \`versionName\` to $UPSTREAM and \`versionCode\` to > upstream's).
-3. Commit the version bump, then \`git tag -a v$UPSTREAM-kepler -m "..."\`.
-4. \`git push origin feat/f91kepler-device && git push origin v$UPSTREAM-kepler\`.
+1. Add/refresh the upstream remote and fetch it:
+   \`\`\`bash
+   git remote add upstream https://codeberg.org/Freeyourgadget/Gadgetbridge.git 2>/dev/null || \\
+   git remote set-url upstream https://codeberg.org/Freeyourgadget/Gadgetbridge.git
+   git fetch upstream --tags
+   \`\`\`
+2. Merge upstream release \`$UPSTREAM\` into the working branch (fall back to \`upstream/master\` if the tag isn't present):
+   \`\`\`bash
+   git merge $UPSTREAM || git merge upstream/master
+   \`\`\`
+3. Resolve conflicts. Favor **our** F91/Kepler device code where it and upstream touch the same lines; take upstream changes everywhere else. Do not revert unrelated upstream improvements.
+4. In \`app/build.gradle\`, set \`versionName\` to \`$UPSTREAM\` and bump \`versionCode\` to greater than upstream's merged value. (This is what stops this watcher from re-opening the issue.)
+5. If submodules changed (\`.gitmodules\` present), run \`git submodule update --init --recursive\`.
+6. Do **NOT** run a full Gradle build (too heavy here). Verify no \`<<<<<<<\`/\`=======\`/\`>>>>>>>\` markers remain and \`git status\` is clean, then commit.
 
-The tag push triggers **Build & Release (Kepler)**, which builds the signed APK and publishes the release automatically.
+## Acceptance
+- PR opened into \`feat/f91kepler-device\` merging \`$UPSTREAM\`, with no conflict markers, Kepler customizations preserved, and \`versionName\` = \`$UPSTREAM\`.
+- PR body summarizes the upstream range merged and any conflicts resolved.
+- If conflicts are pervasive or ambiguous, stop and describe the situation in the PR for a human to finish rather than guessing.
+
+## After merge (human)
+Review & merge the PR, then \`git tag -a v$UPSTREAM-kepler -m "..."\` and push the tag — that triggers **Build & Release (Kepler)** to build the signed APK and publish the release.
 EOF
 )"
-          echo "Opened tracking issue: $TITLE"
+          echo "Opened agent-task issue: $TITLE"
