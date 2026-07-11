@@ -130,8 +130,11 @@ android {
         minSdk = 23
 
         // Note: always bump BOTH versionCode and versionName!
+        // versionName tracks the upstream GB base (0.92.2 after the Codeberg sync).
+        // versionCode must stay above upstream's (251), so this Kepler release is 252.
+        // Release tag: v0.92.2-kepler.
         versionName "0.92.2"
-        versionCode 251
+        versionCode 252
         vectorDrawables.useSupportLibrary = true
         buildConfigField "String", "GIT_HASH_SHORT", "\"${getGitHashShort()}\""
         buildConfigField "String", "GIT_DIRTY_STATUS", "\"${getGitDirtyFlag()}\""
