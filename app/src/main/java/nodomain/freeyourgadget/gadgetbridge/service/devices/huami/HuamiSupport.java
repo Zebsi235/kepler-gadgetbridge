@@ -1,4 +1,4 @@
-/*  Copyright (C) 2018-2024 Andreas Shimokawa, Arjan Schrijver, beardhatcode,
+/*  Copyright (C) 2018-2026 Andreas Shimokawa, Arjan Schrijver, beardhatcode,
     Carsten Pfeiffer, Damien Gaignon, Daniel Dakhno, Daniele Gobbetti, Dmitry
     Markin, José Rebelo, musover, Nathan Philipp Bo Seddig, NekoBox, Petr
     Vaněk, Robbert Gurdeep Singh, Sebastian Kranz, Taavi Eomäe, Toby Murray,
@@ -35,6 +35,7 @@ import android.widget.Toast;
 
 import androidx.annotation.CallSuper;
 import androidx.annotation.NonNull;
+import androidx.annotation.Nullable;
 import androidx.localbroadcastmanager.content.LocalBroadcastManager;
 
 import net.e175.klaus.solarpositioning.DeltaT;
@@ -893,23 +894,27 @@ public abstract class HuamiSupport extends AbstractBTLESingleDeviceSupport
      * @return
      */
     public String getNotificationBody(NotificationSpec notificationSpec) {
-        String senderOrTitle = StringUtils.getFirstOf(notificationSpec.sender, notificationSpec.title);
-        if (senderOrTitle.isEmpty()) {
+        final StringBuilder sb = new StringBuilder();
+        final String senderOrTitle = StringUtils.getFirstOf(notificationSpec.sender, notificationSpec.title);
+        if (!senderOrTitle.isEmpty()) {
+            sb.append(StringUtils.truncate(senderOrTitle, 32));
+        } else {
             // if we have no title we have to send at least something on some devices, else they reboot (Bip S)
-            senderOrTitle = " ";
+            sb.append(" ");
         }
-        String message = StringUtils.truncate(senderOrTitle, 32) + "\0";
-        if (notificationSpec.subject != null) {
-            message += StringUtils.truncate(notificationSpec.subject, 128) + "\n\n";
+        sb.append("\0");
+        if (!StringUtils.isNullOrEmpty(notificationSpec.subject)) {
+            sb.append(StringUtils.truncate(notificationSpec.subject, 128)).append("\n\n");
         }
-        if (notificationSpec.body != null) {
-            message += StringUtils.truncate(notificationSpec.body, 512);
+        if (!StringUtils.isNullOrEmpty(notificationSpec.body)) {
+            sb.append(StringUtils.truncate(notificationSpec.body, 512)).append("\n\n");
         }
-        if (notificationSpec.body == null && notificationSpec.subject == null) {
-            message += " "; // if we have no body we have to send at least something on some devices, else they reboot (Bip S)
+        if (StringUtils.isNullOrEmpty(notificationSpec.subject) && StringUtils.isNullOrEmpty(notificationSpec.body)) {
+            // if we have no body we have to send at least something on some devices, else they reboot (Bip S)
+            sb.append(" ");
         }
 
-        return message;
+        return sb.toString();
     }
 
     /**
@@ -1859,7 +1864,7 @@ public abstract class HuamiSupport extends AbstractBTLESingleDeviceSupport
         final boolean sendGpsToBand = HuamiCoordinator.getWorkoutSendGpsToBand(getDevice().getAddress());
 
         if (workoutNeedsGps) {
-            if (sendGpsToBand) {
+            if (sendGpsToBand && GBLocationService.isGpsSupportedAndEnabled()) {
                 lastPhoneGpsSent = 0;
                 sendPhoneGps(HuamiPhoneGpsStatus.SEARCHING, null);
                 GBLocationService.start(getContext(), getDevice(), GBLocationProviderType.GPS, 1000);
@@ -2784,7 +2789,7 @@ public abstract class HuamiSupport extends AbstractBTLESingleDeviceSupport
     }
 
     @Override
-    public void onTestNewFunction() {
+    public void onTestNewFunction(@Nullable Bundle options) {
         try {
             final TransactionBuilder builder = performInitialized("test request");
             writeToConfiguration(builder, HuamiService.COMMAND_REQUEST_WORKOUT_ACTIVITY_TYPES);

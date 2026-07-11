@@ -813,8 +813,8 @@
     <string name="minutes_255">255 minutos</string>
     <string name="liveactivity_live_activity">Atividade em direto</string>
     <string name="weeksteps_today_steps_description">Passos hoje, meta: %1$s</string>
-    <string name="lack_of_step">Carência de passos: %1$d</string>
-    <string name="overstep">Passos excedentes: %1$d</string>
+    <string name="lack_of_step">Carência de passos: %1$s</string>
+    <string name="overstep">Passos excedentes: %1$s</string>
     <string name="average">Média: %1$s</string>
     <string name="pref_title_dont_ack_transfer">Não reconhecer transferência de dados da atividade</string>
     <string name="pref_summary_dont_ack_transfers">Se não reconhecido para a pulseira, dados de atividade não serão apagados. Útil se GB for usado em conjunto com outras apps.</string>
@@ -988,8 +988,6 @@
     <string name="weekstepschart_steps_a_week_or_month">Passos por semana/mês</string>
     <string name="weeksleepchart_sleep_a_week_or_month">Sono por semana/mês</string>
     <string name="pref_title_chart_sleep_rolling_24_hour">Intervalo de sono</string>
-    <string name="pref_chart_sleep_rolling_24_on">Últimas 24 horas</string>
-    <string name="pref_chart_sleep_rolling_24_off">Meio-dia ao meio-dia</string>
     <string name="activity_prefs_chart_min_steps_per_minute_for_run">Passos mínimos por minuto para detetar corrida</string>
     <string name="activity_prefs_chart_min_steps_per_minute">Passos mínimos por minuto para detetar atividade</string>
     <string name="activity_prefs_chart_max_idle_phase_length">Duração da pausa para separar atividades (minutos)</string>
@@ -1048,8 +1046,8 @@
     <string name="activity_db_management_empty_DB">Esvaziar base de dados</string>
     <string name="activity_db_management_exportimport_label">Exportar e importar</string>
     <string name="activity_db_management_empty_db_warning">Atenção! Ao pressionar este botão, vai apagar a sua base de dados e iniciar do zero.</string>
-    <string name="Cancel">Cancelar</string>
-    <string name="Delete">Apagar</string>
+    <string name="cancel">Cancelar</string>
+    <string name="delete">Apagar</string>
     <string name="ok">OK</string>
     <string name="dismiss">Dispensar</string>
     <string name="set">Definir</string>
@@ -1206,7 +1204,6 @@
     <string name="menuitem_compass">Bússola</string>
     <string name="menuitem_settings">Configurações</string>
     <string name="menuitem_alipay">Alipay</string>
-    <string name="preferences_qhybrid_settings">Configurações de Q Hybrid</string>
     <string name="menuitem_music">Música</string>
     <string name="menuitem_more">Mais</string>
     <string name="menuitem_nfc">NFC</string>
@@ -1292,13 +1289,9 @@
     <string name="quick_alarm">Alarme rápido</string>
     <string name="quick_alarm_description">Alarme do widget</string>
     <string name="watch_not_connected">Relógio não conectado</string>
-    <string name="qhybrid_vibration_strength">força da vibração:</string>
-    <string name="qhybrid_goal_in_steps">Meta em passos</string>
     <string name="qhybrid_time_shift">deslocamento de tempo</string>
     <string name="qhybrid_second_timezone_offset_relative_to_utc">segundo deslocamento de fuso horário relativo a UTC</string>
-    <string name="qhybrid_overwrite_buttons">sobrescrever botões</string>
     <string name="qhybrid_use_activity_hand_as_notification_counter">usar mão de atividade como contador da notificação</string>
-    <string name="qhybrid_prompt_million_steps">Defina a contagem de passos para um milhão para ativá-lo.</string>
     <string name="qhybrid_buttons_overwrite_success">Botões sobrescritos</string>
     <string name="qhybrid_buttons_overwrite_error">Erro ao sobrescrever botões</string>
     <string name="qhybrid_offset_timezone">deslocar fuso horário por</string>
@@ -2158,10 +2151,6 @@
     <string name="pref_media_forward">Saltar para a frente</string>
     <string name="pref_media_rewind">Saltar para trás</string>
     <string name="pref_device_action_broadcast">Enviar transmissão</string>
-    <string name="distance_format_meters">###m</string>
-    <string name="distance_format_kilometers">###.#km</string>
-    <string name="distance_format_miles">###.#mi</string>
-    <string name="distance_format_feet">###ft</string>
     <string name="prefs_activity_recognition">Definições de reconhecimento de atividade</string>
     <string name="pref_activity_recognize_running">reconhecer corrida</string>
     <string name="pref_activity_recognize_biking">reconhecer ciclismo</string>
@@ -2695,7 +2684,6 @@
     <string name="menuitem_wechat_pay">WeChat Pay</string>
     <string name="menuitem_cards">Cartões</string>
     <string name="menuitem_mi_ai">MI AI</string>
-    <string name="preferences_qhybrid_settings_summary">Configurações herdadas para relógios Q Hybrid</string>
     <string name="menuitem_calories_segmented">Calorias (segmentadas)</string>
     <string name="menuitem_calories_active_goal">Meta de calorias (ativo)</string>
     <string name="menuitem_zepp_flow">Zepp Flow</string>

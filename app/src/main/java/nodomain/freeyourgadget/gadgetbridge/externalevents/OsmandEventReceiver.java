@@ -22,7 +22,6 @@ import android.content.ComponentName;
 import android.content.Context;
 import android.content.Intent;
 import android.content.ServiceConnection;
-import android.content.pm.PackageManager;
 import android.os.IBinder;
 import android.os.PowerManager;
 import android.os.RemoteException;
@@ -93,9 +92,9 @@ public class OsmandEventReceiver {
         @Override
         public void onVoiceRouterNotify(OnVoiceNavigationParams params) {
             List<String> played = params.getPlayed();
-            for (String instuction : played) {
-                navigationInfoSpec.instruction = instuction;
-                LOG.debug("instruction: {}", instuction);
+            for (String instruction : played) {
+                navigationInfoSpec.instruction = instruction;
+                LOG.debug("instruction: {}", instruction);
                 // only first one for now
                 break;
             }

@@ -44,7 +44,6 @@ import java.util.List;
 
 import nodomain.freeyourgadget.gadgetbridge.GBApplication;
 import nodomain.freeyourgadget.gadgetbridge.R;
-import nodomain.freeyourgadget.gadgetbridge.activities.SettingsActivity;
 import nodomain.freeyourgadget.gadgetbridge.database.DBHandler;
 import nodomain.freeyourgadget.gadgetbridge.devices.DeviceCoordinator;
 import nodomain.freeyourgadget.gadgetbridge.devices.TimeSampleProvider;
@@ -93,7 +92,7 @@ public class TemperatureChartFragment extends AbstractChartFragment<TemperatureC
         mTemperatureChart.getXAxis().setValueFormatter(temperatureData.getXValueFormatter());
         mTemperatureChart.getXAxis().setAvoidFirstLastClipping(true);
 
-        // Using approximately the range of survivable body-temperatures (in celsius), rounded to multiples of 5
+        // Using approximately the range of survivable body-temperatures (in Celsius), rounded to multiples of 5
         final boolean isMetric = temperatureUnit == TemperatureUnit.CELSIUS;
         mTemperatureChart.getAxisLeft().setAxisMinimum((float) (isMetric ? 30f : celsiusToFahrenheit(30d)));
         mTemperatureChart.getAxisLeft().setAxisMaximum((float) (isMetric ? 45f : celsiusToFahrenheit(45f)));

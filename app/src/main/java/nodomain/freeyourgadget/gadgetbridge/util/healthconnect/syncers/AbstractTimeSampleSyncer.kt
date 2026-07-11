@@ -49,7 +49,7 @@ internal abstract class AbstractTimeSampleSyncer<TSample : TimeSample, TRecord :
         daoSession: DaoSession
     ): TimeSampleProvider<out TSample>?
 
-    protected abstract fun convertSample(
+    internal abstract fun convertSample(
         sample: TSample,
         offset: ZoneOffset,
         metadata: Metadata,
@@ -105,7 +105,7 @@ internal abstract class AbstractTimeSampleSyncer<TSample : TimeSample, TRecord :
         val recordsToInsert = samples.filter {
             val timestamp = Instant.ofEpochMilli(it.timestamp)
             if (timestamp.isBefore(sliceStartBoundary) || timestamp.isAfter(sliceEndBoundary)) {
-                logger.debug(
+                logger.trace(
                     "Skipping sample for at {} as it's outside the slice {} - {}.",
                     timestamp,
                     sliceStartBoundary,

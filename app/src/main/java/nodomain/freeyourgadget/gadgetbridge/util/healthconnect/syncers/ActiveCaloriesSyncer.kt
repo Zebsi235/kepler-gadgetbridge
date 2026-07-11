@@ -35,10 +35,16 @@ internal object ActiveCaloriesSyncer : AbstractActivitySampleSyncer<ActiveCalori
         sample: ActivitySample,
         offset: ZoneOffset,
         metadata: Metadata,
-        deviceName: String
+        deviceName: String,
+        version: Long
     ): ActiveCaloriesBurnedRecord? {
         val caloriesInMinute = sample.activeCalories
         if (caloriesInMinute <= 0) {
+            return null
+        }
+        // HC's ActiveCaloriesBurnedRecord caps energy at 1_000_000 kcal (= 1e9 cal).
+        if (caloriesInMinute > 1_000_000_000) {
+            logger.skipOutOfRange(deviceName, "ActiveCalories", "$caloriesInMinute cal", "<= 1000000 kcal per record")
             return null
         }
 
@@ -51,7 +57,7 @@ internal object ActiveCaloriesSyncer : AbstractActivitySampleSyncer<ActiveCalori
             endTs,
             offset,
             Energy.calories(caloriesInMinute.toDouble()),
-            metadata
+            clientRecordMetadata(metadata, "calories", endTs.epochSecond, version)
         )
     }
 }

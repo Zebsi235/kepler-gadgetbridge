@@ -35,10 +35,16 @@ internal object DistanceSyncer : AbstractActivitySampleSyncer<DistanceRecord>() 
         sample: ActivitySample,
         offset: ZoneOffset,
         metadata: Metadata,
-        deviceName: String
+        deviceName: String,
+        version: Long
     ): DistanceRecord? {
         val distanceCm = sample.distanceCm
         if (distanceCm <= 0 || distanceCm == ActivitySample.NOT_MEASURED) {
+            return null
+        }
+        // HC's DistanceRecord caps distance at 1_000_000 m (= 1e8 cm).
+        if (distanceCm > 100_000_000) {
+            logger.skipOutOfRange(deviceName, "Distance", "$distanceCm cm", "<= 1000000 m per record")
             return null
         }
 
@@ -51,7 +57,7 @@ internal object DistanceSyncer : AbstractActivitySampleSyncer<DistanceRecord>() 
             endTime = endTs,
             endZoneOffset = offset,
             distance = Length.meters(distanceCm / 100.0),
-            metadata = metadata
+            metadata = clientRecordMetadata(metadata, "distance", endTs.epochSecond, version)
         )
     }
 }

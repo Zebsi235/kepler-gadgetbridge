@@ -1,4 +1,4 @@
-/*  Copyright (C) 2019-2024 Andreas Böhler, Andreas Shimokawa, Arjan
+/*  Copyright (C) 2019-2026 Andreas Böhler, Andreas Shimokawa, Arjan
     Schrijver, Damien Gaignon, mamucho, mkusnierz, Taavi Eomäe
 
     This file is part of Gadgetbridge.
@@ -24,10 +24,12 @@ import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
 import android.content.SharedPreferences;
+import android.os.Bundle;
 import android.os.Handler;
 import android.widget.Toast;
 
 import androidx.annotation.IntRange;
+import androidx.annotation.Nullable;
 import androidx.localbroadcastmanager.content.LocalBroadcastManager;
 
 import org.slf4j.Logger;
@@ -913,7 +915,7 @@ public class WatchXPlusDeviceSupport extends AbstractBTLESingleDeviceSupport {
     }
 
     @Override
-    public void onTestNewFunction() {
+    public void onTestNewFunction(@Nullable Bundle options) {
         requestBloodPressureMeasurement();
     }
 
@@ -1638,7 +1640,7 @@ public class WatchXPlusDeviceSupport extends AbstractBTLESingleDeviceSupport {
                     overlayList.add(new WatchXPlusHealthActivityOverlay(sample.getTimestamp(), sample.getTimestamp()+300, sample.getRawKind(), sample.getDeviceId(), sample.getUserId(), sample.getRawWatchXPlusHealthData()));
                 }
                 overlayDao.insertOrReplaceInTx(overlayList);
-                provider.addGBActivitySamples(samples.toArray(new WatchXPlusActivitySample[0]));
+                provider.addGBActivitySamples(samples);
 
                 handleEndOfDataChunks(chunkNo, type);
             } else if (DataType.HEART_RATE.equals(type)) {
@@ -1658,7 +1660,7 @@ public class WatchXPlusDeviceSupport extends AbstractBTLESingleDeviceSupport {
                     sample.setRawKind(ActivityKind.ACTIVITY.getCode());
                     samples.add(sample);
                 }
-                provider.addGBActivitySamples(samples.toArray(new WatchXPlusActivitySample[0]));
+                provider.addGBActivitySamples(samples);
 
                 handleEndOfDataChunks(chunkNo, type);
             } else {

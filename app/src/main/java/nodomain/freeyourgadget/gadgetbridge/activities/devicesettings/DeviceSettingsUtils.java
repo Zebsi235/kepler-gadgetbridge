@@ -157,7 +157,7 @@ public final class DeviceSettingsUtils {
     }
 
     /**
-     * Hides the the prefToHide preference if none of the preferences in the preferences list are
+     * Hides the prefToHide preference if none of the preferences in the preferences list are
      * visible.
      */
     public static void hidePrefIfNoneVisible(final DeviceSpecificSettingsHandler handler,
@@ -277,7 +277,7 @@ public final class DeviceSettingsUtils {
                         }
                         handler.notifyPreferenceChanged(preferenceKey);
                     })
-                    .setNegativeButton(handler.getContext().getString(R.string.Cancel), (dialog, which) -> dialog.dismiss())
+                    .setNegativeButton(handler.getContext().getString(R.string.cancel), (dialog, which) -> dialog.dismiss())
                     .create()
                     .show();
             return false;

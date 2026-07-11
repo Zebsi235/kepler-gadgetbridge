@@ -1,4 +1,4 @@
-/*  Copyright (C) 2015-2024 Andreas Shimokawa, Arjan Schrijver, Carsten
+/*  Copyright (C) 2015-2026 Andreas Shimokawa, Arjan Schrijver, Carsten
     Pfeiffer, Daniele Gobbetti, Kasha, Sebastian Kranz, Steffen Liebergeld,
     Taavi Eomäe
 
@@ -24,6 +24,7 @@ import android.os.Bundle;
 import android.util.Pair;
 
 import androidx.annotation.NonNull;
+import androidx.annotation.Nullable;
 import androidx.core.content.ContextCompat;
 
 import org.json.JSONArray;
@@ -38,7 +39,7 @@ import java.util.UUID;
 
 import nodomain.freeyourgadget.gadgetbridge.GBApplication;
 import nodomain.freeyourgadget.gadgetbridge.R;
-import nodomain.freeyourgadget.gadgetbridge.externalevents.AlarmReceiver;
+import nodomain.freeyourgadget.gadgetbridge.externalevents.SunriseSunsetAlarmReceiver;
 import nodomain.freeyourgadget.gadgetbridge.impl.GBDevice;
 import nodomain.freeyourgadget.gadgetbridge.model.CalendarEventSpec;
 import nodomain.freeyourgadget.gadgetbridge.model.CallSpec;
@@ -52,7 +53,7 @@ import nodomain.freeyourgadget.gadgetbridge.service.serial.GBDeviceProtocol;
 
 public class PebbleSupport extends AbstractSerialDeviceSupport {
     private static final Logger LOG = LoggerFactory.getLogger(PebbleSupport.class);
-    private AlarmReceiver mAlarmReceiver = null;
+    private SunriseSunsetAlarmReceiver mAlarmReceiver = null;
 
     @Override
     public void dispose() {
@@ -69,7 +70,7 @@ public class PebbleSupport extends AbstractSerialDeviceSupport {
         }
         unregisterSunriseSunsetAlarmReceiver();
         LOG.info("registering sunrise and sunset receiver");
-        this.mAlarmReceiver = new AlarmReceiver();
+        this.mAlarmReceiver = new SunriseSunsetAlarmReceiver();
         ContextCompat.registerReceiver(GBApplication.getContext(), mAlarmReceiver, new IntentFilter("DAILY_ALARM"), ContextCompat.RECEIVER_EXPORTED);
     }
 
@@ -255,10 +256,16 @@ public class PebbleSupport extends AbstractSerialDeviceSupport {
     }
 
     @Override
-    public void onTestNewFunction() {
+    public void onTestNewFunction(@Nullable Bundle options) {
         if (reconnect()) {
-            super.onTestNewFunction();
+            super.onTestNewFunction(options);
         }
+    }
+
+    @Override
+    public void onFetchRecordedData(int dataTypes) {
+        super.onFetchRecordedData(dataTypes);
+        getDeviceIOThread().readBatteryCharacteristic();
     }
 
     @Override

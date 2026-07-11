@@ -42,6 +42,10 @@ public class AppNotificationType extends HashMap<String, NotificationType> {
         put("ch.protonmail.android", NotificationType.GENERIC_EMAIL);
         put("security.pEp", NotificationType.GENERIC_EMAIL);
         put("eu.faircode.email", NotificationType.GENERIC_EMAIL);
+        put("net.thunderbird.android", NotificationType.GENERIC_EMAIL);
+        put("net.thunderbird.android.beta", NotificationType.GENERIC_EMAIL);
+        put("net.thunderbird.android.daily", NotificationType.GENERIC_EMAIL);
+        put("net.thunderbird.android.debug", NotificationType.GENERIC_EMAIL);
 
         // Generic SMS
         put("com.moez.QKSMS", NotificationType.GENERIC_SMS);
@@ -95,6 +99,7 @@ public class AppNotificationType extends HashMap<String, NotificationType> {
         put("org.telegram.messenger.beta", NotificationType.TELEGRAM);
         put("org.telegram.messenger.web", NotificationType.TELEGRAM);
         put("org.telegram.plus", NotificationType.TELEGRAM); // "Plus Messenger"
+        put("org.forkgram.messenger", NotificationType.TELEGRAM);
         put("org.thunderdog.challegram", NotificationType.TELEGRAM);
         put("nekox.messenger", NotificationType.TELEGRAM);
         put("tw.nekomimi.nekogram", NotificationType.TELEGRAM);

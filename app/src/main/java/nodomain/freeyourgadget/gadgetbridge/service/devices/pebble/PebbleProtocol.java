@@ -45,6 +45,7 @@ import nodomain.freeyourgadget.gadgetbridge.devices.pebble.PebbleHardware;
 import nodomain.freeyourgadget.gadgetbridge.deviceevents.GBDeviceEvent;
 import nodomain.freeyourgadget.gadgetbridge.deviceevents.GBDeviceEventAppInfo;
 import nodomain.freeyourgadget.gadgetbridge.deviceevents.GBDeviceEventAppManagement;
+import nodomain.freeyourgadget.gadgetbridge.deviceevents.pebble.GBDeviceEventFirmwareUpdateStart;
 import nodomain.freeyourgadget.gadgetbridge.deviceevents.GBDeviceEventAppMessage;
 import nodomain.freeyourgadget.gadgetbridge.deviceevents.GBDeviceEventCallControl;
 import nodomain.freeyourgadget.gadgetbridge.deviceevents.GBDeviceEventMusicControl;
@@ -109,6 +110,7 @@ public class PebbleProtocol extends GBDeviceProtocol {
     private static final short ENDPOINT_APPREORDER = (short) 0xabcd; // FW >=3.x
     private static final short ENDPOINT_BLOBDB = (short) 0xb1db;  // FW >=3.x
     private static final short ENDPOINT_PUTBYTES = (short) 0xbeef;
+    private static final short ENDPOINT_HEALTH_SYNC = 911;
 
     private static final byte APPRUNSTATE_START = 1;
     private static final byte APPRUNSTATE_STOP = 2;
@@ -201,6 +203,9 @@ public class PebbleProtocol extends GBDeviceProtocol {
     private static final byte DATALOG_ACK = (byte) 0x85;
     private static final byte DATALOG_NACK = (byte) 0x86;
 
+    private static final byte HEALTH_SYNC_CMD_SYNC = 0x01;
+    private static final byte HEALTH_SYNC_CMD_ACK = 0x11;
+
     private static final byte PING_PING = 0;
     private static final byte PING_PONG = 1;
 
@@ -230,6 +235,7 @@ public class PebbleProtocol extends GBDeviceProtocol {
     private static final byte SYSTEMMESSAGE_FIRMWARE_OUTOFDATE = 5;
     private static final byte SYSTEMMESSAGE_STOPRECONNECTING = 6;
     private static final byte SYSTEMMESSAGE_STARTRECONNECTING = 7;
+    private static final byte SYSTEMMESSAGE_FIRMWARESTART_RESPONSE = 0x0a;
 
     private static final byte PHONEVERSION_REQUEST = 0;
     private static final byte PHONEVERSION_APPVERSION_MAGIC = 2; // increase this if pebble complains
@@ -289,6 +295,11 @@ public class PebbleProtocol extends GBDeviceProtocol {
 
     int mFwMajor = 3;
     boolean isNewEraPebble = false;
+
+    // Dual-slot firmware support
+    // Bit 2 (0x04) = IsDualSlot, Bit 3 (0x08) = IsSlot0
+    private boolean mIsDualSlot = false;
+    private boolean mIsSlot0 = false;
     boolean mEnablePebbleKit = false;
     boolean mAlwaysACKPebbleKit = false;
     private byte[] screenshotData = null;
@@ -406,6 +417,7 @@ public class PebbleProtocol extends GBDeviceProtocol {
     private static final UUID UUID_MARIOTIME = UUID.fromString("43caa750-2896-4f46-94dc-1adbd4bc1ff3");
     private static final UUID UUID_HELTHIFY = UUID.fromString("7ee97b2c-95e8-4720-b94e-70fccd905d98");
     private static final UUID UUID_TREKVOLLE = UUID.fromString("2da02267-7a19-4e49-9ed1-439d25db14e4");
+    private static final UUID UUID_TREKV3_REWORKED = UUID.fromString("fb9b2ec0-586b-4d3a-8a4d-89c24e80d971");
     private static final UUID UUID_SQUARE = UUID.fromString("cb332373-4ee5-4c5c-8912-4f62af2d756c");
     private static final UUID UUID_ZALEWSZCZAK_CROWEX = UUID.fromString("a88b3151-2426-43c6-b1d0-9b288b3ec47e");
     private static final UUID UUID_ZALEWSZCZAK_FANCY = UUID.fromString("014e17bf-5878-4781-8be1-8ef998cee1ba");
@@ -438,6 +450,7 @@ public class PebbleProtocol extends GBDeviceProtocol {
             mAppMessageHandlers.put(UUID_MARIOTIME, new AppMessageHandlerMarioTime(UUID_MARIOTIME, PebbleProtocol.this));
             mAppMessageHandlers.put(UUID_HELTHIFY, new AppMessageHandlerHealthify(UUID_HELTHIFY, PebbleProtocol.this));
             mAppMessageHandlers.put(UUID_TREKVOLLE, new AppMessageHandlerTrekVolle(UUID_TREKVOLLE, PebbleProtocol.this));
+            mAppMessageHandlers.put(UUID_TREKV3_REWORKED, new AppMessageHandlerTrekV3Reworked(UUID_TREKV3_REWORKED, PebbleProtocol.this));
             mAppMessageHandlers.put(UUID_SQUARE, new AppMessageHandlerSquare(UUID_SQUARE, PebbleProtocol.this));
             mAppMessageHandlers.put(UUID_ZALEWSZCZAK_CROWEX, new AppMessageHandlerZalewszczak(UUID_ZALEWSZCZAK_CROWEX, PebbleProtocol.this));
             mAppMessageHandlers.put(UUID_ZALEWSZCZAK_FANCY, new AppMessageHandlerZalewszczak(UUID_ZALEWSZCZAK_FANCY, PebbleProtocol.this));
@@ -735,7 +748,28 @@ public class PebbleProtocol extends GBDeviceProtocol {
         if (dataTypes == RecordedDataTypes.TYPE_DEBUGLOGS) {
             return encodeRequestLogDump(0, 0);
         }
+        if ((dataTypes & RecordedDataTypes.TYPE_ACTIVITY) != 0) {
+            return encodeHealthSync();
+        }
         return null;
+    }
+
+    private byte[] encodeHealthSync() {
+        // Health sync message format (from PebbleOS health_sync_endpoint.c):
+        // - 1 byte: command (0x01 = sync)
+        // - 4 bytes: seconds_since_sync (uint32_t, little-endian)
+        // Sending 0 requests all queued health data from the DLS
+        final short LENGTH_HEALTH_SYNC = 5;
+        ByteBuffer buf = ByteBuffer.allocate(LENGTH_PREFIX + LENGTH_HEALTH_SYNC);
+        buf.order(ByteOrder.BIG_ENDIAN);
+        buf.putShort(LENGTH_HEALTH_SYNC);
+        buf.putShort(ENDPOINT_HEALTH_SYNC);
+        buf.put(HEALTH_SYNC_CMD_SYNC);
+
+        // Request all queued data (0 = send everything in DLS queue)
+        buf.order(ByteOrder.LITTLE_ENDIAN);
+        buf.putInt(0);
+        return buf.array();
     }
 
     byte[] encodeRequestLogDump(int generation, int cookie) {
@@ -1508,16 +1542,28 @@ public class PebbleProtocol extends GBDeviceProtocol {
 
     /* pebble specific install methods */
     byte[] encodeUploadStart(byte type, int app_id, int size, String filename) {
+        // The watch uses two different INIT packet formats:
+        // - Firmware/recovery/sysresources: type without bit 7, 1-byte bank number
+        // - App binary/resources/worker:    type with bit 7 set, 4-byte app slot
+        // - File (language):                type as-is, 1-byte slot, optional filename
+        boolean isFirmwareType = (type == PUTBYTES_TYPE_FIRMWARE ||
+                                   type == PUTBYTES_TYPE_RECOVERY ||
+                                   type == PUTBYTES_TYPE_SYSRESOURCES);
+        boolean isFileType = (type == PUTBYTES_TYPE_FILE);
+
         short length;
-        if (type != PUTBYTES_TYPE_FILE) {
+        if (isFileType) {
+            length = (short) 7;
+            if (filename != null) {
+                length += (short) (filename.getBytes().length + 1);
+            }
+        } else if (isFirmwareType) {
+            // 1-byte bank number; type without bit 7
+            length = (short) 7;
+        } else {
+            // App slot: 4-byte; type with bit 7 to select app-init variant
             length = (short) 10;
             type |= (byte) 0b10000000;
-        } else {
-            length = (short) 7;
-        }
-
-        if (type == PUTBYTES_TYPE_FILE && filename != null) {
-            length += (short) ((short) filename.getBytes().length + 1);
         }
 
         ByteBuffer buf = ByteBuffer.allocate(LENGTH_PREFIX + length);
@@ -1528,16 +1574,16 @@ public class PebbleProtocol extends GBDeviceProtocol {
         buf.putInt(size);
         buf.put(type);
 
-        if (type != PUTBYTES_TYPE_FILE) {
-            buf.putInt(app_id);
-        } else {
-            // slot
+        if (isFileType) {
             buf.put((byte) app_id);
-        }
-
-        if (type == PUTBYTES_TYPE_FILE && filename != null) {
-            buf.put(filename.getBytes());
-            buf.put((byte) 0);
+            if (filename != null) {
+                buf.put(filename.getBytes());
+                buf.put((byte) 0);
+            }
+        } else if (isFirmwareType) {
+            buf.put((byte) app_id);  // 1-byte bank number
+        } else {
+            buf.putInt(app_id);      // 4-byte app slot
         }
 
         return buf.array();
@@ -1602,8 +1648,20 @@ public class PebbleProtocol extends GBDeviceProtocol {
 
     }
 
-    byte[] encodeInstallFirmwareStart() {
-        return encodeSystemMessage(SYSTEMMESSAGE_FIRMWARESTART);
+    byte[] encodeInstallFirmwareStart(int totalBytes) {
+        // FirmwareUpdateStart includes bytesAlreadyTransferred + bytesToSend
+        // so the watch knows how much data is coming and can pre-erase the full flash region.
+        final short LENGTH_FIRMWARESTART = 10; // command(1) + messageType(1) + alreadyTransferred(4LE) + bytesToSend(4LE)
+        ByteBuffer buf = ByteBuffer.allocate(LENGTH_PREFIX + LENGTH_FIRMWARESTART);
+        buf.order(ByteOrder.BIG_ENDIAN);
+        buf.putShort(LENGTH_FIRMWARESTART);
+        buf.putShort(ENDPOINT_SYSTEMMESSAGE);
+        buf.put((byte) 0); // command
+        buf.put(SYSTEMMESSAGE_FIRMWARESTART);
+        buf.order(ByteOrder.LITTLE_ENDIAN); // size fields are little-endian per Pebble protocol
+        buf.putInt(0); // bytesAlreadyTransferred: always 0 (fresh install)
+        buf.putInt(totalBytes);
+        return buf.array();
     }
 
     byte[] encodeInstallFirmwareComplete() {
@@ -2107,6 +2165,14 @@ public class PebbleProtocol extends GBDeviceProtocol {
             case SYSTEMMESSAGE_STARTRECONNECTING:
                 LOG.info(ENDPOINT_NAME + ": start reconnecting");
                 break;
+            case SYSTEMMESSAGE_FIRMWARESTART_RESPONSE:
+                if (buf.remaining() >= 1) {
+                    byte status = buf.get();
+                    LOG.info(ENDPOINT_NAME + ": firmware update start response, status={}", status);
+                    return new GBDeviceEventFirmwareUpdateStart(status);
+                }
+                LOG.warn(ENDPOINT_NAME + ": firmware update start response missing status byte");
+                break;
             default:
                 LOG.info(ENDPOINT_NAME + ": {}", command);
                 break;
@@ -2253,6 +2319,7 @@ public class PebbleProtocol extends GBDeviceProtocol {
                         devEvtsDataLogging = new GBDeviceEvent[]{dataLogging, null};
                     }
                     if (datalogSession.uuid.equals(UUID_ZERO) && (datalogSession.tag == 81 || datalogSession.tag == 83 || datalogSession.tag == 84)) {
+                        // Tag 81 = activity minute data, Tag 84 = activity sessions
                         GB.signalActivityDataFinish(getDevice());
                     }
                     mDatalogSessions.remove(id);
@@ -2397,6 +2464,17 @@ public class PebbleProtocol extends GBDeviceProtocol {
                 String gitHash = getFixedString(buf, 8);
                 int fwFlags = buf.get();
                 LOG.info("git hash: {}, flags: {}", gitHash, fwFlags);
+
+                // Extract dual-slot firmware flags
+                mIsDualSlot = (fwFlags & 0x04) != 0;  // Bit 2: IsDualSlot
+                mIsSlot0 = (fwFlags & 0x08) != 0;      // Bit 3: IsSlot0
+                if (mIsDualSlot) {
+                    int runningSlot = mIsSlot0 ? 0 : 1;
+                    int targetSlot = mIsSlot0 ? 1 : 0;
+                    versionCmd.fwUpdateTargetSlot = targetSlot;
+                    versionCmd.fwVersion2 = "slot " + runningSlot + " active";
+                    LOG.info("Dual-slot firmware detected: running slot {}, will update slot {}", runningSlot, targetSlot);
+                }
                 int hwRev = buf.get() & 0xFF;  // Convert to unsigned
                 String codename = PebbleHardware.getCodenameByHardwareId(hwRev);
                 if (codename != null) {
@@ -2610,6 +2688,24 @@ public class PebbleProtocol extends GBDeviceProtocol {
             case ENDPOINT_AUDIOSTREAM:
                 devEvts = new GBDeviceEvent[]{decodeAudioStream(buf)};
 //                LOG.debug("AUDIOSTREAM DATA: " + GB.hexdump(responseData, 4, length));
+                break;
+            case ENDPOINT_HEALTH_SYNC:
+                pebbleCmd = buf.get();
+                if (pebbleCmd == HEALTH_SYNC_CMD_ACK) {
+                    // ACK response format: cmd (0x11) + ack_nack (0x01=ok, 0x02=fail)
+                    byte ackNack = buf.get();
+                    if (ackNack == 0x01) {
+                        // Success: actual data will arrive via DATALOG (tags 81/83/84), which
+                        // already calls signalActivityDataFinish. Leave the spinner running.
+                        LOG.info("Health sync ACK received (success), data will arrive via data logging");
+                    } else {
+                        // Failure: no DATALOG data is coming, so dismiss the spinner now.
+                        LOG.warn("Health sync ACK received but watch reported failure (ack_nack={}), signalling finish", ackNack);
+                        GB.signalActivityDataFinish(getDevice());
+                    }
+                } else {
+                    LOG.warn("Unknown health sync response: 0x{}", Integer.toHexString(pebbleCmd & 0xff));
+                }
                 break;
             default:
                 break;

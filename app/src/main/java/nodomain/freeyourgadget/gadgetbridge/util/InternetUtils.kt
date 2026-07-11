@@ -32,6 +32,7 @@ import org.json.JSONObject
 import org.slf4j.Logger
 import org.slf4j.LoggerFactory
 import java.io.ByteArrayInputStream
+import java.io.ByteArrayOutputStream
 import java.io.File
 import java.io.FileOutputStream
 import java.security.SecureRandom
@@ -45,7 +46,7 @@ class InternetUtils {
     companion object {
         private val LOG: Logger = LoggerFactory.getLogger(InternetUtils::class.java)
         private val defaultClient = OkHttpClient()
-        private const val USER_AGENT = "Gadgetbridge/${BuildConfig.VERSION_NAME} (${BuildConfig.GIT_HASH_SHORT})"
+        private const val USER_AGENT = "Gadgetbridge/${BuildConfig.VERSION_NAME} (${BuildConfig.GIT_HASH_SHORT}${BuildConfig.GIT_DIRTY_STATUS})"
 
         /**
          * Returns a new Map containing the User-Agent header.
@@ -146,6 +147,117 @@ class InternetUtils {
                     onComplete(targetFile)
             } catch (e: Exception) {
                 LOG.error("Downloading $uri failed: ", e)
+            }
+        }
+
+        fun uploadBinaryFile(
+            uri: Uri,
+            file: File,
+            requestHeaders: Map<String, String> = emptyMap(),
+            method: String = "POST",
+            allowInsecure: Boolean = false,
+            onComplete: (success: Boolean, statusCode: Int?, response: String?) -> Unit
+        ) {
+            try {
+                if (!file.exists() || !file.canRead()) {
+                    LOG.error("File does not exist or cannot be read: ${file.path}")
+                    onComplete(false, null, null)
+                    return
+                }
+
+                val fileName = file.name
+                val mimeType = when (fileName.substringAfterLast('.', "").lowercase()) {
+                    "gpx" -> "application/gpx+xml"
+                    else -> "application/octet-stream"
+                }
+
+                val boundary = "----GadgetbridgeFormBoundary${System.currentTimeMillis()}"
+                val multipartBodyBytes = buildMultipartBody(file, fileName, mimeType, boundary)
+
+                val headers = requestHeaders.toMutableMap()
+                headers["Content-Type"] = "multipart/form-data; boundary=$boundary"
+
+                val response = if (GBApplication.hasDirectInternetAccess()) {
+                    directBinaryRequest(
+                        uri = uri,
+                        method = method,
+                        requestHeaders = headers,
+                        body = multipartBodyBytes,
+                        allowInsecure = allowInsecure
+                    )
+                } else {
+                    InternetHelperSingleton.send(
+                        uri,
+                        HttpRequest.Method.valueOf(method),
+                        headers,
+                        multipartBodyBytes,
+                        allowInsecure
+                    )
+                }
+
+                val responseText = response?.data?.bufferedReader()?.use { it.readText() }
+                onComplete(response != null, response?.statusCode, responseText)
+            } catch (e: Exception) {
+                LOG.error("Uploading $uri failed: ", e)
+                onComplete(false, null, null)
+            }
+        }
+
+        private fun buildMultipartBody(
+            file: File,
+            fileName: String,
+            mimeType: String,
+            boundary: String
+        ): ByteArray {
+            val fileBytes = file.readBytes()
+            val output = ByteArrayOutputStream()
+
+            val header = "--$boundary\r\n" +
+                "Content-Disposition: form-data; name=\"file\"; filename=\"$fileName\"\r\n" +
+                "Content-Type: $mimeType\r\n" +
+                "\r\n"
+            output.write(header.toByteArray(Charsets.US_ASCII))
+            output.write(fileBytes)
+            output.write("\r\n--$boundary--\r\n".toByteArray(Charsets.US_ASCII))
+
+            return output.toByteArray()
+        }
+
+        /**
+         * Direct HTTP request using OkHttp with a binary body.
+         */
+        private fun directBinaryRequest(
+            uri: Uri,
+            method: String,
+            requestHeaders: Map<String, String>,
+            body: ByteArray,
+            allowInsecure: Boolean
+        ): WebResourceResponse {
+            val client = if (allowInsecure) createInsecureClient() else defaultClient
+            val builder = Request.Builder().url(uri.toString())
+
+            for ((key, value) in headersWithUserAgent(requestHeaders)) {
+                builder.addHeader(key, value)
+            }
+
+            val contentType = getHeader(requestHeaders, "content-type") ?: "application/octet-stream"
+            val requestBody = body.toRequestBody(contentType.toMediaType())
+            builder.method(method.uppercase(), requestBody)
+
+            client.newCall(builder.build()).execute().use { response ->
+                val statusCode = response.code
+                val message = if (!response.message.isEmpty()) response.message else "OK"
+                val headers = response.headers.toMap()
+                val respContentType = response.header("content-type") ?: "application/octet-stream"
+                val encoding = response.header("content-encoding") ?: "UTF-8"
+                return WebResourceResponse(
+                    respContentType,
+                    encoding,
+                    statusCode,
+                    message,
+                    headers,
+                    ByteArrayInputStream(response.body.bytes())
+                )
             }
         }
 

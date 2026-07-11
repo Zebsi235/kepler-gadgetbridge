@@ -1,4 +1,4 @@
-/*  Copyright (C) 2021-2024 Arjan Schrijver, Damien Gaignon, Petr Vaněk
+/*  Copyright (C) 2021-2026 Arjan Schrijver, Damien Gaignon, Petr Vaněk
 
     This file is part of Gadgetbridge.
 
@@ -89,8 +89,10 @@ import static nodomain.freeyourgadget.gadgetbridge.devices.fitpro.FitProConstant
 import android.bluetooth.BluetoothGatt;
 import android.bluetooth.BluetoothGattCharacteristic;
 import android.content.Intent;
+import android.os.Bundle;
 import android.widget.Toast;
 
+import androidx.annotation.Nullable;
 import androidx.localbroadcastmanager.content.LocalBroadcastManager;
 
 import org.apache.commons.lang3.ArrayUtils;
@@ -120,6 +122,7 @@ import nodomain.freeyourgadget.gadgetbridge.activities.devicesettings.DeviceSett
 import nodomain.freeyourgadget.gadgetbridge.database.DBHandler;
 import nodomain.freeyourgadget.gadgetbridge.database.DBHelper;
 import nodomain.freeyourgadget.gadgetbridge.deviceevents.GBDeviceEventBatteryInfo;
+import nodomain.freeyourgadget.gadgetbridge.deviceevents.GBDeviceEventCameraRemote;
 import nodomain.freeyourgadget.gadgetbridge.deviceevents.GBDeviceEventFindPhone;
 import nodomain.freeyourgadget.gadgetbridge.deviceevents.GBDeviceEventMusicControl;
 import nodomain.freeyourgadget.gadgetbridge.deviceevents.GBDeviceEventVersionInfo;
@@ -215,23 +218,23 @@ public class FitProDeviceSupport extends AbstractBTLESingleDeviceSupport {
 
         builder.write(writeCharacteristic, craftData(CMD_GROUP_GENERAL, FitProConstants.CMD_INIT1, (byte) 0x2));
         setTime(builder);
-        builder.wait(200);
+        builder.sleep(200);
         builder.write(writeCharacteristic, craftData(CMD_GROUP_REQUEST_DATA, FitProConstants.CMD_INIT1));
-        builder.wait(200);
+        builder.sleep(200);
         builder.write(writeCharacteristic, craftData(CMD_GROUP_REQUEST_DATA, FitProConstants.CMD_INIT2));
-        builder.wait(200);
+        builder.sleep(200);
         setLanguage(builder);
-        builder.wait(200);
+        builder.sleep(200);
         builder.write(writeCharacteristic, craftData(CMD_GROUP_GENERAL, FitProConstants.CMD_INIT3, VALUE_ON));
-        builder.wait(200);
+        builder.sleep(200);
         builder.write(writeCharacteristic, craftData(CMD_GROUP_REQUEST_DATA, VALUE_ON));
-        builder.wait(200);
+        builder.sleep(200);
         builder.write(writeCharacteristic, craftData(CMD_GROUP_REQUEST_DATA, (byte) 0xf));
-        builder.wait(200);
+        builder.sleep(200);
         builder.write(writeCharacteristic, craftData(CMD_GROUP_REQUEST_DATA, CMD_GET_HW_INFO));
-        builder.wait(200);
+        builder.sleep(200);
         builder.write(writeCharacteristic, craftData(CMD_GROUP_BAND_INFO, CMD_RX_BAND_INFO));
-        builder.wait(200);
+        builder.sleep(200);
 
         builder.setDeviceState(GBDevice.State.INITIALIZED);
         return builder;
@@ -541,7 +544,7 @@ public class FitProDeviceSupport extends AbstractBTLESingleDeviceSupport {
     }
 
     @Override
-    public void onTestNewFunction() {
+    public void onTestNewFunction(@Nullable Bundle options) {
         LOG.debug("Hello FitPro Test function");
     }
 
@@ -787,7 +790,10 @@ public class FitProDeviceSupport extends AbstractBTLESingleDeviceSupport {
 
      */
     public void handleCamera(byte command) {
-        GB.toast(getContext(), "Camera buttons are detected but not further handled.", Toast.LENGTH_SHORT, GB.INFO);
+        LOG.debug("Got camera button: {}", String.format("0x%02x", command));
+        final GBDeviceEventCameraRemote cameraEvent = new GBDeviceEventCameraRemote();
+        cameraEvent.event = GBDeviceEventCameraRemote.Event.TAKE_PICTURE;
+        evaluateGBDeviceEvent(cameraEvent);
     }
 
     public void handleFindPhone() {

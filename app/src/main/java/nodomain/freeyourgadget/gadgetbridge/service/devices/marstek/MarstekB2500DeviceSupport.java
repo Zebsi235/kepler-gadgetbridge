@@ -1,4 +1,4 @@
-/*  Copyright (C) 2024 Andreas Shimokawa
+/*  Copyright (C) 2024-2026 Andreas Shimokawa
 
     This file is part of Gadgetbridge.
 
@@ -25,7 +25,9 @@ import android.bluetooth.BluetoothGatt;
 import android.bluetooth.BluetoothGattCharacteristic;
 import android.content.Intent;
 import android.content.SharedPreferences;
+import android.os.Bundle;
 
+import androidx.annotation.Nullable;
 import androidx.localbroadcastmanager.content.LocalBroadcastManager;
 
 import org.slf4j.Logger;
@@ -99,7 +101,7 @@ public class MarstekB2500DeviceSupport extends AbstractBTLESingleDeviceSupport {
 
 
     @Override
-    public void onTestNewFunction() {
+    public void onTestNewFunction(@Nullable Bundle options) {
         sendCommand("get infos 1", COMMAND_GET_INFOS1);
         sendCommand("get infos 2", COMMAND_GET_INFOS2);
     }
@@ -118,7 +120,7 @@ public class MarstekB2500DeviceSupport extends AbstractBTLESingleDeviceSupport {
         getDevice().setFirmwareVersion2("N/A");
         builder.requestMtu(512);
         builder.notify(UUID_CHARACTERISTIC_MAIN, true);
-        builder.wait(3500);
+        builder.sleep(3500);
         builder.write(UUID_CHARACTERISTIC_MAIN, COMMAND_GET_INFOS1);
         return builder;
     }
@@ -133,7 +135,7 @@ public class MarstekB2500DeviceSupport extends AbstractBTLESingleDeviceSupport {
         BluetoothGattCharacteristic characteristic = getCharacteristic(UUID_CHARACTERISTIC_MAIN);
         if (characteristic != null && contents != null) {
             builder.write(characteristic, contents);
-            builder.wait(750);
+            builder.sleep(750);
             builder.queue();
         }
     }
@@ -240,7 +242,7 @@ public class MarstekB2500DeviceSupport extends AbstractBTLESingleDeviceSupport {
         devicePrefsEdit.apply();
         devicePrefsEdit.commit();
 
-        getDevice().setBatteryLevel(battery_pct);
+        getDevice().setBatteryLevel(battery_pct, 0);
         getDevice().sendDeviceUpdateIntent(getContext());
 
         Intent intent = new Intent(SolarEquipmentStatusActivity.ACTION_SEND_SOLAR_EQUIPMENT_STATUS)

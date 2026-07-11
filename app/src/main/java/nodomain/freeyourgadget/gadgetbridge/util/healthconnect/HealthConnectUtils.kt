@@ -50,6 +50,7 @@ import java.time.Instant
 import java.time.ZoneId
 import java.time.ZonedDateTime
 import java.time.format.DateTimeFormatter
+import java.time.temporal.ChronoUnit
 import java.util.*
 import java.util.function.BiConsumer
 import kotlin.math.pow
@@ -410,6 +411,7 @@ class HealthConnectUtils {
                         val sliceTotalSynced = sliceStats.sumOf { it.recordsSynced }
 
                         val latestRecordTs = sliceStats.mapNotNull { it.latestRecordTimestamp }.maxOrNull()
+
                         if (latestRecordTs != null && latestRecordTs.isAfter(timestampToPersistForThisDataType)) {
                             timestampToPersistForThisDataType = latestRecordTs
                         } else if (sliceTotalSynced == 0) {
@@ -451,7 +453,7 @@ class HealthConnectUtils {
                         val deviceFromDb = DBHelper.getDevice(gbDevice, db.daoSession)
                         val syncStateDao = db.daoSession.healthConnectSyncStateDao
                         val syncState = HealthConnectSyncState(
-                            deviceFromDb.id,
+                            deviceFromDb.id!!,
                             dataType.name,
                             timestampToPersistForThisDataType.epochSecond
                         )
@@ -495,7 +497,12 @@ class HealthConnectUtils {
         internal const val MAX_SAMPLES_PER_HEART_RATE_RECORD = 1000
         private const val MAX_RETRIES = 5
         private const val INITIAL_DELAY_MS = 1000L
-        private const val HC_SYNC_TAG = "[HC_SYNC]"
+        internal const val HC_SYNC_TAG = "[HC_SYNC]"
+
+        // Floor the sync-start at 2015 (Gadgetbridge predates it). A bogus near-epoch sample
+        // timestamp otherwise resolves the start to ~1970 and triggers a full historical resync.
+        private const val MIN_VALID_SAMPLE_SECONDS = 1420070400L // 2015-01-01T00:00:00Z
+        private const val MIN_VALID_SAMPLE_MILLIS = MIN_VALID_SAMPLE_SECONDS * 1000
 
         private fun getSyncTimestampRange(
             context: Context,
@@ -683,10 +690,10 @@ class HealthConnectUtils {
         ): Instant? {
             return when (val provider = getProviderForDataType(deviceCoordinator, device, db, dataType)) {
                 is TimeSampleProvider<*> -> {
-                    provider.firstSample?.timestamp?.takeIf { it > 0 }?.let { Instant.ofEpochMilli(it) }
+                    provider.firstSample?.timestamp?.takeIf { it > MIN_VALID_SAMPLE_MILLIS }?.let { Instant.ofEpochMilli(it) }
                 }
                 is SampleProvider<*> -> { // For ActivitySample based providers
-                    provider.firstActivitySample?.timestamp?.takeIf { it > 0 }?.let { Instant.ofEpochSecond(it.toLong()) }
+                    provider.getFirstActivitySample(MIN_VALID_SAMPLE_SECONDS.toInt())?.timestamp?.takeIf { it > MIN_VALID_SAMPLE_SECONDS }?.let { Instant.ofEpochSecond(it.toLong()) }
                 }
                 is BaseActivitySummaryDao -> {
                     val deviceEntity = DBHelper.getDevice(device, db.daoSession) ?: return null

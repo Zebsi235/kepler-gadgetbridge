@@ -458,8 +458,8 @@
     <string name="minutes_30">30 минути</string>
     <string name="liveactivity_live_activity">Активност в реално време</string>
     <string name="weeksteps_today_steps_description">Крачки днес, цел: %1$s</string>
-    <string name="lack_of_step">Недостиг на крачки: %1$d</string>
-    <string name="overstep">Крачки в повече: %1$d</string>
+    <string name="lack_of_step">Недостиг на крачки: %1$s</string>
+    <string name="overstep">Крачки в повече: %1$s</string>
     <string name="pref_summary_dont_ack_transfers">Ако данните за активност не са потвърени от устройството, те няма да се изчистят. Полезно е, когато GB се използва заедно с други приложения.</string>
     <string name="pref_summary_keep_data_on_device">Данните за активност ще се пазят на Mi Band дори след синхронизация. Полезно е, когато GB се използва заедно с други приложения.</string>
     <string name="weeksleepchart_sleep_a_week">Седмичен сън</string>
@@ -474,8 +474,8 @@
     <string name="title_activity_device_specific_settings">Специфични настройки за устройството</string>
     <string name="average">Средно: %1$s</string>
     <string name="mi2_prefs_button_press_broadcast_default_value" translatable="false">nodomain.freeyourgadget.gadgetbridge.ButtonPressed</string>
-    <string name="Cancel">Отказ</string>
-    <string name="Delete">Изтрий</string>
+    <string name="cancel">Отказ</string>
+    <string name="delete">Изтрий</string>
     <string name="abstract_chart_fragment_kind_deep_sleep">Дълбок сън</string>
     <string name="abstract_chart_fragment_kind_light_sleep">Лек сън</string>
     <string name="abstract_chart_fragment_kind_not_worn">Не е носен</string>

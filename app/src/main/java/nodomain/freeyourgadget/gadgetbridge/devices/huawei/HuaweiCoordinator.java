@@ -40,6 +40,7 @@ import nodomain.freeyourgadget.gadgetbridge.activities.devicesettings.DeviceSpec
 import nodomain.freeyourgadget.gadgetbridge.activities.devicesettings.DeviceSpecificSettingsScreen;
 import nodomain.freeyourgadget.gadgetbridge.devices.AbstractDeviceCoordinator;
 import nodomain.freeyourgadget.gadgetbridge.devices.ComputedHrvSummarySampleProvider;
+import nodomain.freeyourgadget.gadgetbridge.devices.HuaweiStressSampleProvider;
 import nodomain.freeyourgadget.gadgetbridge.devices.InstallHandler;
 import nodomain.freeyourgadget.gadgetbridge.devices.SampleProvider;
 import nodomain.freeyourgadget.gadgetbridge.devices.TimeSampleProvider;
@@ -382,6 +383,10 @@ public abstract class HuaweiCoordinator extends AbstractDeviceCoordinator {
 
     @Override
     public InstallHandler findInstallHandler(Uri uri, Bundle options, Context context) {
+        final HuaweiGpxRouteInstallHandler huaweiGpxRouteInstallHandler = new HuaweiGpxRouteInstallHandler(uri, context);
+        if (huaweiGpxRouteInstallHandler.isValid())
+            return huaweiGpxRouteInstallHandler;
+
         final HuaweiInstallHandler handler = new HuaweiInstallHandler(uri, context);
         return handler.isValid() ? handler : null;
     }
@@ -573,6 +578,7 @@ public abstract class HuaweiCoordinator extends AbstractDeviceCoordinator {
 
         // Developer
         final List<Integer> developer = deviceSpecificSettings.addRootScreen(DeviceSpecificSettingsScreen.DEVELOPER);
+        developer.add(R.xml.devicesettings_force_encryption);
         developer.add(R.xml.devicesettings_huawei_debug);
         if (deviceState.supportsGpsAndTimeToDevice())
             developer.add(R.xml.devicesettings_huawei_gps_and_time);

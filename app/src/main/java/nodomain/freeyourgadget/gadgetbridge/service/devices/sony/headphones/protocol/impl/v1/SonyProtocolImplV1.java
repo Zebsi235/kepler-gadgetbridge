@@ -47,6 +47,9 @@ import nodomain.freeyourgadget.gadgetbridge.devices.sony.headphones.prefs.AudioU
 import nodomain.freeyourgadget.gadgetbridge.devices.sony.headphones.prefs.AutomaticPowerOff;
 import nodomain.freeyourgadget.gadgetbridge.devices.sony.headphones.prefs.ButtonFunctionNcAmbient;
 import nodomain.freeyourgadget.gadgetbridge.devices.sony.headphones.prefs.ButtonModes;
+import nodomain.freeyourgadget.gadgetbridge.devices.sony.headphones.prefs.CaptureVoiceDuringCall;
+import nodomain.freeyourgadget.gadgetbridge.devices.sony.headphones.prefs.ConnectTwoDevices;
+import nodomain.freeyourgadget.gadgetbridge.devices.sony.headphones.prefs.ServiceLink;
 import nodomain.freeyourgadget.gadgetbridge.devices.sony.headphones.prefs.EqualizerCustomBands;
 import nodomain.freeyourgadget.gadgetbridge.devices.sony.headphones.prefs.EqualizerPreset;
 import nodomain.freeyourgadget.gadgetbridge.devices.sony.headphones.prefs.PauseWhenTakenOff;
@@ -56,6 +59,7 @@ import nodomain.freeyourgadget.gadgetbridge.devices.sony.headphones.prefs.SpeakT
 import nodomain.freeyourgadget.gadgetbridge.devices.sony.headphones.prefs.SpeakToChatEnabled;
 import nodomain.freeyourgadget.gadgetbridge.devices.sony.headphones.prefs.SurroundMode;
 import nodomain.freeyourgadget.gadgetbridge.devices.sony.headphones.prefs.TouchSensor;
+import nodomain.freeyourgadget.gadgetbridge.devices.sony.headphones.prefs.VoiceAssistant;
 import nodomain.freeyourgadget.gadgetbridge.devices.sony.headphones.prefs.VoiceNotifications;
 import nodomain.freeyourgadget.gadgetbridge.devices.sony.headphones.prefs.WideAreaTap;
 import nodomain.freeyourgadget.gadgetbridge.impl.GBDevice;
@@ -360,6 +364,48 @@ public class SonyProtocolImplV1 extends AbstractSonyProtocolImpl {
     }
 
     @Override
+    public Request getCaptureVoiceDuringCall() {
+        LOG.warn("Capture voice during call not implemented for V1");
+        return null;
+    }
+
+    @Override
+    public Request setCaptureVoiceDuringCall(final CaptureVoiceDuringCall config) {
+        LOG.warn("Capture voice during call not implemented for V1");
+        return null;
+    }
+
+    @Override
+    public Request getServiceLink() {
+        LOG.warn("Service link not implemented for V1");
+        return null;
+    }
+
+    @Override
+    public Request setServiceLink(final ServiceLink config) {
+        LOG.warn("Service link not implemented for V1");
+        return null;
+    }
+
+    @Override
+    public Request applyServiceLink(final ServiceLink config) {
+        LOG.warn("Service link not implemented for V1");
+        return null;
+    }
+
+    @Override
+    public Request setConnectTwoDevices(final ConnectTwoDevices config) {
+        LOG.warn("Connect two devices not implemented for V1");
+        return null;
+    }
+
+    @Override
+    public Request getConnectTwoDevices() {
+        LOG.warn("Connect two devices not implemented for V1");
+        return null;
+    }
+
+    @Override
     public Request getButtonModes() {
         return new Request(
                 PayloadTypeV1.AUTOMATIC_POWER_OFF_BUTTON_MODE_GET.getMessageType(),
@@ -572,6 +618,28 @@ public class SonyProtocolImplV1 extends AbstractSonyProtocolImpl {
     }
 
     @Override
+    public Request getVoiceNotificationsVolume() {
+        LOG.warn("Voice notifications volume not implemented for V1");
+        return null;
+    }
+
+    @Override
+    public Request setVoiceNotificationsVolume(final VoiceNotifications config) {
+        LOG.warn("Voice notifications volume not implemented for V1");
+        return null;
+    }
+
+    @Override
+    public Request getVoiceAssistant() {
+        return null;
+    }
+
+    @Override
+    public Request setVoiceAssistant(final VoiceAssistant config) {
+        return null;
+    }
+
+    @Override
     public Request startNoiseCancellingOptimizer(final boolean start) {
         return new Request(
                 PayloadTypeV1.NOISE_CANCELLING_OPTIMIZER_START.getMessageType(),
@@ -607,6 +675,12 @@ public class SonyProtocolImplV1 extends AbstractSonyProtocolImpl {
                 (byte) 0x01
             }
         );
+    }
+
+    @Override
+    public Request factoryReset() {
+        LOG.warn("Factory reset not implemented for V1");
+        return null;
     }
 
     @Override
@@ -710,6 +784,7 @@ public class SonyProtocolImplV1 extends AbstractSonyProtocolImpl {
             put(SonyHeadphonesCapabilities.ButtonFunctionNcAmbient, getButtonFunctionNcAmbient());
             put(SonyHeadphonesCapabilities.ButtonModesLeftRight, getButtonModes());
             put(SonyHeadphonesCapabilities.VoiceNotifications, getVoiceNotifications());
+            put(SonyHeadphonesCapabilities.VoiceAssistantFunction, getVoiceAssistant());
             put(SonyHeadphonesCapabilities.AutomaticPowerOffWhenTakenOff, getAutomaticPowerOff());
             put(SonyHeadphonesCapabilities.AutomaticPowerOffByTime, getAutomaticPowerOff());
             put(SonyHeadphonesCapabilities.TouchSensorSingle, getTouchSensor());
@@ -725,6 +800,9 @@ public class SonyProtocolImplV1 extends AbstractSonyProtocolImpl {
             put(SonyHeadphonesCapabilities.Volume, getVolume());
             put(SonyHeadphonesCapabilities.AdaptiveVolumeControl, getAdaptiveVolumeControl());
             put(SonyHeadphonesCapabilities.WideAreaTap, getWideAreaTap());
+            put(SonyHeadphonesCapabilities.ConnectTwoDevices, getConnectTwoDevices());
+            put(SonyHeadphonesCapabilities.CaptureVoiceDuringCall, getCaptureVoiceDuringCall());
+            put(SonyHeadphonesCapabilities.ServiceLink, getServiceLink());
         }};
 
         for (Map.Entry<SonyHeadphonesCapabilities, Request> capabilityEntry : capabilityRequestMap.entrySet()) {

@@ -31,13 +31,13 @@ import nodomain.freeyourgadget.gadgetbridge.GBApplication;
 import nodomain.freeyourgadget.gadgetbridge.R;
 import nodomain.freeyourgadget.gadgetbridge.database.DBHandler;
 import nodomain.freeyourgadget.gadgetbridge.database.DBHelper;
+import nodomain.freeyourgadget.gadgetbridge.devices.CmfHeartRateSampleProvider;
+import nodomain.freeyourgadget.gadgetbridge.devices.CmfSleepSessionSampleProvider;
+import nodomain.freeyourgadget.gadgetbridge.devices.CmfSleepStageSampleProvider;
+import nodomain.freeyourgadget.gadgetbridge.devices.CmfSpo2SampleProvider;
+import nodomain.freeyourgadget.gadgetbridge.devices.CmfStressSampleProvider;
+import nodomain.freeyourgadget.gadgetbridge.devices.CmfWorkoutGpsSampleProvider;
 import nodomain.freeyourgadget.gadgetbridge.devices.cmfwatchpro.samples.CmfActivitySampleProvider;
-import nodomain.freeyourgadget.gadgetbridge.devices.cmfwatchpro.samples.CmfHeartRateSampleProvider;
-import nodomain.freeyourgadget.gadgetbridge.devices.cmfwatchpro.samples.CmfSleepSessionSampleProvider;
-import nodomain.freeyourgadget.gadgetbridge.devices.cmfwatchpro.samples.CmfSleepStageSampleProvider;
-import nodomain.freeyourgadget.gadgetbridge.devices.cmfwatchpro.samples.CmfSpo2SampleProvider;
-import nodomain.freeyourgadget.gadgetbridge.devices.cmfwatchpro.samples.CmfStressSampleProvider;
-import nodomain.freeyourgadget.gadgetbridge.devices.cmfwatchpro.samples.CmfWorkoutGpsSampleProvider;
 import nodomain.freeyourgadget.gadgetbridge.devices.cmfwatchpro.workout.CmfActivityTrackProvider;
 import nodomain.freeyourgadget.gadgetbridge.devices.cmfwatchpro.workout.CmfWorkoutSummaryParser;
 import nodomain.freeyourgadget.gadgetbridge.entities.BaseActivitySummary;
@@ -51,6 +51,7 @@ import nodomain.freeyourgadget.gadgetbridge.entities.CmfWorkoutGpsSample;
 import nodomain.freeyourgadget.gadgetbridge.entities.DaoSession;
 import nodomain.freeyourgadget.gadgetbridge.entities.Device;
 import nodomain.freeyourgadget.gadgetbridge.entities.User;
+import nodomain.freeyourgadget.gadgetbridge.export.AutoFitExporter;
 import nodomain.freeyourgadget.gadgetbridge.export.AutoGpxExporter;
 import nodomain.freeyourgadget.gadgetbridge.impl.GBDevice;
 import nodomain.freeyourgadget.gadgetbridge.model.ActivityKind;
@@ -179,7 +180,7 @@ public class CmfActivitySync {
             }
 
             LOG.debug("Will persist {} activity samples", samples.size());
-            sampleProvider.addGBActivitySamples(samples.toArray(new CmfActivitySample[0]));
+            sampleProvider.addGBActivitySamples(samples);
         } catch (final Exception e) {
             GB.toast(getContext(), "Error saving activity samples", Toast.LENGTH_LONG, GB.ERROR, e);
         }
@@ -502,9 +503,10 @@ public class CmfActivitySync {
                 .anyMatch(p -> p.getLocation() != null);
 
         if (hasGps) {
-            // Save the gpx file
+            // GPX needs at least one GPS-valid point; FIT can be emitted regardless.
             AutoGpxExporter.doExport(getContext(), getDevice(), summary, activityTrack);
         }
+        AutoFitExporter.doExport(getContext(), getDevice(), summary, activityTrack);
     }
 
     private Context getContext() {

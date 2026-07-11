@@ -52,10 +52,25 @@ internal object HeartRateSyncer : ActivitySampleSyncer {
             return SyncerStatistics(recordType = "HeartRate")
         }
 
-        // 2. Relevant Input Data Check
+        // 2. Relevant Input Data Check. HC enforces 1..300 bpm; 255 is GB's documented
+        // "illegal value" sentinel (ActivitySample.getHeartRate) and lands inside that range.
+        var droppedOutOfRange = 0
         val validHRSamples = deviceSamples
-            .filter { it.heartRate in 20..250 }
+            .filter {
+                val inRange = it.heartRate in 1..300 && it.heartRate != 255
+                // 0 means "not measured" - common, don't count as out-of-range
+                if (!inRange && it.heartRate != 0) {
+                    droppedOutOfRange++
+                }
+                inRange
+            }
             .sortedBy { it.timestamp }
+        if (droppedOutOfRange > 0) {
+            LOG.info(
+                "${HealthConnectUtils.HC_SYNC_TAG} Dropped {} out-of-range HeartRate sample(s) for device '{}' in slice {} to {} (HC requires 1..300 bpm, 255 excluded as bad-measurement sentinel).",
+                droppedOutOfRange, deviceName, sliceStartBoundary, sliceEndBoundary
+            )
+        }
 
         if (validHRSamples.isEmpty()) {
             LOG.info("No valid heart rate samples found for device '$deviceName' for slice $sliceStartBoundary to $sliceEndBoundary.")

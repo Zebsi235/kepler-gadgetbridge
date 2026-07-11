@@ -4,9 +4,7 @@ import android.app.Activity
 import android.content.Context
 import android.content.Intent
 import android.text.Editable
-import android.text.InputFilter
 import android.text.InputType
-import android.text.Spanned
 import android.text.TextWatcher
 import android.widget.AdapterView
 import android.widget.ArrayAdapter
@@ -130,7 +128,7 @@ class DeviceTypeDialog(
                     DeviceType.entries[selectedTestDeviceKey.toInt()]
                 )
             }
-            .setNegativeButton(R.string.Cancel) { _, _ -> }
+            .setNegativeButton(R.string.cancel) { _, _ -> }
             .create()
 
         // Validate and update OK button state

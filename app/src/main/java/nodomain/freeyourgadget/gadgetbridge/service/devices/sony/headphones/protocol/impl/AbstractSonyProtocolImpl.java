@@ -38,7 +38,11 @@ import nodomain.freeyourgadget.gadgetbridge.devices.sony.headphones.prefs.SpeakT
 import nodomain.freeyourgadget.gadgetbridge.devices.sony.headphones.prefs.SpeakToChatEnabled;
 import nodomain.freeyourgadget.gadgetbridge.devices.sony.headphones.prefs.SurroundMode;
 import nodomain.freeyourgadget.gadgetbridge.devices.sony.headphones.prefs.TouchSensor;
+import nodomain.freeyourgadget.gadgetbridge.devices.sony.headphones.prefs.VoiceAssistant;
 import nodomain.freeyourgadget.gadgetbridge.devices.sony.headphones.prefs.VoiceNotifications;
+import nodomain.freeyourgadget.gadgetbridge.devices.sony.headphones.prefs.CaptureVoiceDuringCall;
+import nodomain.freeyourgadget.gadgetbridge.devices.sony.headphones.prefs.ConnectTwoDevices;
+import nodomain.freeyourgadget.gadgetbridge.devices.sony.headphones.prefs.ServiceLink;
 import nodomain.freeyourgadget.gadgetbridge.devices.sony.headphones.prefs.WideAreaTap;
 import nodomain.freeyourgadget.gadgetbridge.impl.GBDevice;
 import nodomain.freeyourgadget.gadgetbridge.service.devices.sony.headphones.protocol.Request;
@@ -106,6 +110,20 @@ public abstract class AbstractSonyProtocolImpl {
 
     public abstract Request getWideAreaTap();
 
+    public abstract Request getCaptureVoiceDuringCall();
+
+    public abstract Request setCaptureVoiceDuringCall(final CaptureVoiceDuringCall config);
+
+    public abstract Request getServiceLink();
+
+    public abstract Request setServiceLink(final ServiceLink config);
+
+    public abstract Request applyServiceLink(final ServiceLink config);
+
+    public abstract Request setConnectTwoDevices(final ConnectTwoDevices config);
+
+    public abstract Request getConnectTwoDevices();
+
     public abstract Request getButtonModes();
 
     public abstract Request setButtonModes(final ButtonModes config);
@@ -140,15 +158,25 @@ public abstract class AbstractSonyProtocolImpl {
 
     public abstract Request setTouchSensor(final TouchSensor config);
 
+    public abstract Request getVoiceAssistant();
+
+    public abstract Request setVoiceAssistant(final VoiceAssistant config);
+
     public abstract Request getVoiceNotifications();
 
     public abstract Request setVoiceNotifications(final VoiceNotifications config);
+
+    public abstract Request getVoiceNotificationsVolume();
+
+    public abstract Request setVoiceNotificationsVolume(final VoiceNotifications config);
 
     public abstract Request startNoiseCancellingOptimizer(final boolean start);
 
     public abstract Request powerOff();
 
     public abstract Request reboot();
+
+    public abstract Request factoryReset();
 
     public abstract Request getVolume();
 
@@ -157,6 +185,6 @@ public abstract class AbstractSonyProtocolImpl {
     public abstract List<? extends GBDeviceEvent> handlePayload(final MessageType messageType, final byte[] payload);
 
     protected boolean supports(final SonyHeadphonesCapabilities capability) {
-        return getCoordinator().supports(device, capability);
+        return getCoordinator().getCapabilities(device).contains(capability);
     }
 }

@@ -32,7 +32,6 @@
     <string name="menuitem_breathing">சுவாசம்</string>
     <string name="menuitem_timer">கவுண்டவுன்</string>
     <string name="menuitem_mi_ai">நீங்கள் என்னை வைத்திருக்கிறீர்கள்</string>
-    <string name="preferences_qhybrid_settings_summary">Q கலப்பின கடிகாரங்களுக்கான மரபு அமைப்புகள்</string>
     <string name="menuitem_nfc">NFC</string>
     <string name="menuitem_sun_moon">சன் &amp; சந்திரன்</string>
     <string name="menuitem_one_tap_measuring">ஒரு தட்டு அளவீட்டு</string>
@@ -215,7 +214,6 @@
     <string name="pref_device_action_fitness_app_control_stop">உடற்பயிற்சி பயன்பாட்டு கண்காணிப்பு நிறுத்தம்</string>
     <string name="pref_device_action_fitness_app_control_toggle">உடற்பயிற்சி பயன்பாட்டு கண்காணிப்பை மாற்றவும்</string>
     <string name="pref_device_action_fitness_app_control_start">உடற்பயிற்சி பயன்பாட்டு கண்காணிப்பு தொடங்குகிறது</string>
-    <string name="distance_format_miles">###.#மி</string>
     <string name="idasen_pref_sit_height">SIT நிலை உயரம் (சென்டிமீட்டரில்)</string>
     <string name="idasen_pref_stand_height">நிலை உயரம் (சென்டிமீட்டரில்)</string>
     <string name="idasen_pref_value_warning">மதிப்பு 62 - 126 செமீ இடையே இருக்க வேண்டும்</string>
@@ -501,7 +499,7 @@
     <string name="minutes_10">10 நிமிடங்கள்</string>
     <string name="minutes_45">45 நிமிடங்கள்</string>
     <string name="weeksteps_today_steps_description">இன்று படிகள், இலக்கு: %1$s</string>
-    <string name="lack_of_step">படிகளின் பற்றாக்குறை: %1$d</string>
+    <string name="lack_of_step">படிகளின் பற்றாக்குறை: %1$s</string>
     <string name="live_activity_current_steps_per_minute">தற்போதைய படிகள்/நிமிடம்</string>
     <string name="you_slept">%1$s - %2$s</string>
     <string name="you_did_not_sleep">நீங்கள் தூங்கவில்லை</string>
@@ -518,7 +516,7 @@
     <string name="dbmanagementactivity_error_importing_shared">விருப்பத்தை இறக்குமதி செய்வதில் பிழை: %1$s</string>
     <string name="activity_db_management_autoexport_scheduled_no">ஆட்டோ எக்ச்போர்ட் திட்டமிடப்படவில்லை.</string>
     <string name="activity_DB_delete_legacy_button">பழைய டி.பி நீக்கு</string>
-    <string name="Cancel">ரத்துசெய்</string>
+    <string name="cancel">ரத்துசெய்</string>
     <string name="start">தொடங்கு</string>
     <string name="set">கணம்</string>
     <string name="pref_summary_setup_bt_pairing">இணைப்பதில் சிக்கல் இருந்தால் இதை செயலிழக்கச் செய்யுங்கள்</string>
@@ -580,7 +578,6 @@
     <string name="battery_i">பேட்டரி %d</string>
     <string name="soundcore_equalizer_band1">பேண்ட் 1</string>
     <string name="fossil_hr_pairing_successful">வாட்ச் வெற்றிகரமாக இணைத்தல்</string>
-    <string name="loyalty_cards_catima_package">கேடிமா தொகுப்பு பெயர்</string>
     <string name="info_menu_structure_set">பட்டியல் கட்டமைப்பு சாதொபொகு சிபியில் அமைக்கப்பட்டுள்ளது</string>
     <string name="prefs_wena3_home_icon_name_pedometer">படி எண்ணிக்கை</string>
     <string name="widget_screen_no_free_slots_description">சாதனத்தில் விட்செட் திரைகளுக்கு இலவச இடங்கள் இல்லை (மொத்த இடங்கள்: %1$s)</string>
@@ -646,8 +643,6 @@
     <string name="pref_header_charts">விளக்கப்படங்கள் அமைப்புகள்</string>
     <string name="pref_charts_range_off">விளக்கப்படங்கள் வரம்பு ஒரு வாரத்திற்கு அமைக்கப்பட்டுள்ளது</string>
     <string name="pref_chart_heartrate_color_red">சிவப்பு</string>
-    <string name="pref_chart_sleep_rolling_24_on">கடந்த 24 மணி நேரம்</string>
-    <string name="pref_chart_sleep_rolling_24_off">நண்பகல் முதல் நண்பகல்</string>
     <string name="activity_prefs_chart_min_steps_per_minute_for_run">ரன் கண்டறிய நிமிடத்திற்கு குறைந்தபட்ச படிகள்</string>
     <string name="authenticating">ஏற்பு</string>
     <string name="device_hw">வன்பொருள் திருத்தம்: %1$s</string>
@@ -660,7 +655,7 @@
     <string name="activity_DB_import_button">தரவை இறக்குமதி செய்யுங்கள்</string>
     <string name="activity_DB_test_export_button">ஆட்டோ எக்ச்போர்ட்டை இப்போது இயக்கவும்</string>
     <string name="activity_DB_test_export_message">தரவுத்தளத்தை ஏற்றுமதி செய்யுங்கள்…</string>
-    <string name="Delete">நீக்கு</string>
+    <string name="delete">நீக்கு</string>
     <string name="activity_data_management_directory_content_title">அடைவு உள்ளடக்கத்தை ஏற்றுமதி/இறக்குமதி செய்யுங்கள்</string>
     <string name="title_activity_vibration">அதிர்வு</string>
     <string name="title_activity_pebble_pairing">கூழாங்கல் இணைத்தல்</string>
@@ -711,9 +706,7 @@
     <string name="menuitem_heart_rate_push">இதய துடிப்பு உந்துதல்</string>
     <string name="title_activity_notification_filter">அறிவிப்பு வடிகட்டி</string>
     <string name="prefs_fm_presets_presets">முன்னமைவுகள்</string>
-    <string name="qhybrid_overwrite_buttons">பொத்தான்களை மேலெழுதும்</string>
     <string name="qhybrid_second_timezone_offset_relative_to_utc">யுடிசியுடன் ஒப்பிடும்போது இரண்டாவது நேர மண்டல ஆஃப்செட்</string>
-    <string name="qhybrid_prompt_million_steps">அதைச் செயல்படுத்த ஒரு மில்லியனுக்கு படி எண்ணிக்கையை அமைக்கவும்.</string>
     <string name="steps">படிகள்</string>
     <string name="steps_avg">படிகள் AVG</string>
     <string name="maxHR">அதிகபட்ச இதயத் துடிப்பு</string>
@@ -951,8 +944,6 @@
     <string name="soundcore_equalizer_direction_lying">பொய்</string>
     <string name="soundcore_equalizer_band8">பேண்ட் 8</string>
     <string name="pref_screen_auto_brightness_title">ஆட்டோ ஒளி</string>
-    <string name="distance_format_meters">### மீ</string>
-    <string name="distance_format_kilometers">###.#கி.மீ</string>
     <string name="idasen_control_button_mid">நடுப்பகுதி</string>
     <string name="idasen_control_button_stand">நிற்க</string>
     <string name="steps_streaks_since_date">%s என்பதால்</string>
@@ -1203,7 +1194,6 @@
     <string name="menuitem_headphone">தலையணி</string>
     <string name="menuitem_unsupported">[ஆதரிக்கப்படாத] %s</string>
     <string name="zepp_os_watchface_rush">விரைவு</string>
-    <string name="qhybrid_goal_in_steps">படிகளில் இலக்கு</string>
     <string name="qhybrid_time_shift">நேர மாற்றம்</string>
     <string name="hr_widget_last_notification">கடைசி அறிவிப்பு</string>
     <string name="about_hash">%s</string>
@@ -1417,7 +1407,6 @@
     <string name="voice_service_package_title">குரல் பணி தொகுப்பு</string>
     <string name="pref_app_logs_stop_summary">வாட்ச் பயன்பாடுகளிலிருந்து உள்நுழைவதை நிறுத்துங்கள்</string>
     <string name="changelog_title">புதியது என்ன</string>
-    <string name="loyalty_cards_catima_permissions_summary">கேசெட் பிரிட்ச் அவற்றை ஒத்திசைக்க கேடிமா அட்டைகளில் வாசிப்பு அனுமதிகள் தேவை. அவர்களுக்கு வழங்க இந்த பொத்தானைத் தட்டவும்.</string>
     <string name="prefs_home_icon_center_item">நடுவண்</string>
     <string name="purple">ஊதா</string>
     <string name="white">வெள்ளை</string>
@@ -1701,7 +1690,6 @@
     <string name="widget_settings_select_device_title">சாதனத்தைத் தேர்ந்தெடுக்கவும்</string>
     <string name="appwidget_text">ஔஔஔ</string>
     <string name="add_widget">விட்செட்டைச் சேர்க்கவும்</string>
-    <string name="qhybrid_vibration_strength">அதிர்வு வலிமை:</string>
     <string name="pref_show_changelog">தொடக்கத்தில் சேஞ்ச்லாக் காட்டு</string>
     <string name="discover_unsupported_devices">ஆதரிக்கப்படாத சாதனங்களைக் கண்டறியவும்</string>
     <string name="discover_unsupported_devices_description">இந்த விருப்பத்தை இயக்கினால், வருடு செய்யும் போது கண்டுபிடிக்கப்பட்ட அனைத்து ஊடலை சாதனங்களும் காண்பிக்கப்படும். குறுகிய தட்டினால், சாதனத்தின் பெயர் மற்றும் மேக் முகவரியை இடைநிலைப்பலகைக்கு நகலெடுக்கும். நீண்ட நேரம் அழுத்தினால் \"சோதனை சாதனத்தைச் சேர்\" உரையாடல் தொடங்கும். ஆப்ச் முடக்கம் சிக்கல்களை ஏற்படுத்தலாம்.</string>
@@ -1724,7 +1712,6 @@
     <string name="huawei_ignore_wakeup_status_start_description">சரியான தூக்கத்தைக் கண்டறிவதற்கு உதவலாம். அன்றாட நடவடிக்கைகள் பார்வையில் உடனடியாக தெரியும்.</string>
     <string name="steps_streaks_total_steps">மொத்தம்\n படிகள்</string>
     <string name="prefs_hourly_chime">மணிநேர சைம்</string>
-    <string name="loyalty_cards_install_catima_fail">கேடிமாவை நிறுவ ஆப் ச்டோரைத் திறக்கத் தவறிவிட்டது</string>
     <string name="info_menu_structure_removed">பட்டியல் அமைப்பு அகற்றப்பட்டது</string>
     <string name="prefs_wena3_vibration_strength_item_medium">சராசரி</string>
     <string name="prefs_wena3_home_icon_title">முகப்புத் திரை சின்னங்கள்</string>
@@ -1747,7 +1734,6 @@
     <string name="alarm_fri_short">வெள்ளி</string>
     <string name="activity_type_belly_dance">தொப்பை நடனம்</string>
     <string name="kind_app">பயன்பாடு</string>
-    <string name="preferences_qhybrid_settings">கே கலப்பின அமைப்புகள்</string>
     <string name="menuitem_phone">தொலைபேசி</string>
     <string name="menuitem_theater_mode">தியேட்டர் பயன்முறை</string>
     <string name="menuitem_volume">தொகுதி</string>
@@ -2497,7 +2483,7 @@
     <string name="minutes_120">120 நிமிடங்கள்</string>
     <string name="minutes_255">255 நிமிடங்கள்</string>
     <string name="liveactivity_live_activity">நேரடி செயல்பாடு</string>
-    <string name="overstep">ஓவர்ச்டெப்: %1$d</string>
+    <string name="overstep">ஓவர்ச்டெப்: %1$s</string>
     <string name="stress_average">சராசரி</string>
     <string name="pref_huami_truncate_fetch_operation_timestamps_summary">ஃபெட்ச் ஆபரேசன் நேர முத்திரைகளை நிமிடங்களுக்கு துண்டிக்கவும். மிகக் குறுகிய உடற்பயிற்சிகளைப் பெறும்போது சிக்கல்களை எதிர்கொண்டால், நேர முத்திரைகளை நொடிகளில் வைத்திருக்க இந்த அமைப்பை முடக்கு.</string>
     <string name="pref_title_dont_ack_transfer">செயல்பாட்டு தரவு பரிமாற்றத்தை ACK வேண்டாம்</string>
@@ -2854,11 +2840,8 @@
     <string name="voice_service_class_summary">குரல் கட்டளைகளை கையாளும் முழு பணி பாதை</string>
     <string name="pref_app_logs_summary">வாட்ச் பயன்பாடுகளிலிருந்து பதிவுகளை இயக்கவும்</string>
     <string name="pref_app_logs_start_summary">வாட்ச் பயன்பாடுகளிலிருந்து உள்நுழையத் தொடங்குங்கள்</string>
-    <string name="loyalty_cards_install">கேடிமாவை நிறுவவும்</string>
     <string name="loyalty_cards_sync_starred">ஒத்திசைக்கப்பட்ட அட்டைகளை மட்டுமே ஒத்திசைக்கவும்</string>
     <string name="loyalty_cards_sync_summary">அட்டைகளை கடிகாரத்துடன் ஒத்திசைக்க தட்டவும்</string>
-    <string name="loyalty_cards_catima_not_installed">விசுவாச அட்டைகளை நிர்வகிக்க கேடிமா தேவை</string>
-    <string name="loyalty_cards_catima_not_compatible">நிறுவப்பட்ட கேடிமா பதிப்பு கேசெட் பிரிட்சுடன் பொருந்தாது. அண்மைக் கால பதிப்புகளுக்கு கேடிமா மற்றும் கேசெட் பிரிட்சைப் புதுப்பிக்கவும்.</string>
     <string name="loyalty_cards_catima">கேடிமா</string>
     <string name="loyalty_cards_catima_permissions_title">அனுமதிகள் இல்லை</string>
     <string name="loyalty_cards_syncing">%d விசுவாச அட்டைகளை சாதனத்துடன் ஒத்திசைத்தல்</string>
@@ -3077,7 +3060,6 @@
     <string name="ftp_server_summary">கடிகாரத்தில் FTP சேவையகத்தை கட்டுப்படுத்தவும்</string>
     <string name="ftp_server_stop_summary">கடிகாரத்தில் FTP சேவையகத்தை நிறுத்துங்கள்</string>
     <string name="title">தலைப்பு</string>
-    <string name="loyalty_cards_open_catima">திறந்த கேடிமா</string>
     <string name="pref_vitality_score_title">உயிர் மதிப்பெண்</string>
     <string name="devicesetting_scannable_rssi">குறைந்தபட்ச RSSI வாசல்</string>
     <string name="pref_speak_notifications_focus_exclusive_title">பிற பயன்பாடுகளின் ஆடியோவை இடைநிறுத்துங்கள்</string>
@@ -3090,7 +3072,6 @@
     <string name="watchface_widget_type_steps">படிகள்</string>
     <string name="prefs_seamless_connection_switch_summary">இணை சாதனங்களுக்கு இடையில் மொட்டுகளை தானாக மாற்றுகிறது</string>
     <string name="qhybrid_title_on_device_confirmation">சாதனத்தில் இணைத்தல் உறுதிப்படுத்தலை இயக்கவும்</string>
-    <string name="distance_format_feet">### அடி</string>
     <string name="huawei_alarm_smart_description">அறிவுள்ள வேக்அப் தேர்வுப்பெட்டியைத் தேர்வுசெய்ய வேண்டாம்.</string>
     <string name="pref_activity_full_sync_trigger_summary">அனைத்து செயல்பாட்டு தரவுகளின் முழு ஒத்திசைவைத் தூண்டவும்</string>
     <string name="prefs_wena3_vibration_step_up">மேலே செல்லுங்கள்</string>

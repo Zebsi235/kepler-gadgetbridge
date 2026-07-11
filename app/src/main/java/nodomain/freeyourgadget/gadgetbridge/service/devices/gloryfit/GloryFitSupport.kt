@@ -1,4 +1,4 @@
-/*  Copyright (C) 2025 José Rebelo
+/*  Copyright (C) 2025-2026 José Rebelo
 
     This file is part of Gadgetbridge.
 
@@ -20,6 +20,7 @@ import android.bluetooth.BluetoothAdapter
 import android.bluetooth.BluetoothGatt
 import android.bluetooth.BluetoothGattCharacteristic
 import android.content.Context
+import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
 import nodomain.freeyourgadget.gadgetbridge.GBApplication
@@ -649,11 +650,11 @@ class GloryFitSupport() : AbstractBTLESingleDeviceSupport(LOG) {
 
             if (appSpecificSetting != null) {
                 if (appSpecificSetting.vibrationPattern != null) {
-                    vibrationKind = VibrationKind.valueOf(appSpecificSetting.vibrationPattern.uppercase(Locale.ROOT))
+                    vibrationKind = VibrationKind.valueOf(appSpecificSetting.vibrationPattern!!.uppercase(Locale.ROOT))
                 }
 
                 if (appSpecificSetting.vibrationRepetition != null) {
-                    vibrationCount = appSpecificSetting.vibrationRepetition.toInt()
+                    vibrationCount = appSpecificSetting.vibrationRepetition!!.toInt()
                 }
             }
         }
@@ -790,7 +791,7 @@ class GloryFitSupport() : AbstractBTLESingleDeviceSupport(LOG) {
         builder.queue()
     }
 
-    override fun onSetMusicState(stateSpec: MusicStateSpec?) {
+    override fun onSetMusicState(stateSpec: MusicStateSpec) {
         if (!mMediaManager!!.onSetMusicState(stateSpec)) {
             return
         }
@@ -831,7 +832,7 @@ class GloryFitSupport() : AbstractBTLESingleDeviceSupport(LOG) {
         builder.queue()
     }
 
-    override fun onSetMusicInfo(musicSpec: MusicSpec?) {
+    override fun onSetMusicInfo(musicSpec: MusicSpec) {
         if (!mMediaManager!!.onSetMusicInfo(musicSpec)) {
             return
         }
@@ -889,7 +890,7 @@ class GloryFitSupport() : AbstractBTLESingleDeviceSupport(LOG) {
         // TODO onSendWeather
     }
 
-    override fun onTestNewFunction() {
+    override fun onTestNewFunction(options: Bundle?) {
 
     }
 

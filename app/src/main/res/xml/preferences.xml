@@ -288,6 +288,13 @@
         android:summary="@string/pref_description_automations"
         android:title="@string/pref_header_automations" />
 
+    <Preference
+        android:icon="@drawable/ic_settings_remote"
+        android:key="pref_screen_quick_settings"
+        android:summary="@string/pref_summary_quick_settings"
+        android:title="@string/pref_header_quick_settings"
+        app:iconSpaceReserved="false" />
+
     <PreferenceScreen
         android:icon="@drawable/ic_extension"
         android:key="pref_screen_external_integrations"
@@ -387,6 +394,12 @@
             android:key="pref_category_internethelper"
             android:title="@string/prefs_internet_helper_title"
             android:summary="@string/prefs_internet_helper_summary" />
+
+        <PreferenceScreen
+            android:icon="@drawable/ic_shoe"
+            android:key="pref_category_online_fitness_trackers"
+            android:title="@string/prefs_online_fitness_trackers_title"
+            android:summary="@string/prefs_online_fitness_trackers_summary" />
     </PreferenceScreen>
 
     <Preference
@@ -406,6 +419,13 @@
             android:key="log_to_file"
             android:layout="@layout/preference_checkbox"
             android:title="@string/pref_write_logfiles"
+            app:iconSpaceReserved="false" />
+        <SwitchPreferenceCompat
+            android:defaultValue="false"
+            android:key="log_level_trace"
+            android:layout="@layout/preference_checkbox"
+            android:summary="@string/pref_log_level_trace_summary"
+            android:title="@string/pref_log_level_trace_title"
             app:iconSpaceReserved="false" />
         <Preference
             android:key="log_restart"
@@ -532,6 +552,14 @@
             android:layout="@layout/preference_checkbox"
             android:summary="@string/pref_experimental_settings_summary"
             android:title="@string/pref_experimental_settings_title"
+            app:iconSpaceReserved="false" />
+
+        <SwitchPreferenceCompat
+            android:defaultValue="false"
+            android:key="experimental_metrics"
+            android:layout="@layout/preference_checkbox"
+            android:summary="@string/pref_experimental_metrics_summary"
+            android:title="@string/pref_experimental_metrics_title"
             app:iconSpaceReserved="false" />
     </PreferenceScreen>
 

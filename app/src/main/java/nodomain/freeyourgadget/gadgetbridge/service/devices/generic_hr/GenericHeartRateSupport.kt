@@ -160,8 +160,8 @@ class GenericHeartRateSupport : AbstractBTLESingleDeviceSupport(LOG) {
         try {
             GBApplication.acquireDB().use { db ->
                 val sampleProvider = GenericHeartRateSampleProvider(device, db.getDaoSession())
-                val userId = DBHelper.getUser(db.getDaoSession()).id
-                val deviceId = DBHelper.getDevice(device, db.getDaoSession()).id
+                val userId = DBHelper.getUser(db.getDaoSession()).id!!
+                val deviceId = DBHelper.getDevice(device, db.getDaoSession()).id!!
                 val sample = GenericHeartRateSample(heartRate.timestamp, deviceId, userId, heartRate.heartRate)
                 sampleProvider.addSample(sample)
 
@@ -177,7 +177,7 @@ class GenericHeartRateSupport : AbstractBTLESingleDeviceSupport(LOG) {
                     }
 
                     val rrIntervalSampleProvider = HeartRrIntervalSampleProvider(this.device, db.getDaoSession())
-                    rrIntervalSampleProvider.persistForDevice(context, device, rrIntervalSampleList)
+                    rrIntervalSampleProvider.persistSamples(rrIntervalSampleList, context)
                 }
             }
 

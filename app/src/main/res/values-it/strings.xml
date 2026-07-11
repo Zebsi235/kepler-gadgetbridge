@@ -371,8 +371,8 @@
     <string name="dbmanagementactivity_old_activity_db_successfully_deleted">Dati delle vechie attività eliminati con successo.</string>
     <string name="dbmanagementactivity_old_activity_db_deletion_failed">Cancellazione del database nel vecchio formato fallita.</string>
     <string name="dbmanagementactivity_overwrite">Sovrascrivi</string>
-    <string name="Cancel">Annulla</string>
-    <string name="Delete">Cancella</string>
+    <string name="cancel">Annulla</string>
+    <string name="delete">Cancella</string>
     <!--Strings related to Vibration Activity-->
     <string name="title_activity_vibration">Vibrazione</string>
     <!--Strings related to Pebble Pairing Activity-->
@@ -578,8 +578,8 @@
     <string name="pref_summary_contextual_arabic">Abilita questo per supportare l\'arabo contestuale</string>
     <string name="share_log_warning">Tieni presente che i file di log di Gadgetbridge possono contenere molte informazioni personali, inclusi, a titolo esemplificativo, dati sulla salute, identificatori univoci (come l\'indirizzo MAC del dispositivo), preferenze musicali, ecc. Modifica il file per rimuovere queste informazioni prima di inviare il file in una segnalazione di errore visibile pubblicamente.</string>
     <string name="overslept">Sonno extra: %1$s</string>
-    <string name="lack_of_step">Passi mancanti: %1$d</string>
-    <string name="overstep">Passi eccedenti: %1$d</string>
+    <string name="lack_of_step">Passi mancanti: %1$s</string>
+    <string name="overstep">Passi eccedenti: %1$s</string>
     <string name="debugactivity_really_factoryreset_title">Vuoi veramente ripristinare le impostazioni di fabbrica\?</string>
     <string name="debugactivity_really_factoryreset">Effettuare il ripristino delle impostazioni di fabbrica cancellerà tutti i dati presenti sul dispositivo connesso (se supportato). I dispositivi Xiaomi/Huami cambiano anche MAC Address Bluetooth, e in modo risultano dispositivi nuovi per Gadgetbrige.</string>
     <string name="title_activity_notification_filter">Filtro Notifiche</string>
@@ -709,11 +709,7 @@
     <string name="pref_chart_heartrate_color_orange">Arancione</string>
     <string name="pref_title_chart_heartrate_color">Colore della frequenza cardiaca</string>
     <string name="pref_title_chart_sleep_rolling_24_hour">Intervallo di sonno</string>
-    <string name="pref_chart_sleep_rolling_24_on">Ultime 24 ore</string>
-    <string name="pref_chart_sleep_rolling_24_off">Da mezzogiorno a mezzogiorno</string>
     <string name="watch_not_connected">Orologio non connesso</string>
-    <string name="qhybrid_vibration_strength">forza della vibrazione:</string>
-    <string name="qhybrid_goal_in_steps">Obiettivo in passi</string>
     <string name="qhybrid_changes_delay_prompt">Il cambiamento potrebbe richiedere qualche secondo…</string>
     <string name="pref_disable_new_ble_scanning">Disattivare nuove scansioni BLE</string>
     <string name="pref_summary_disable_new_ble_scanning">Selezionare questa opzione se il dispositivo viene trovato durante il rilevamento</string>
@@ -751,8 +747,6 @@
 \nNota: non è necessario installare .res e .gps se questi file sono esattamente gli stessi installati in precedenza.
 \n
 \nPROCEDI A TUO RISCHIO!</string>
-    <string name="preferences_qhybrid_settings">Impostazioni Q Hybrid</string>
-    <string name="qhybrid_prompt_million_steps">Impostare il contatore dei passi a un milione per attivare.</string>
     <string name="qhybrid_buttons_overwrite_success">Pulsanti sovrascritti</string>
     <string name="qhybrid_buttons_overwrite_error">Errore durante la modifica dei pulsanti</string>
     <string name="prefs_button_variable_actions">Impostazioni dettagliate per la pressione del pulsante</string>
@@ -781,7 +775,6 @@
     <string name="hr_appname_workout">Allenamento</string>
     <string name="hr_appname_wellness">Benessere</string>
     <string name="qhybrid_use_activity_hand_as_notification_counter">utilizzare la mano di attività come contatore di notifica</string>
-    <string name="qhybrid_overwrite_buttons">sovrascrivere i pulsanti</string>
     <string name="notification_channel_high_priority_name">Alta priorità</string>
     <string name="find_my_phone_notification">Trova il mio telefono</string>
     <string name="pref_title_vibration_strength">Resistenza alle vibrazioni</string>
@@ -1635,11 +1628,8 @@
     <string name="sony_automatic_power_off_5_min">5 minuti</string>
     <string name="watchface_dialog_widget_timezone">Fuso orario</string>
     <string name="watchface_dialog_widget_timeout_hide_text">Nascondi testo al timeout</string>
-    <string name="distance_format_meters">###m</string>
-    <string name="distance_format_kilometers">###.#km</string>
     <string name="pref_device_action_phone_gps_location_listener_stop">Ferma Listener Posizione GPS</string>
     <string name="pref_activity_recognition_mode_ask">chiedi</string>
-    <string name="distance_format_feet">###ft</string>
     <string name="controlcenter_set_folder_title">Imposta o crea nuova cartella</string>
     <string name="auto_reconnect_ble_title">Connetti automaticamente al dispositivo</string>
     <string name="auto_reconnect_ble_summary">Cerca di connettersi periodicamente al dispositivo proattivamente</string>
@@ -1713,7 +1703,6 @@
     <string name="sony_automatic_power_off">Spegnimento Automatico</string>
     <string name="sony_automatic_power_off_3_hour">3 ore</string>
     <string name="pref_screen_brightness">Luminosità Schermo</string>
-    <string name="distance_format_miles">###.#mi</string>
     <string name="sony_equalizer_band_400">400</string>
     <string name="sony_equalizer_band_1000">1k</string>
     <string name="sony_equalizer_band_2500">2.5k</string>
@@ -2084,11 +2073,7 @@
     <string name="watchface_widget_type_uv_index">Indice UV</string>
     <string name="stress_relaxed">Rilassato</string>
     <string name="stress_high">Elevato</string>
-    <string name="loyalty_cards_catima_package">Nome pacchetto Catima</string>
-    <string name="loyalty_cards_install_catima_fail">Non siamo riusciti ad aprire l\'app store per installare Catima</string>
-    <string name="loyalty_cards_catima_not_installed">Catima è necessario per gestire le carte fedeltà</string>
     <string name="loyalty_cards_catima_permissions_title">Permessi mancanti</string>
-    <string name="loyalty_cards_open_catima">Apri Catima</string>
     <string name="loyalty_cards_syncing">Sincronizzando %d carte con il dispositivo</string>
     <string name="title">Titolo</string>
     <string name="pref_summary_banglejs_phone_gps_network_only">Usa solo il fornitore di rete per determinare la posizione. Questo riduce il consumo di energia al costo della precisione. È necessaria una riconnessione.</string>
@@ -2104,8 +2089,6 @@
     <string name="fwapp_install_device_not_supported">Installazione file fallita, dispositivo non supportato.</string>
     <string name="status_icon">Icona stato</string>
     <string name="changelog_full_title">Registro modifiche</string>
-    <string name="loyalty_cards_install">Installa Catima</string>
-    <string name="loyalty_cards_catima_permissions_summary">Gadgetbridge ha bisogno del permesso per leggere le carte Catima per sincronizzarle. Toccare questo pulsante per concederlo.</string>
     <string name="loyalty_cards_catima">Catima</string>
     <string name="loyalty_cards">Carte Fedeltà</string>
     <string name="changelog_show_full">Altro…</string>
@@ -2122,7 +2105,6 @@
     <string name="loyalty_cards_sync_summary">Tocca per sincronizzare le carte con l\'orologio</string>
     <string name="loyalty_cards_sync_options">Opzioni Sincronizzazione</string>
     <string name="loyalty_cards_sync">Sincronizza</string>
-    <string name="loyalty_cards_catima_not_compatible">La versione di Catima installata non è compatibile con Gadgetbridge. Aggiorna Catima e Gadgetbridge alle ultime versioni.</string>
     <string name="activity_prefs_goals">Obiettivi</string>
     <string name="charts_legend_stress_average">Stress medio</string>
     <string name="error_no_bluetooth_scan">L\'accesso alla scansione Bluetooth deve essere consentito e abilitato perché la scansione funzioni correttamente</string>
@@ -2469,7 +2451,6 @@
     <string name="pref_wearing_tone">Tono inserimento</string>
     <string name="pref_touch_tone_summary">Riproduci un tono quando l\'auricolare viene toccato</string>
     <string name="pref_wearing_tone_summary">Riproduci un tono quando l\'auricolare viene inserito</string>
-    <string name="preferences_qhybrid_settings_summary">Impostazioni obsolete per gli orologi Q Hybrid</string>
     <string name="impactMax">Impatto massimo</string>
     <string name="pref_force_options">Forza le opzioni</string>
     <string name="pref_spo_automatic_enable">Abilita la misurazione automatica della SpO2</string>

@@ -1,4 +1,4 @@
-/*  Copyright (C) 2019-2024 Andreas Shimokawa, Arjan Schrijver, Carsten
+/*  Copyright (C) 2019-2026 Andreas Shimokawa, Arjan Schrijver, Carsten
     Pfeiffer, Daniel Dakhno, Dmitriy Bogdanov, Taavi Eomäe
 
     This file is part of Gadgetbridge.
@@ -29,6 +29,7 @@ import android.os.Bundle;
 import android.widget.Toast;
 
 import androidx.annotation.NonNull;
+import androidx.annotation.Nullable;
 import androidx.core.content.ContextCompat;
 import androidx.localbroadcastmanager.content.LocalBroadcastManager;
 
@@ -705,8 +706,8 @@ public class QHybridSupport extends QHybridBaseSupport {
     }
 
     @Override
-    public void onTestNewFunction() {
-        watchAdapter.onTestNewFunction();
+    public void onTestNewFunction(@Nullable Bundle options) {
+        watchAdapter.onTestNewFunction(options);
     }
 
     @Override
@@ -781,10 +782,10 @@ public class QHybridSupport extends QHybridBaseSupport {
             }
             case "00002a19-0000-1000-8000-00805f9b34fb": {
                 short level = value[0];
-                gbDevice.setBatteryLevel(level);
+                gbDevice.setBatteryLevel(level, 0);
 
                 GBDeviceEventBatteryInfo batteryInfo = new GBDeviceEventBatteryInfo();
-                batteryInfo.level = gbDevice.getBatteryLevel();
+                batteryInfo.level = gbDevice.getBatteryLevel(0);
                 batteryInfo.state = BatteryState.BATTERY_NORMAL;
                 handleGBDeviceEvent(batteryInfo);
                 break;

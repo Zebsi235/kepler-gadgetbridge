@@ -695,7 +695,7 @@
     <string name="seconds_25">25 секунди</string>
     <string name="live_activity_max_heart_rate">Тренутни / највиши срчани откуцаји: %1$d / %2$d</string>
     <string name="dateformat_date_time"><![CDATA[Време и датум]]></string>
-    <string name="prefs_enable_find_phone">Укључи Пронађи телефон</string>
+    <string name="prefs_enable_find_phone">Укључи „Пронађи телефон“</string>
     <string name="prefs_find_phone_duration">Трајање звона у секундама</string>
     <string name="miband2_prefs_dateformat">Облик датума</string>
     <string name="dateformat_time">Време</string>
@@ -764,7 +764,7 @@
     <string name="blood_pressure">Крвни притисак</string>
     <string name="getting_heart_rate">Мерење</string>
     <string name="seconds_8">8 секунди</string>
-    <string name="overstep">Прекорачење: %1$d</string>
+    <string name="overstep">Прекорачење: %1$s</string>
     <string name="pref_enable_unsupported_settings_title">Омогући неподржане поставке</string>
     <string name="pref_title_third_party_app_device_settings">Омогући програмима трећих страна да мењају поставке</string>
     <string name="abstract_chart_fragment_kind_light_sleep">Дремање</string>
@@ -871,7 +871,7 @@
     <string name="heart_rate">Откуцаји срца</string>
     <string name="liveactivity_live_activity">Дејства уживо</string>
     <string name="weeksteps_today_steps_description">Корака данас, циљ: %1$s</string>
-    <string name="lack_of_step">Недостатак корака: %1$d</string>
+    <string name="lack_of_step">Недостатак корака: %1$s</string>
     <string name="pref_summary_third_party_app_device_settings">Омогући осталим уграђеним програмима трећих страна да мењају поставке уређаја.</string>
     <string name="mi2_prefs_do_not_disturb">Не узнемиравај</string>
     <string name="prefs_screen_timeout">Време укључености заслона</string>
@@ -912,9 +912,7 @@
     <string name="weekstepschart_steps_a_month">Месечни кораци</string>
     <string name="weeksleepchart_sleep_a_month">Месечно спавање</string>
     <string name="pref_title_chart_sleep_rolling_24_hour">Опсег спавања</string>
-    <string name="pref_chart_sleep_rolling_24_on">Последњих 24 часа</string>
     <string name="activity_prefs_chart_min_steps_per_minute_for_run">Најмањи број корака у минуту ради препознавања трчања</string>
-    <string name="pref_chart_sleep_rolling_24_off">Од поднева до поднева</string>
     <string name="activity_prefs_chart_min_steps_per_minute">Најмањи број корака у минуту ради препознавања дејствовања</string>
     <string name="activity_prefs_chart_max_idle_phase_length">Дужина одмора ради одвајања дејстава (у минутима)</string>
     <string name="activity_prefs_chart_min_session_length">Најмања дужина дејства (у минутима)</string>
@@ -954,7 +952,7 @@
     <string name="pref_chart_heartrate_color_red">Црвена</string>
     <string name="error_creating_directory_for_logfiles">Десила се грешка приликом стварања фасцикле дневника: %1$s</string>
     <string name="dbmanagementactivity_error_exporting_db">Десила се грешка приликом извоза хранилишта података: %1$s</string>
-    <string name="pref_summary_pebble_health_store_raw">Храни податке какви јесу, повећавајући употребу склаишта података за касније тумачење.</string>
+    <string name="pref_summary_pebble_health_store_raw">Храни податке „какви јесу“, повећавајући употребу складишта података за касније тумачење.</string>
     <string name="title_activity_db_management">Управљање подацима</string>
     <string name="dbmanagementactivity_exported_to">Извезено у: %1$s</string>
     <string name="dbmanagementactivity_error_cleaning_export_directory">Десила се грешка приликом брисања датотека из извозне фасцикле %1$s</string>
@@ -1050,8 +1048,8 @@
     <string name="dbmanagementactivity_db_deletion_failed">Нисам успео да избришем хранилиште података.</string>
     <string name="activity_DB_import_button">Увези податке</string>
     <string name="activity_DB_ExportButton">Извези податке</string>
-    <string name="Delete">Избриши</string>
-    <string name="Cancel">Откажи</string>
+    <string name="delete">Избриши</string>
+    <string name="cancel">Откажи</string>
     <string name="ok">У реду</string>
     <string name="pref_screen_vibration_patterns_summary">Подесите обрасце трешње за различита обавештења</string>
     <string name="spo2_perc_80">80%</string>
@@ -1108,9 +1106,7 @@
     <string name="title_activity_notification_filter">Пропусник обавештења</string>
     <string name="filter_mode_none">Не користи пропусник</string>
     <string name="filter_mode">Начин пропуштања</string>
-    <string name="qhybrid_overwrite_buttons">препиши дугмад</string>
-    <string name="qhybrid_use_activity_hand_as_notification_counter">користи дејствену руку као бројач обавештења</string>
-    <string name="qhybrid_prompt_million_steps">Молим, поставите бројач корака на милион ради покретања тога.</string>
+    <string name="qhybrid_use_activity_hand_as_notification_counter">Користи дејствену руку као бројач обавештења</string>
     <string name="about_contributors">Доприносиоци</string>
     <string name="hrZoneFatBurn">Топљење сала</string>
     <string name="hrZoneWarmUp">Загревање</string>
@@ -1183,9 +1179,9 @@
     <string name="watch_not_connected">Часовник није повезан</string>
     <string name="qhybrid_buttons_overwrite_error">Десила се грешка приликом преписивања дугмади</string>
     <string name="qhybrid_buttons_overwrite_success">Дугмад је преписана</string>
-    <string name="qhybrid_offset_timezone">помакни временску област за</string>
+    <string name="qhybrid_offset_timezone">Помакни временску област за</string>
     <string name="qhybrid_changes_delay_prompt">измени ће бити потребно неколико секунди…</string>
-    <string name="qhybrid_offset_time_by">помакни време за</string>
+    <string name="qhybrid_offset_time_by">Помакни време за</string>
     <string name="hr_widget_calories">Калорије</string>
     <string name="hr_widget_nothing">Ништа</string>
     <string name="hr_appname_workout">Вежбање</string>
@@ -1245,10 +1241,8 @@
     <string name="toast_notification_filter_words_empty_hint">Молим, унеси најмање једну реч</string>
     <string name="mode_configuration">Поставке начина</string>
     <string name="appwidget_setting_alarm">Поставка ларме за %1$02d:%2$02d</string>
-    <string name="qhybrid_vibration_strength">снага трешње:</string>
-    <string name="qhybrid_time_shift">временски помак</string>
-    <string name="qhybrid_goal_in_steps">Циљ у корацима</string>
-    <string name="qhybrid_second_timezone_offset_relative_to_utc">помак друге временске области у односу на обласно време</string>
+    <string name="qhybrid_time_shift">Временски помак</string>
+    <string name="qhybrid_second_timezone_offset_relative_to_utc">Помак друге временске области у односу на обласно време</string>
     <string name="pref_title_middle_button_function_long">Дуго средње дугме</string>
     <string name="hr_widget_battery">Батерије</string>
     <string name="hr_widget_weather">Време</string>
@@ -1261,7 +1255,7 @@
     <string name="about_additional_contributions">Велика хвала непоменутим доприносиоцима кода, превода, подршке, замисли, подстрека, пријављивања грешака, новца… ✊</string>
     <string name="require_location_provider">Положај мора бити одобрен</string>
     <string name="sports_activity_quick_filter_this_month">Овог месеца</string>
-    <string name="discover_unsupported_devices_description">Омогућавање овога ће приказати све откривене уређаје блутута приликом претраге. Кратак тап ће умножити име уређаја и адресу мац-а у спремиште исечака. Дуги притисак ће покренути прозорче „Додај пробни уређај“.</string>
+    <string name="discover_unsupported_devices_description">Омогућавање овога ће приказати све откривене уређаје Блутута приликом претраге. Кратак тап ће умножити име уређаја и адресу мац-а у спремиште исечака. Дуги притисак ће покренути прозорче „Додај пробни уређај“.</string>
     <string name="ascentDistance">Размак узбрдо</string>
     <string name="descentMeters">Низбрдо</string>
     <string name="averageAltitude">Просек</string>
@@ -1504,7 +1498,7 @@
 \nНАСТАВИТЕ НА СОПСТВЕНУ ОДГОВОРНОСТ!</string>
     <string name="miband_firmware_suggest_whitelist">Уколико ипак желите да наставите и све ради како треба након тога, молим, јавите програмерима ГеџетБрвна да одобре на списку издање драма %s.</string>
     <string name="fw_upgrade_notice_amazfitcor2">Уградићете драм %s на свој Амејзфит Кор 2. \n \nМолим, уградите датотеку .fw, и након тога датотеку .res. Ваш сат ће се препокренути након уградње датотеке .fw. \n \nПримедба: Не мора да уградите датотеку .res уколико је иста као претходно уграђена. \n \nНАСТАВИТЕ НА СОПСТВЕНУ ОДГОВОРНОСТ! \n \nПОТПУНО ЈЕ НЕПРОВЕРЕН ПОСТУПАК, НАЈВЕРОВАТНИЈЕ ТРЕБА ДА УГРАДИТЕ ДРАМ BEATS_W АКО ЛИ ЈЕ ИМЕ УРЕЂАЈА „Amazfit Band 2“</string>
-    <string name="open_fw_installer_info_text">Уграђивач драма/сучеља/програма/датотеке омогућава отпремање/уградњу подржаних датотека (драма, сучеља, програма, ГПС-а, извора, словолика…) на уређај. Можете погледати опширније на викију: https://codeberg.org/Freeyourgadget/Gadgetbridge/wiki/Firmware-Update</string>
+    <string name="open_fw_installer_info_text">Уграђивач фирвера/сучеља/програма/датотеке омогућава отпремање/уградњу подржаних датотека (драма, сучеља, програма, ГПС-а, извора, словолика…) на уређај. Можете погледати опширније на страници: https://gadgetbridge.org/internals/features/installer/</string>
     <string name="pref_summary_enable_outgoing_call">Онемогућавање овога ће такође зауставити трешњу Пебла 2/ЛЕ при одлазним позивима</string>
     <string name="fw_upgrade_notice_amazfitcor">Уградићете драм %s на свој Амејзфит Кор.
 \n
@@ -2233,7 +2227,6 @@
     <string name="activity_type_sailing">Једрење</string>
     <string name="activity_type_treadmill">Трака за трчање</string>
     <string name="average_respiration_rate">Разина дисања</string>
-    <string name="preferences_qhybrid_settings_summary">Старе поставке часовника Ку Хибрида</string>
     <string name="hrZoneThreshold">Задшка</string>
     <string name="max_respiration_rate">Највећа разина дисања</string>
     <string name="cycling">Кружење</string>
@@ -2266,7 +2259,6 @@
     <string name="stepRateAvg">Просек брзине корака</string>
     <string name="pref_summary_keep_data_on_device">Задржаваће податке на уређају чак и након усклађивања. Корисно је уколико се ГБ користи заједно са другим програмима. То може узроковати да часовник препуни простор памети и/ли престане да се усклађује ваљано.</string>
     <string name="activity_type_pilates">Пилатес</string>
-    <string name="preferences_qhybrid_settings">Поставке Ку Хибрида</string>
     <string name="distance_total">Укупна даљина</string>
     <string name="error_no_bluetooth_connect">Приступ повезивању блутутом мора бити одобрено и омогућено ради правилног рада претраге</string>
     <string name="pref_summary_low_latency_fw_update">Може бити корисно на уређајима где угњежђавање драма не успева.</string>
@@ -2684,4 +2676,43 @@
     <string name="step_length">Дужина корака</string>
     <string name="blood_pressure_measurement_count">Мерења</string>
     <string name="blood_pressure_export_date">Датум</string>
+    <string name="phone_gps_not_available">ГПС телефона није доступан</string>
+    <string name="stamina">Стаменост</string>
+    <string name="diving_oxygen_toxicity">Презасићеност кисеоником</string>
+    <string name="pref_title_third_party_app_device_alarms">Омогући програмима трећих страна да постављају ларме</string>
+    <string name="pref_summary_third_party_app_device_alarms">Омогући осталим уграђеним програмима трећих страна да постављају ларме.</string>
+    <string name="prefs_device_alias">Надимак уређаја</string>
+    <string name="pref_summary_chart_sleep_range">Одреди којег дана је додељена седница спавања</string>
+    <string name="pref_chart_sleep_range_rolling_24h">Круг 24 часа</string>
+    <string name="pref_chart_sleep_range_noon">Подне (12:00)</string>
+    <string name="pref_chart_sleep_range_18h">Вече (18:00)</string>
+    <string name="persisting_samples_failed">Грешка чувања узорка: %1$s</string>
+    <string name="set_device_type">Постави врсту уређаја</string>
+    <string name="task_installing_route">Путања уградње</string>
+    <string name="route_upload_completed">Отпремање путање је завршено</string>
+    <string name="route_upload_failed">Отпремање путање није успело</string>
+    <string name="devicetype_solarflow">SolarFlow</string>
+    <string name="menuitem_readiness">Спремност</string>
+    <string name="menuitem_audio_control">Управљање звуком</string>
+    <string name="menuitem_diary">Дневник</string>
+    <string name="menuitem_calorie_intake_record">Запис уноса калорија</string>
+    <string name="menuitem_zepp_os_ask_anything_chat_bot">Питајте било шта</string>
+    <string name="menuitem_alipay">Alipay</string>
+    <string name="battery_level_ebike_end">Коначан ниво батерије</string>
+    <string name="battery_level_ebike_start">Почетни ниво батерије</string>
+    <string name="battery_level_end">Коначан ниво батерије</string>
+    <string name="battery_level_start">Почетни ниво батерије</string>
+    <string name="battery_status">Стање батерије</string>
+    <string name="battery_status_charging">Пуњење</string>
+    <string name="battery_status_critical">Забрињавајуће</string>
+    <string name="battery_status_good">Добро</string>
+    <string name="battery_status_invalid">Нетачно</string>
+    <string name="battery_status_low">Ниско</string>
+    <string name="battery_status_new">Ново</string>
+    <string name="battery_status_ok">У реду</string>
+    <string name="battery_status_unknown">Непознато</string>
+    <string name="pref_experimental_metrics_title">Општа мерења</string>
+    <string name="pref_experimental_metrics_summary">Омогући опитно корисничко сучеље за општа мерења. Тренутно се односи једино на учитавање вежбања и уписа калорија на уређајима Гармина.</string>
+    <string name="diving_surface_interval">Међувреме површи</string>
+    <string name="prefs_device_id">Лични број уређаја</string>
 </resources>

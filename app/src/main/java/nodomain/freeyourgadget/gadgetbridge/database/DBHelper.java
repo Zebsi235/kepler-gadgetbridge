@@ -1,6 +1,6 @@
-/*  Copyright (C) 2015-2024 Andreas Shimokawa, Carsten Pfeiffer, Damien
+/*  Copyright (C) 2015-2026 Andreas Shimokawa, Carsten Pfeiffer, Damien
     Gaignon, Daniel Dakhno, Daniele Gobbetti, Felix Konstantin Maurer, JohnnySun,
-    José Rebelo, Petr Vaněk
+    José Rebelo, Petr Vaněk, Thomas Kuehne
 
     This file is part of Gadgetbridge.
 
@@ -68,6 +68,7 @@ import nodomain.freeyourgadget.gadgetbridge.impl.GBDevice;
 import nodomain.freeyourgadget.gadgetbridge.model.ActivityUser;
 import nodomain.freeyourgadget.gadgetbridge.model.DeviceType;
 import nodomain.freeyourgadget.gadgetbridge.model.ValidByDate;
+import nodomain.freeyourgadget.gadgetbridge.util.AlarmUtils;
 import nodomain.freeyourgadget.gadgetbridge.util.DateTimeUtils;
 import nodomain.freeyourgadget.gadgetbridge.util.GBPrefs;
 
@@ -121,10 +122,10 @@ public class DBHelper {
      * be created in the database.
      * <p>
      * Note: so far there is only ever a single user; there is no multi-user support yet
-     * @return the User entity
+     * @return the {@link User} entity
      */
     @NonNull
-    public static User getUser(DaoSession session) {
+    public static User getUser(@NonNull final DaoSession session) {
         ActivityUser prefsUser = new ActivityUser();
         UserDao userDao = session.getUserDao();
         User user;
@@ -286,11 +287,12 @@ public class DBHelper {
     }
 
     /**
-     * Finds the corresponding Device entity for the given GBDevice.
-     * @return the corresponding Device entity, or null if none
+     * Finds the corresponding {@link Device} entity for the given {@link GBDevice}.
+     * @return the corresponding {@link Device} entity, or {@code null} if none
+     * @see #getDevice(GBDevice, DaoSession)
      */
     @Nullable
-    public static Device findDevice(GBDevice gbDevice, DaoSession session) {
+    public static Device findDevice(@NonNull final GBDevice gbDevice, @NonNull final DaoSession session) {
         DeviceDao deviceDao = session.getDeviceDao();
         Query<Device> query = deviceDao.queryBuilder().where(DeviceDao.Properties.Identifier.eq(gbDevice.getAddress())).build();
         List<Device> devices = query.list();
@@ -337,13 +339,15 @@ public class DBHelper {
     }
 
     /**
-     * Looks up in the database the Device entity corresponding to the GBDevice. If a device
+     * Looks up in the database the {@link Device} entity corresponding to the {@link GBDevice}. If a device
      * exists already, it will be updated with the current preferences values. If no device exists
      * yet, it will be created in the database.
      *
-     * @return the device entity corresponding to the given GBDevice
+     * @return the device entity corresponding to the given {@link GBDevice}
+     * @see #findDevice(GBDevice, DaoSession)
      */
-    public static Device getDevice(GBDevice gbDevice, DaoSession session) {
+    @NonNull
+    public static Device getDevice(@NonNull final GBDevice gbDevice, @NonNull final DaoSession session) {
         Device device = findDevice(gbDevice, session);
         if (device == null) {
             device = createDevice(gbDevice, session);
@@ -467,7 +471,7 @@ public class DBHelper {
     }
 
     @NonNull
-    public static List<ActivityDescription> findActivityDecriptions(@NonNull User user, int tsFrom, int tsTo, @NonNull DaoSession session) {
+    public static List<ActivityDescription> findActivityDescriptions(@NonNull User user, int tsFrom, int tsTo, @NonNull DaoSession session) {
         Property tsFromProperty = ActivityDescriptionDao.Properties.TimestampFrom;
         Property tsToProperty = ActivityDescriptionDao.Properties.TimestampTo;
         Property userIdProperty = ActivityDescriptionDao.Properties.UserId;
@@ -557,6 +561,52 @@ public class DBHelper {
         }
         return Collections.emptyList();
     }
+
+    /**
+     * Returns all user-configurable alarms for the given user and device filled with default alarms
+     * for unoccupied slots. The list is sorted by {@link Alarm#getPosition()}. Calendar events that
+     * may also be modeled as alarms are not stored in the database and hence not returned by this
+     * method.
+     * @param gbDevice the device for which the alarms shall be loaded
+     * @return the list of alarms for the given device
+     */
+    @NonNull
+    public static List<Alarm> getAlarmsWithDefaults(@NonNull GBDevice gbDevice) {
+        List<Alarm> alarms = getAlarms(gbDevice);
+        fillMissingAlarms(gbDevice, alarms);
+        return alarms;
+    }
+
+    /**
+     * Fills default alarms in the alarm list for unoccupied slots of the device.
+     * @param gbDevice the device for which the alarms shall be loaded
+     * @param alarms list of alarms to fill
+     */
+    public static void fillMissingAlarms(@NonNull GBDevice gbDevice, List<Alarm> alarms) {
+        DeviceCoordinator coordinator = gbDevice.getDeviceCoordinator();
+        int supportedNumAlarms = coordinator.getAlarmSlotCount(gbDevice);
+        if (supportedNumAlarms > alarms.size()) {
+            try (DBHandler db = GBApplication.acquireDB()) {
+                DaoSession daoSession = db.getDaoSession();
+                for (int position = 0; position < supportedNumAlarms; position++) {
+                    boolean found = false;
+                    for (Alarm alarm : alarms) {
+                        if (alarm.getPosition() == position) {
+                            found = true;
+                            break;
+                        }
+                    }
+                    if (!found) {
+                        LOG.info("adding missing alarm at position {}", position);
+                        alarms.add(position, AlarmUtils.createDefaultAlarm(daoSession, gbDevice, position));
+                    }
+                }
+            } catch (Exception e) {
+                LOG.error("Error accessing database", e);
+            }
+        }
+    }
+
 
     public static void store(Alarm alarm) {
         try (DBHandler db = GBApplication.acquireDB()) {

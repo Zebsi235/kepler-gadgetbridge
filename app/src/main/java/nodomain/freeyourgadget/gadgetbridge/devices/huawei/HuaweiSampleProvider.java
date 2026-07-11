@@ -19,6 +19,7 @@ package nodomain.freeyourgadget.gadgetbridge.devices.huawei;
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 
+import org.jetbrains.annotations.UnknownNullability;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -34,6 +35,7 @@ import de.greenrobot.dao.Property;
 import de.greenrobot.dao.query.QueryBuilder;
 import nodomain.freeyourgadget.gadgetbridge.database.DBHelper;
 import nodomain.freeyourgadget.gadgetbridge.devices.AbstractSampleProvider;
+import nodomain.freeyourgadget.gadgetbridge.devices.HuaweiSleepStageSampleProvider;
 import nodomain.freeyourgadget.gadgetbridge.entities.DaoSession;
 import nodomain.freeyourgadget.gadgetbridge.entities.Device;
 import nodomain.freeyourgadget.gadgetbridge.entities.HuaweiActivitySample;
@@ -239,7 +241,7 @@ public class HuaweiSampleProvider extends AbstractSampleProvider<HuaweiActivityS
     }
 
     @Override
-    public void addGBActivitySamples(HuaweiActivitySample[] activitySamples) {
+    public void addGBActivitySamples(@NonNull List<HuaweiActivitySample> activitySamples) {
         List<HuaweiActivitySample> newSamples = new ArrayList<>();
         for (HuaweiActivitySample sample : activitySamples) {
             HuaweiActivitySample start = copySample(sample);

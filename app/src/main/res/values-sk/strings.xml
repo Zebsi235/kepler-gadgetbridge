@@ -414,8 +414,8 @@
     <string name="dbmanagementactivity_old_activity_db_successfully_deleted">Pôvodná databáza bola vymazaná.</string>
     <string name="dbmanagementactivity_old_activity_db_deletion_failed">Mazanie pôvodnej databázy zlyhalo.</string>
     <string name="dbmanagementactivity_overwrite">Pprepísať</string>
-    <string name="Cancel">Zrušiť</string>
-    <string name="Delete">Odstrániť</string>
+    <string name="cancel">Zrušiť</string>
+    <string name="delete">Odstrániť</string>
     <string name="title_activity_vibration">Vibrácie</string>
     <string name="title_activity_pebble_pairing">Párovánie Pebble</string>
     <string name="pebble_pairing_hint">Dialóg párovania by sa mal objaviť na vašom zariadení s Androidom. Ak sa tak nestane, skontrolujte panel upozornení a potvrďte párovanie. Potom potvrďte párovanie na Pebble</string>
@@ -530,7 +530,6 @@
     <string name="maximum_duration">Dĺžka</string>
     <string name="calendar_week">Týždeň</string>
     <string name="calendar_day">Deň</string>
-    <string name="qhybrid_goal_in_steps">Cieľ v krokoch</string>
     <string name="battery_full_threshold">Hranica plného nabitia</string>
     <string name="show_in_notification">Zobraziť v oznámení</string>
     <string name="battery_low_notify_enabled">Oznámenie pri nízkej úrovni batérie</string>
@@ -568,8 +567,6 @@
     <string name="weekstepschart_steps_a_month">Kroky za mesiac</string>
     <string name="weeksleepchart_sleep_a_month">Spánok mesačne</string>
     <string name="pref_title_chart_sleep_rolling_24_hour">Rozsah spánku</string>
-    <string name="pref_chart_sleep_rolling_24_on">Predchádzajúcich 24 hodín</string>
-    <string name="pref_chart_sleep_rolling_24_off">Od poludnia do poludnia</string>
     <string name="activity_type_light_sleep">Ľahký spánok</string>
     <string name="activity_summary_today">Dnes</string>
     <string name="steps_avg">Priemer krokov</string>

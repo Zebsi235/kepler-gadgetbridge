@@ -26,9 +26,12 @@ import android.bluetooth.BluetoothGattCharacteristic;
 import android.content.Intent;
 import android.content.SharedPreferences;
 import android.net.Uri;
+import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
 import android.widget.Toast;
+
+import androidx.annotation.Nullable;
 
 import org.json.JSONArray;
 import org.json.JSONException;
@@ -523,7 +526,7 @@ public class FossilWatchAdapter extends WatchAdapter {
     }
 
     @Override
-    public void onTestNewFunction() {
+    public void onTestNewFunction(@Nullable Bundle options) {
         queueWrite(new FilePutRequest(
                 FileHandle.HAND_ACTIONS,
                 new byte[]{
@@ -633,7 +636,7 @@ public class FossilWatchAdapter extends WatchAdapter {
                         LOG.debug("Activity samples parsed successfully: {}", Arrays.stream(samples).toList());
                     }
 
-                    provider.addGBActivitySamples(samples);
+                    provider.addGBActivitySamples(Arrays.asList(samples));
 
                     if (saveRawActivityFiles) {
                         writeFile("activity_qhybrid", String.valueOf(System.currentTimeMillis()), fileData);

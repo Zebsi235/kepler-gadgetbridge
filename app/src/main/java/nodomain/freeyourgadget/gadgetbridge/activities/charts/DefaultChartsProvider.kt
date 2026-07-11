@@ -8,6 +8,7 @@ import nodomain.freeyourgadget.gadgetbridge.activities.charts.ActivityChartsActi
 import nodomain.freeyourgadget.gadgetbridge.activities.devicesettings.DeviceSettingsPreferenceConst
 import nodomain.freeyourgadget.gadgetbridge.activities.workouts.entries.ActivitySummarySimpleEntry
 import nodomain.freeyourgadget.gadgetbridge.database.DBHandler
+import nodomain.freeyourgadget.gadgetbridge.devices.GenericMetricSampleProvider
 import nodomain.freeyourgadget.gadgetbridge.impl.GBDevice
 import java.util.Locale
 
@@ -42,6 +43,9 @@ open class DefaultChartsProvider : DeviceChartsProvider {
         }
         if (coordinator.supportsTrainingLoad(device)) {
             supportedCharts.add("load")
+        }
+        if (GenericMetricSampleProvider.supportsMetrics(device).isNotEmpty()) {
+            supportedCharts.add("genericmetrics")
         }
         if (coordinator.supportsHeartRateMeasurement(device)) {
             supportedCharts.add("heartrate")
@@ -86,10 +90,17 @@ open class DefaultChartsProvider : DeviceChartsProvider {
     override fun getEnabledCharts(device: GBDevice): List<String> {
         val prefs = GBApplication.getDevicePrefs(device)
         val enabledCharts = prefs.getString(DeviceSettingsPreferenceConst.PREFS_DEVICE_CHARTS_TABS, null)
+        val supportedCharts = getSupportedCharts(device)
         return if (!enabledCharts.isNullOrBlank()) {
-            enabledCharts.split(",").intersect(getSupportedCharts(device).toSet()).toList()
+            val enabledSupportedCharts = enabledCharts.split(",").intersect(supportedCharts.toSet()).toList()
+            if (!enabledSupportedCharts.isEmpty()) {
+                enabledSupportedCharts
+            } else {
+                // In case all charts are disabled, to prevent a fully empty charts view
+                supportedCharts
+            }
         } else {
-            getSupportedCharts(device)
+            supportedCharts
         }
     }
 
@@ -119,6 +130,7 @@ open class DefaultChartsProvider : DeviceChartsProvider {
             "calories" -> context.getString(R.string.calories)
             "respiratoryrate" -> context.getString(R.string.respiratoryrate)
             "load" -> context.getString(R.string.pref_header_training_load)
+            "genericmetrics" -> context.getString(R.string.generic_metrics)
             else -> String.format(Locale.getDefault(), "Unknown %s", chartName)
         }
     }
@@ -133,21 +145,18 @@ open class DefaultChartsProvider : DeviceChartsProvider {
             "activitylist" -> ActivityListingChartFragment()
             "sleep" -> SleepCollectionFragment.newInstance(allowSwipe)
             "heartrate" -> HeartRateCollectionFragment.newInstance(allowSwipe)
-            "hrvstatus" -> HRVStatusFragment()
+            "hrvstatus" -> HrvStatusCollectionFragment.newInstance(allowSwipe)
             "bodyenergy" -> BodyEnergyCollectionFragment.newInstance(allowSwipe)
             "vo2max" -> VO2MaxFragment()
             "load" -> LoadFragment()
+            "genericmetrics" -> GenericMetricCollectionFragment.newInstance(allowSwipe)
             "stress" -> StressCollectionFragment.newInstance(allowSwipe)
             "pai" -> PaiChartFragment()
             "stepsweek" -> StepsCollectionFragment.newInstance(allowSwipe)
             "speedzones" -> SpeedZonesFragment()
             "livestats" -> LiveActivityFragment()
             "spo2" -> Spo2CollectionFragment.newInstance(allowSwipe)
-            "temperature" -> {
-                if (device.deviceCoordinator.supportsContinuousTemperature(device))
-                    TemperatureDailyFragment() else TemperatureChartFragment()
-            }
-
+            "temperature" -> TemperatureCollectionFragment.newInstance(allowSwipe)
             "bloodpressure" -> BloodPressureCollectionFragment.newInstance(allowSwipe)
             "cycling" -> CyclingChartFragment()
             "weight" -> WeightChartFragment()

@@ -70,6 +70,7 @@ import java.util.Locale;
 import java.util.Set;
 
 import nodomain.freeyourgadget.gadgetbridge.activities.ControlCenterv2;
+import nodomain.freeyourgadget.gadgetbridge.activities.endurain.PeriodicEndurainTokenRefresher;
 import nodomain.freeyourgadget.gadgetbridge.database.DBHandler;
 import nodomain.freeyourgadget.gadgetbridge.database.DBHelper;
 import nodomain.freeyourgadget.gadgetbridge.database.PeriodicDbExporter;
@@ -230,14 +231,25 @@ public class GBApplication extends Application {
         sharedPrefs = PreferenceManager.getDefaultSharedPreferences(context);
         prefs = new GBPrefs(sharedPrefs);
 
-        if (!GBEnvironment.isEnvironmentSetup()) {
+        final boolean environmentSetup = GBEnvironment.isEnvironmentSetup();
+
+        // We need to set up the environment before initializing logging, so that the logging
+        // path is properly set, and we should set up logging before the database setup, so that
+        // the database upgrade also gets logged as expected.
+        if (!environmentSetup) {
             GBEnvironment.setupEnvironment(GBEnvironment.createDeviceEnvironment());
+        }
+
+        Logging.getInstance().initialize(
+                prefs.getBoolean("log_to_file", false),
+                prefs.getBoolean("log_level_trace", false)
+        );
+
+        if (!environmentSetup) {
             // setup db after the environment is set up, but don't do it in test mode
             // in test mode, it's done individually, see TestBase
             GBDatabaseManager.setupDatabase(this);
         }
-
-        Logging.getInstance().initialize(prefs.getBoolean("log_to_file", false));
 
         migratePrefsIfNeeded();
 
@@ -279,6 +291,11 @@ public class GBApplication extends Application {
 
         // Ensure the InternetHelper is bound, so that it works on first usage
         InternetHelperSingleton.INSTANCE.ensureInternetHelperBound();
+
+        // Refresh Endurain tokens and schedule periodic refresh
+        if (!GBEnvironment.env().isTest()) {
+            PeriodicEndurainTokenRefresher.INSTANCE.scheduleNextExecution(context);
+        }
     }
 
     private void startNotificationCollectorMonitorService() {

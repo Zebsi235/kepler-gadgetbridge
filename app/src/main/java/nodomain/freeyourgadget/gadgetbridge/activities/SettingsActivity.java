@@ -29,6 +29,7 @@ import android.location.Criteria;
 import android.location.Location;
 import android.location.LocationListener;
 import android.location.LocationManager;
+import android.os.Build;
 import android.os.Bundle;
 import android.text.InputType;
 import android.view.View;
@@ -39,13 +40,11 @@ import android.widget.LinearLayout;
 import android.widget.Spinner;
 import android.widget.Toast;
 
-import androidx.annotation.NonNull;
 import androidx.core.app.ActivityCompat;
 import androidx.localbroadcastmanager.content.LocalBroadcastManager;
 import androidx.preference.ListPreference;
 import androidx.preference.Preference;
 import androidx.preference.PreferenceFragmentCompat;
-import androidx.preference.SwitchPreference;
 import androidx.preference.SwitchPreferenceCompat;
 
 import com.bytehamster.lib.preferencesearch.SearchPreferenceResult;
@@ -68,8 +67,10 @@ import nodomain.freeyourgadget.gadgetbridge.R;
 import nodomain.freeyourgadget.gadgetbridge.activities.automations.AutomationsSettingsActivity;
 import nodomain.freeyourgadget.gadgetbridge.activities.charts.ChartsPreferencesActivity;
 import nodomain.freeyourgadget.gadgetbridge.activities.discovery.DiscoveryPairingPreferenceActivity;
+import nodomain.freeyourgadget.gadgetbridge.activities.endurain.OnlineFitnessTrackersPreferencesActivity;
 import nodomain.freeyourgadget.gadgetbridge.activities.maps.MapsSettingsActivity;
 import nodomain.freeyourgadget.gadgetbridge.activities.preferences.HealthConnectPreferencesActivity;
+import nodomain.freeyourgadget.gadgetbridge.activities.quicksettings.QuickSettingsPreferencesActivity;
 import nodomain.freeyourgadget.gadgetbridge.externalevents.TimeChangeReceiver;
 import nodomain.freeyourgadget.gadgetbridge.util.FileUtils;
 import nodomain.freeyourgadget.gadgetbridge.util.GB;
@@ -204,6 +205,13 @@ public class SettingsActivity extends AbstractSettingsActivityV2 {
                         });
                     }
                 }
+
+                final SwitchPreferenceCompat logLevelTrace = findPreference("log_level_trace");
+                logLevelTrace.setOnPreferenceChangeListener((preference, newVal) -> {
+                    final boolean traceEnabled = Boolean.TRUE.equals(newVal);
+                    Logging.getInstance().setTraceLogging(traceEnabled);
+                    return true;
+                });
             }
 
             pref = findPreference(PREF_LANGUAGE);
@@ -378,6 +386,19 @@ public class SettingsActivity extends AbstractSettingsActivityV2 {
                 });
             }
 
+            pref = findPreference("pref_screen_quick_settings");
+            if (pref != null) {
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+                    pref.setOnPreferenceClickListener(preference -> {
+                        Intent enableIntent = new Intent(requireContext(), QuickSettingsPreferencesActivity.class);
+                        startActivity(enableIntent);
+                        return true;
+                    });
+                } else {
+                    pref.setVisible(false);
+                }
+            }
+
             pref = findPreference("pref_category_sleepasandroid");
             if (pref != null) {
                 pref.setOnPreferenceClickListener(preference -> {
@@ -404,6 +425,15 @@ public class SettingsActivity extends AbstractSettingsActivityV2 {
             if (pref != null) {
                 pref.setOnPreferenceClickListener(preference -> {
                     Intent enableIntent = new Intent(requireContext(), HealthConnectPreferencesActivity.class);
+                    startActivity(enableIntent);
+                    return true;
+                });
+            }
+
+            pref = findPreference("pref_category_online_fitness_trackers");
+            if (pref != null) {
+                pref.setOnPreferenceClickListener(preference -> {
+                    Intent enableIntent = new Intent(requireContext(), OnlineFitnessTrackersPreferencesActivity.class);
                     startActivity(enableIntent);
                     return true;
                 });
@@ -514,7 +544,7 @@ public class SettingsActivity extends AbstractSettingsActivityV2 {
                                 editor.putString("opentracks_packagename", fitnessAppEditText.getText().toString());
                                 editor.apply();
                             })
-                            .setNegativeButton(R.string.Cancel, (dialog, which) -> {})
+                            .setNegativeButton(R.string.cancel, (dialog, which) -> {})
                             .show();
                     return false;
                 });

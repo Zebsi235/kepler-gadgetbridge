@@ -19,6 +19,7 @@ package nodomain.freeyourgadget.gadgetbridge.service.devices.garmin;
 import android.content.Intent;
 
 import androidx.annotation.NonNull;
+import androidx.annotation.Nullable;
 import androidx.localbroadcastmanager.content.LocalBroadcastManager;
 
 import org.slf4j.Logger;
@@ -29,10 +30,8 @@ import java.io.File;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
-import java.text.SimpleDateFormat;
 import java.util.Date;
 import java.util.HashSet;
-import java.util.Locale;
 import java.util.Set;
 
 import nodomain.freeyourgadget.gadgetbridge.GBApplication;
@@ -60,17 +59,6 @@ public class FileTransferHandler implements MessageHandler {
     private final Download download;
     private final Upload upload;
     private int maxPacketSize = 375;
-
-    private static final Set<FileType.FILETYPE> FILE_TYPES_TO_PROCESS = new HashSet<>() {{
-        add(FileType.FILETYPE.DIRECTORY);
-        add(FileType.FILETYPE.ACTIVITY);
-        add(FileType.FILETYPE.MONITOR);
-        add(FileType.FILETYPE.METRICS);
-        add(FileType.FILETYPE.CHANGELOG);
-        add(FileType.FILETYPE.HRV_STATUS);
-        add(FileType.FILETYPE.SLEEP);
-        add(FileType.FILETYPE.SKIN_TEMP);
-    }};
 
     public FileTransferHandler(GarminSupport deviceSupport) {
         this.deviceSupport = deviceSupport;
@@ -199,7 +187,10 @@ public CreateFileMessage initiateUpload(byte[] fileAsByteArray, FileType.FILETYP
                 final File parentFile = outputFile.getParentFile();
                 parentFile.mkdirs();
                 FileUtils.copyStreamToFile(new ByteArrayInputStream(currentlyDownloading.dataHolder.array()), outputFile);
-                outputFile.setLastModified(currentlyDownloading.directoryEntry.fileDate.getTime());
+                final Date fileDate = currentlyDownloading.directoryEntry.fileDate;
+                if (fileDate != null) {
+                    outputFile.setLastModified(fileDate.getTime());
+                }
             } catch (final IOException e) {
                 LOG.error("Failed to save file", e);
                 return; // do not signal file as saved
@@ -234,14 +225,21 @@ public CreateFileMessage initiateUpload(byte[] fileAsByteArray, FileType.FILETYP
                 final int specificFlags = reader.readByte();//7
                 final int fileFlags = reader.readByte();//8
                 final int fileSize = reader.readInt();//12
-                final Date fileDate = new Date(GarminTimeUtils.garminTimestampToJavaMillis(reader.readInt()));//16
+                // Wire 0 is the watch's "no date" sentinel; surface
+                // it as null so {@link DirectoryEntry#fileDate} stays
+                // unambiguous (no real activity recorded at the
+                // Garmin epoch).
+                final int wireTimestamp = reader.readInt();//16
+                final Date fileDate = wireTimestamp == 0 ? null
+                        : new Date(GarminTimeUtils.garminTimestampToJavaMillis(wireTimestamp));
                 final DirectoryEntry directoryEntry = new DirectoryEntry(fileIndex, filetype, fileNumber, specificFlags, fileFlags, fileSize, fileDate);
-                if (directoryEntry.filetype == null) {
+                final FileType.FILETYPE fileType = directoryEntry.getFiletype();
+                if (filetype == null) {
                     // discard unsupported files
                     LOG.warn("Unsupported directory entry of type {}/{}: {}", fileDataType, fileSubType, directoryEntry);
                     continue;
                 }
-                if (!FILE_TYPES_TO_PROCESS.contains(directoryEntry.filetype) && !fetchUnknownFiles) {
+                if (fileType != FileType.FILETYPE.DIRECTORY && !filetype.pull && !fetchUnknownFiles) {
                     LOG.debug("Skipping directory entry: {}", directoryEntry);
                     continue;
                 }
@@ -424,18 +422,19 @@ public CreateFileMessage initiateUpload(byte[] fileAsByteArray, FileType.FILETYP
     }
 
     public static class DirectoryEntry {
-        private static final SimpleDateFormat SDF_FULL = new SimpleDateFormat("yyyy-MM-dd_HH-mm-ss", Locale.ROOT);
-        private static final SimpleDateFormat SDF_YEAR = new SimpleDateFormat("yyyy", Locale.ROOT);
-
         private final int fileIndex;
         private final FileType.FILETYPE filetype;
         private final int fileNumber;
         private final int specificFlags;
         private final int fileFlags;
         private final int fileSize;
+        /** Null for entries whose wire timestamp was the watch's
+         *  "no date" sentinel (0). Drives the missing-date fallback
+         *  shape in {@link #getOutputPath}. */
+        @Nullable
         private final Date fileDate;
 
-        public DirectoryEntry(int fileIndex, FileType.FILETYPE filetype, int fileNumber, int specificFlags, int fileFlags, int fileSize, Date fileDate) {
+        public DirectoryEntry(int fileIndex, FileType.FILETYPE filetype, int fileNumber, int specificFlags, int fileFlags, int fileSize, @Nullable Date fileDate) {
             this.fileIndex = fileIndex;
             this.filetype = filetype;
             this.fileNumber = fileNumber;
@@ -453,6 +452,7 @@ public CreateFileMessage initiateUpload(byte[] fileAsByteArray, FileType.FILETYP
             return filetype;
         }
 
+        @Nullable
         public Date getFileDate() {
             return fileDate;
         }
@@ -464,34 +464,18 @@ public CreateFileMessage initiateUpload(byte[] fileAsByteArray, FileType.FILETYP
         /**
          * Builds the output path.
          * Format: [FILE_TYPE]/[YEAR]/[FILE_TYPE]_[yyyy-MM-dd_HH-mm-ss]_[INDEX].[fit/bin]
+         * (or [FILE_TYPE]/[FILE_TYPE]_[INDEX].[fit/bin] when the file has no valid date)
          */
         public String getOutputPath() {
-            // [FILE_TYPE]/
-            final StringBuilder sb = new StringBuilder(getFiletype().name());
-            sb.append(File.separator);
-
-            // If we have a valid date, place the file inside a folder for each year
-            // [YEAR]/
-            if (fileDate.getTime() != GarminTimeUtils.GARMIN_TIME_EPOCH * 1000L) {
-                sb.append(SDF_YEAR.format(fileDate));
-                sb.append(File.separator);
-            }
-
-            // Finally, the filename
-            sb.append(getFileName());
-            return sb.toString();
+            return GarminUtils.buildExportPath(getFiletype(), fileDate,
+                    String.valueOf(getFileIndex()),
+                    getFiletype().isFitFile() ? "fit" : "bin");
         }
 
-        /**
-         * [FILE_TYPE]_[yyyy-MM-dd_HH-mm-ss]_[INDEX].[fit/bin]
-         */
+        /** Just the basename of {@link #getOutputPath()}. */
         public String getFileName() {
-            final StringBuilder sb = new StringBuilder(getFiletype().name());
-            if (fileDate.getTime() != GarminTimeUtils.GARMIN_TIME_EPOCH * 1000L) {
-                sb.append("_").append(SDF_FULL.format(fileDate));
-            }
-            sb.append("_").append(getFileIndex()).append(getFiletype().isFitFile() ? ".fit" : ".bin");
-            return sb.toString();
+            final String path = getOutputPath();
+            return path.substring(path.lastIndexOf(File.separator) + 1);
         }
 
         @NonNull

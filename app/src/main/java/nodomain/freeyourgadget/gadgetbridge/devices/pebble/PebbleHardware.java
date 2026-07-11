@@ -29,6 +29,7 @@ import java.util.HashMap;
 import java.util.Map;
 
 import nodomain.freeyourgadget.gadgetbridge.impl.GBDevice;
+import nodomain.freeyourgadget.gadgetbridge.impl.GBDeviceCandidate;
 
 /**
  * Unified source of truth for Pebble hardware definitions.
@@ -469,6 +470,20 @@ public class PebbleHardware {
         return name != null && (name.startsWith("Pebble-LE ") || name.startsWith("Pebble Time LE "));
     }
 
+    /**
+     * Check if a device candidate needs connect-first pairing (GATT connection before createBond).
+     * Uses manufacturer data for reliable identification, falling back to name-based detection.
+     */
+    public static boolean needsConnectFirstPairing(GBDeviceCandidate candidate) {
+        if (candidate == null) {
+            return false;
+        }
+        if (isBleOnly(candidate.getManufacturerSpecificData())) {
+            return true;
+        }
+        return isBleOnly(candidate.getDevice());
+    }
+
     // ======================= Platform Utilities =======================
 
     /**
@@ -538,6 +553,70 @@ public class PebbleHardware {
             return true; // Assume yes for unknown
         }
         return hw.getPlatform().hasHealth();
+    }
+
+    /**
+     * Check if a firmware's hwRevision is compatible with a device's model.
+     * Firmware uses platform names (emery), device uses codenames (obelix_pvt).
+     *
+     * @param firmwareHwRev The hwrev from firmware manifest (e.g., "emery")
+     * @param deviceModel The model from GBDevice (e.g., "obelix_pvt")
+     * @return true if compatible, false otherwise
+     */
+    public static boolean isFirmwareCompatible(@Nullable String firmwareHwRev, @Nullable String deviceModel) {
+        if (firmwareHwRev == null || deviceModel == null) {
+            return false;
+        }
+
+        // Get platforms for both
+        HardwareRevision fwHw = getByModelString(firmwareHwRev);
+        HardwareRevision deviceHw = getByModelString(deviceModel);
+
+        if (fwHw == null || deviceHw == null) {
+            LOG.warn("isFirmwareCompatible: Could not resolve platform - fw={} ({}), device={} ({})",
+                    firmwareHwRev, fwHw, deviceModel, deviceHw);
+            return false;
+        }
+
+        boolean compatible = fwHw.getPlatform() == deviceHw.getPlatform();
+        LOG.info("isFirmwareCompatible: fw={} ({}), device={} ({}) -> {}",
+                firmwareHwRev, fwHw.getPlatformName(), deviceModel, deviceHw.getPlatformName(), compatible);
+        return compatible;
+    }
+
+    /**
+     * Get a detailed incompatibility reason for firmware/device mismatch.
+     *
+     * @param firmwareHwRev The hwrev from firmware manifest
+     * @param deviceModel The model from GBDevice
+     * @return Human-readable reason string, or null if compatible
+     */
+    @Nullable
+    public static String getFirmwareIncompatibilityReason(@Nullable String firmwareHwRev, @Nullable String deviceModel) {
+        if (firmwareHwRev == null) {
+            return "Firmware has no hardware revision specified";
+        }
+        if (deviceModel == null) {
+            return "Device model is unknown";
+        }
+
+        HardwareRevision fwHw = getByModelString(firmwareHwRev);
+        HardwareRevision deviceHw = getByModelString(deviceModel);
+
+        if (fwHw == null) {
+            return "Unknown firmware platform: " + firmwareHwRev;
+        }
+        if (deviceHw == null) {
+            return "Unknown device model: " + deviceModel;
+        }
+
+        if (fwHw.getPlatform() != deviceHw.getPlatform()) {
+            return String.format("Platform mismatch: firmware is for %s (%s), device is %s (%s)",
+                    fwHw.getPlatform().getDisplayName(), firmwareHwRev,
+                    deviceHw.getPlatform().getDisplayName(), deviceModel);
+        }
+
+        return null; // Compatible
     }
 
     /**

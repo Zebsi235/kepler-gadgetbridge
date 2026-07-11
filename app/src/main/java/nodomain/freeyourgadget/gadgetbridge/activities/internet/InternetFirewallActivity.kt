@@ -76,7 +76,7 @@ class InternetFirewallActivity : AbstractGBActivity() {
                 val qb = db.daoSession.internetFirewallRuleDao.queryBuilder()
                 if (device != null) {
                     // device-specific rules
-                    val deviceFromDb = DBHelper.getDevice(device, db.daoSession)
+                    val deviceFromDb = DBHelper.getDevice(device!!, db.daoSession)
                     qb.where(InternetFirewallRuleDao.Properties.DeviceId.eq(deviceFromDb.id))
                 } else {
                     // global rules
@@ -155,11 +155,11 @@ class InternetFirewallActivity : AbstractGBActivity() {
                     saveRuleToDatabase(domain, action)
                 }
                 loadRules()
-            }.setNegativeButton(R.string.Cancel, null)
+            }.setNegativeButton(R.string.cancel, null)
 
         // Add delete button if editing
         if (isEditing) {
-            dialogBuilder.setNeutralButton(R.string.Delete) { _, _ ->
+            dialogBuilder.setNeutralButton(R.string.delete) { _, _ ->
                 deleteRuleFromDatabase(existingRule)
                 loadRules()
             }
@@ -198,7 +198,7 @@ class InternetFirewallActivity : AbstractGBActivity() {
                 rule.domain = domain
                 rule.action = action
                 if (device != null) {
-                    val deviceFromDb = DBHelper.getDevice(device, db.daoSession)
+                    val deviceFromDb = DBHelper.getDevice(device!!, db.daoSession)
                     rule.deviceId = deviceFromDb.id
                 }
                 db.daoSession.internetFirewallRuleDao.insert(rule)

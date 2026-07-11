@@ -42,6 +42,7 @@ import java.net.InetAddress;
 import java.net.Socket;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
+import java.util.ArrayList;
 import java.util.UUID;
 
 import nodomain.freeyourgadget.gadgetbridge.GBApplication;
@@ -54,6 +55,7 @@ import nodomain.freeyourgadget.gadgetbridge.deviceevents.GBDeviceEventAppManagem
 import nodomain.freeyourgadget.gadgetbridge.deviceevents.GBDeviceEventAppMessage;
 import nodomain.freeyourgadget.gadgetbridge.deviceevents.GBDeviceEventVersionInfo;
 import nodomain.freeyourgadget.gadgetbridge.deviceevents.pebble.GBDeviceEventDataLogging;
+import nodomain.freeyourgadget.gadgetbridge.deviceevents.pebble.GBDeviceEventFirmwareUpdateStart;
 import nodomain.freeyourgadget.gadgetbridge.devices.pebble.PBWReader;
 import nodomain.freeyourgadget.gadgetbridge.devices.pebble.PebbleCoordinator;
 import nodomain.freeyourgadget.gadgetbridge.devices.pebble.PebbleInstallable;
@@ -64,6 +66,7 @@ import nodomain.freeyourgadget.gadgetbridge.service.devices.pebble.webview.Pebbl
 import nodomain.freeyourgadget.gadgetbridge.service.serial.GBDeviceIoThread;
 import nodomain.freeyourgadget.gadgetbridge.service.serial.GBDeviceProtocol;
 import nodomain.freeyourgadget.gadgetbridge.devices.pebble.PebbleHardware;
+import nodomain.freeyourgadget.gadgetbridge.util.BondingUtil;
 import nodomain.freeyourgadget.gadgetbridge.util.GB;
 import nodomain.freeyourgadget.gadgetbridge.util.GBPrefs;
 import nodomain.freeyourgadget.gadgetbridge.util.PebbleUtils;
@@ -92,6 +95,13 @@ class PebbleIoThread extends GBDeviceIoThread {
     private boolean mQuit = false;
     private boolean mIsConnected = false;
     private boolean mIsInstalling = false;
+    // Tokens for all committed firmware files; INSTALL is sent for all of them together at the end
+    // so the watch doesn't start flashing mid-transfer while we're still uploading resources.
+    private final ArrayList<Integer> mFirmwareCommittedTokens = new ArrayList<>();
+    // Status from FirmwareUpdateStartResponse (0x0a): -1=pending, 0=stopped, 1=started, 2=cancelled.
+    private int mFirmwareStartStatus = -1;
+    // Timestamp (ms) when WAIT_FIRMWARE_START was entered, for recovery-mode timeout.
+    private long mFirmwareStartTimestamp = 0;
 
     private PBWReader mPBWReader = null;
     private GBDeviceApp mCurrentlyInstallingApp = null;
@@ -182,8 +192,11 @@ class PebbleIoThread extends GBDeviceIoThread {
                     deviceAddress = gbDevice.getVolatileAddress();
                 }
                 BluetoothDevice btDevice = mBtAdapter.getRemoteDevice(deviceAddress);
-                if (btDevice.getType() == BluetoothDevice.DEVICE_TYPE_LE) {
-                    LOG.info("This is a Pebble 2 or Pebble-LE/Pebble Time LE, will use BLE");
+                // Use BLE for DEVICE_TYPE_LE or for Pebble 2/Time 2/2 Duo which are DEVICE_TYPE_DUAL but BLE-only
+                // Check both btDevice and gbDevice (btDevice.getName() can be null during reconnection)
+                boolean isPebble2 = PebbleHardware.isBleOnly(gbDevice, btDevice);
+                if (btDevice.getType() == BluetoothDevice.DEVICE_TYPE_LE || isPebble2) {
+                    LOG.info("This is a Pebble 2/Time 2/2 Duo or Pebble-LE/Pebble Time LE, will use BLE (isPebble2={})", isPebble2);
                     mInStream = new PipedInputStream();
                     mOutStream = new PipedOutputStream();
                     mPebbleLESupport = new PebbleLESupport(this.getContext(), mPebbleSupport, gbDevice, btDevice, (PipedInputStream) mInStream, (PipedOutputStream) mOutStream);
@@ -257,6 +270,25 @@ class PebbleIoThread extends GBDeviceIoThread {
             try {
                 if (mIsInstalling) {
                     switch (mInstallState) {
+                        case WAIT_FIRMWARE_START:
+                            if (mFirmwareStartStatus == GBDeviceEventFirmwareUpdateStart.STATUS_STARTED) {
+                                LOG.info("Watch confirmed firmware update started");
+                                mFirmwareStartStatus = -1;
+                                mInstallState = PebbleAppInstallState.START_INSTALL;
+                                continue;
+                            } else if (mFirmwareStartStatus == GBDeviceEventFirmwareUpdateStart.STATUS_STOPPED ||
+                                       mFirmwareStartStatus == GBDeviceEventFirmwareUpdateStart.STATUS_CANCELLED) {
+                                LOG.warn("Watch rejected firmware update start, status={}", mFirmwareStartStatus);
+                                finishInstall(true);
+                                break;
+                            } else if (System.currentTimeMillis() - mFirmwareStartTimestamp > 5000) {
+                                // No response after 5s — assume recovery mode which never replies.
+                                LOG.info("No FirmwareUpdateStartResponse after 5s, proceeding (recovery mode?)");
+                                mFirmwareStartStatus = -1;
+                                mInstallState = PebbleAppInstallState.START_INSTALL;
+                                continue;
+                            }
+                            break;
                         case WAIT_SLOT:
                             if (mInstallSlot == -1) {
                                 finishInstall(true); // no slots available
@@ -316,12 +348,37 @@ class PebbleIoThread extends GBDeviceIoThread {
                             }
                             break;
                         case UPLOAD_COMPLETE:
-                            writeInstallApp(mPebbleProtocol.encodeUploadComplete(mAppInstallToken));
-                            if (++mCurrentInstallableIndex < mPebbleInstallables.length) {
-                                mInstallState = PebbleAppInstallState.START_INSTALL;
+                            if (mPBWReader.isFirmware()) {
+                                // For firmware, defer INSTALL until all files are committed.
+                                // Sending INSTALL early causes the watch to start writing to flash
+                                // immediately, stalling mid-transfer while it's busy erasing. The
+                                // stock app sends INSTALL for all files only after every file is committed.
+                                mFirmwareCommittedTokens.add(mAppInstallToken);
+                                if (++mCurrentInstallableIndex < mPebbleInstallables.length) {
+                                    mInstallState = PebbleAppInstallState.START_INSTALL;
+                                } else {
+                                    mInstallState = PebbleAppInstallState.INSTALL_FIRMWARE;
+                                }
+                                // continue so the state machine advances immediately
+                                continue;
                             } else {
-                                mInstallState = PebbleAppInstallState.APP_REFRESH;
+                                // For apps, INSTALL each file immediately after commit.
+                                writeInstallApp(mPebbleProtocol.encodeUploadComplete(mAppInstallToken));
+                                if (++mCurrentInstallableIndex < mPebbleInstallables.length) {
+                                    mInstallState = PebbleAppInstallState.START_INSTALL;
+                                } else {
+                                    mInstallState = PebbleAppInstallState.APP_REFRESH;
+                                }
                             }
+                            break;
+                        case INSTALL_FIRMWARE:
+                            // All firmware files are committed; now send INSTALL for each so the
+                            // watch can write them all to flash in one go.
+                            for (int token : mFirmwareCommittedTokens) {
+                                writeInstallApp(mPebbleProtocol.encodeUploadComplete(token));
+                            }
+                            mFirmwareCommittedTokens.clear();
+                            mInstallState = PebbleAppInstallState.APP_REFRESH;
                             break;
                         case APP_REFRESH:
                             if (mPBWReader.isFirmware()) {
@@ -376,11 +433,6 @@ class PebbleIoThread extends GBDeviceIoThread {
                         }
                     }
                 }
-                try {
-                    Thread.sleep(100);
-                } catch (InterruptedException e) {
-                    LOG.warn("exception 1 in run", e);
-                }
             } catch (IOException e) {
                 if (e.getMessage() != null && (e.getMessage().equals("broken pipe") || e.getMessage().contains("socket closed"))) { //FIXME: this does not feel right
                     LOG.info(e.getMessage());
@@ -424,7 +476,7 @@ class PebbleIoThread extends GBDeviceIoThread {
     }
 
 
-    private void write_real(byte[] bytes) {
+    private void write_stream(byte[] bytes) {
         try {
             if (mIsTCP) {
                 ByteBuffer buf = ByteBuffer.allocate(bytes.length + 8);
@@ -443,6 +495,10 @@ class PebbleIoThread extends GBDeviceIoThread {
         } catch (IOException e) {
             LOG.error("Error writing.", e);
         }
+    }
+
+    private void write_real(byte[] bytes) {
+        write_stream(bytes);
         try {
             Thread.sleep(100);
         } catch (InterruptedException ignored) {
@@ -464,7 +520,11 @@ class PebbleIoThread extends GBDeviceIoThread {
     // FIXME: parts are supposed to be generic code
     private boolean evaluateGBDeviceEventPebble(GBDeviceEvent deviceEvent) {
 
-        if (deviceEvent instanceof GBDeviceEventVersionInfo) {
+        if (deviceEvent instanceof GBDeviceEventFirmwareUpdateStart) {
+            mFirmwareStartStatus = ((GBDeviceEventFirmwareUpdateStart) deviceEvent).status;
+            LOG.info("Got FirmwareUpdateStartResponse: status={}", mFirmwareStartStatus);
+            return true;
+        } else if (deviceEvent instanceof GBDeviceEventVersionInfo) {
             if (prefs.syncTime()) {
                 LOG.info("syncing time");
                 write(mPebbleProtocol.encodeSetTime());
@@ -595,7 +655,10 @@ class PebbleIoThread extends GBDeviceIoThread {
             return;
         }
         LOG.info("got {}bytes for writeInstallApp()", bytes.length);
-        write_real(bytes);
+        // Bypass the 100ms post-write sleep in write_real — that sleep prevents appmessage
+        // NACKs on firmware 3.0+ and is not relevant here. IoThread's blocking read is woken
+        // immediately when the watch responds, via notifyAll() in writeToPipedOutputStream.
+        write_stream(bytes);
     }
 
     void installApp(Uri uri, int appId) {
@@ -604,9 +667,10 @@ class PebbleIoThread extends GBDeviceIoThread {
         }
 
         String platformName = PebbleHardware.getPlatformName(gbDevice.getModel());
+        Integer targetSlot = (Integer) gbDevice.getExtraInfo(GBDeviceEventVersionInfo.EXTRA_FW_UPDATE_TARGET_SLOT);
 
         try {
-            mPBWReader = new PBWReader(uri, getContext(), platformName);
+            mPBWReader = new PBWReader(uri, getContext(), platformName, targetSlot);
         } catch (FileNotFoundException e) {
             LOG.warn("app file not found", e);
             return;
@@ -621,19 +685,21 @@ class PebbleIoThread extends GBDeviceIoThread {
         if (mPBWReader.isFirmware()) {
             LOG.info("starting firmware installation");
             mIsInstalling = true;
-            mInstallSlot = 0;
-            writeInstallApp(mPebbleProtocol.encodeInstallFirmwareStart());
-            mInstallState = PebbleAppInstallState.START_INSTALL;
-
-            /*
-             * This is a hack for recovery mode, in which the blocking read has no timeout and the
-             * firmware installation command does not return any ack.
-             * In normal mode we would got at least out of the blocking read call after a while.
-             *
-             *
-             * ... we should really not handle installation from thread that does the blocking read
-             *
-             */
+            // For dual-slot watches, mInstallSlot is the PUTBYTES bank number (0 or 1).
+            // It must match the inactive slot so we don't write into the running firmware.
+            mInstallSlot = (targetSlot != null) ? targetSlot : 0;
+            int totalFirmwareBytes = 0;
+            for (PebbleInstallable pi : mPebbleInstallables) {
+                totalFirmwareBytes += pi.getFileSize();
+            }
+            writeInstallApp(mPebbleProtocol.encodeInstallFirmwareStart(totalFirmwareBytes));
+            mFirmwareStartStatus = -1;
+            mFirmwareStartTimestamp = System.currentTimeMillis();
+            mInstallState = PebbleAppInstallState.WAIT_FIRMWARE_START;
+            // GetTime is sent to ensure the blocking read unblocks in recovery mode, where the
+            // watch never sends FirmwareUpdateStartResponse. In normal mode the watch's response
+            // will arrive first and set mFirmwareStartStatus; the GetTime response is then handled
+            // on the next loop iteration.
             writeInstallApp(mPebbleProtocol.encodeGetTime());
         } else {
             mCurrentlyInstallingApp = mPBWReader.getGBDeviceApp();
@@ -708,6 +774,9 @@ class PebbleIoThread extends GBDeviceIoThread {
         mPBWReader = null;
         mIsInstalling = false;
         mCurrentlyInstallingApp = null;
+        mFirmwareCommittedTokens.clear();
+        mFirmwareStartStatus = -1;
+        mFirmwareStartTimestamp = 0;
 
         if (mFis != null) {
             try {
@@ -719,6 +788,12 @@ class PebbleIoThread extends GBDeviceIoThread {
         mFis = null;
         mAppInstallToken = -1;
         mInstallSlot = -2;
+    }
+
+    public void readBatteryCharacteristic() {
+        if (mPebbleLESupport != null) {
+            mPebbleLESupport.readBatteryCharacteristic();
+        }
     }
 
     @Override
@@ -771,6 +846,7 @@ class PebbleIoThread extends GBDeviceIoThread {
 
     private enum PebbleAppInstallState {
         UNKNOWN,
+        WAIT_FIRMWARE_START, // waiting for FirmwareUpdateStartResponse from watch (or 5s timeout for recovery mode)
         WAIT_SLOT,
         START_INSTALL,
         WAIT_TOKEN,
@@ -778,6 +854,7 @@ class PebbleIoThread extends GBDeviceIoThread {
         UPLOAD_COMMIT,
         WAIT_COMMIT,
         UPLOAD_COMPLETE,
+        INSTALL_FIRMWARE, // send INSTALL for all committed firmware tokens after all files are transferred
         APP_REFRESH,
     }
 }

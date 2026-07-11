@@ -28,6 +28,7 @@ import android.content.SharedPreferences;
 import android.location.Location;
 import android.net.Uri;
 import android.os.AsyncTask;
+import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
 import android.text.TextUtils;
@@ -65,6 +66,8 @@ import nodomain.freeyourgadget.gadgetbridge.deviceevents.GBDeviceEventAppInfo;
 import nodomain.freeyourgadget.gadgetbridge.deviceevents.GBDeviceEventCameraRemote;
 import nodomain.freeyourgadget.gadgetbridge.deviceevents.GBDeviceEventDisplayMessage;
 import nodomain.freeyourgadget.gadgetbridge.devices.DeviceCoordinator;
+import nodomain.freeyourgadget.gadgetbridge.devices.HuaweiSleepStageSampleProvider;
+import nodomain.freeyourgadget.gadgetbridge.devices.HuaweiStressSampleProvider;
 import nodomain.freeyourgadget.gadgetbridge.devices.huawei.HuaweiCompatTemperatureSampleProvider;
 import nodomain.freeyourgadget.gadgetbridge.devices.huawei.HuaweiConstants;
 import nodomain.freeyourgadget.gadgetbridge.devices.huawei.HuaweiCoordinator;
@@ -75,21 +78,19 @@ import nodomain.freeyourgadget.gadgetbridge.devices.huawei.HuaweiDeviceStateMana
 import nodomain.freeyourgadget.gadgetbridge.devices.huawei.HuaweiDictTypes;
 import nodomain.freeyourgadget.gadgetbridge.devices.huawei.HuaweiEcgFileParser;
 import nodomain.freeyourgadget.gadgetbridge.devices.huawei.HuaweiGpsParser;
+import nodomain.freeyourgadget.gadgetbridge.devices.huawei.HuaweiGpxRouteInstallHandler;
 import nodomain.freeyourgadget.gadgetbridge.devices.huawei.HuaweiPacket;
 import nodomain.freeyourgadget.gadgetbridge.devices.huawei.HuaweiPdrParser;
 import nodomain.freeyourgadget.gadgetbridge.devices.huawei.HuaweiSampleProvider;
 import nodomain.freeyourgadget.gadgetbridge.devices.huawei.HuaweiSequenceDataFileParser;
-import nodomain.freeyourgadget.gadgetbridge.devices.huawei.HuaweiSleepStageSampleProvider;
 import nodomain.freeyourgadget.gadgetbridge.devices.huawei.HuaweiSleepStatsSampleProvider;
 import nodomain.freeyourgadget.gadgetbridge.devices.huawei.HuaweiStressParser;
-import nodomain.freeyourgadget.gadgetbridge.devices.huawei.HuaweiStressSampleProvider;
 import nodomain.freeyourgadget.gadgetbridge.devices.huawei.HuaweiTruSleepParser;
 import nodomain.freeyourgadget.gadgetbridge.devices.huawei.HuaweiTrueSleepSequenceDataParser;
 import nodomain.freeyourgadget.gadgetbridge.devices.huawei.packets.CameraRemote;
 import nodomain.freeyourgadget.gadgetbridge.devices.huawei.packets.GpsAndTime;
 import nodomain.freeyourgadget.gadgetbridge.devices.huawei.packets.Notifications;
 import nodomain.freeyourgadget.gadgetbridge.devices.huawei.packets.Weather;
-import nodomain.freeyourgadget.gadgetbridge.devices.huawei.packets.Workout;
 import nodomain.freeyourgadget.gadgetbridge.devices.huawei.ui.HuaweiStressCalibrationFragment;
 import nodomain.freeyourgadget.gadgetbridge.devices.miband.MiBandConst;
 import nodomain.freeyourgadget.gadgetbridge.entities.HuaweiActivitySample;
@@ -101,9 +102,7 @@ import nodomain.freeyourgadget.gadgetbridge.entities.HuaweiSleepStageSample;
 import nodomain.freeyourgadget.gadgetbridge.entities.HuaweiSleepStatsSample;
 import nodomain.freeyourgadget.gadgetbridge.entities.HuaweiStressSample;
 import nodomain.freeyourgadget.gadgetbridge.entities.HuaweiWorkoutSummarySample;
-import nodomain.freeyourgadget.gadgetbridge.entities.HuaweiWorkoutSummarySampleDao;
-import nodomain.freeyourgadget.gadgetbridge.entities.HuaweiWorkoutSwimSegmentsSample;
-import nodomain.freeyourgadget.gadgetbridge.entities.HuaweiWorkoutSwimSegmentsSampleDao;
+import nodomain.freeyourgadget.gadgetbridge.export.AutoFitExporter;
 import nodomain.freeyourgadget.gadgetbridge.export.AutoGpxExporter;
 import nodomain.freeyourgadget.gadgetbridge.externalevents.gps.GBLocationProviderType;
 import nodomain.freeyourgadget.gadgetbridge.externalevents.gps.GBLocationService;
@@ -143,6 +142,8 @@ import nodomain.freeyourgadget.gadgetbridge.service.devices.huawei.p2p.HuaweiP2P
 import nodomain.freeyourgadget.gadgetbridge.service.devices.huawei.p2p.HuaweiP2PCannedRepliesService;
 import nodomain.freeyourgadget.gadgetbridge.service.devices.huawei.p2p.HuaweiP2PContactsService;
 import nodomain.freeyourgadget.gadgetbridge.service.devices.huawei.p2p.HuaweiP2PDirection;
+import nodomain.freeyourgadget.gadgetbridge.service.devices.huawei.p2p.HuaweiP2PFitnessData;
+import nodomain.freeyourgadget.gadgetbridge.service.devices.huawei.p2p.HuaweiP2PMapkitService;
 import nodomain.freeyourgadget.gadgetbridge.service.devices.huawei.p2p.HuaweiP2PTrackService;
 import nodomain.freeyourgadget.gadgetbridge.service.devices.huawei.p2p.HuaweiP2PDataDictionarySyncService;
 import nodomain.freeyourgadget.gadgetbridge.service.devices.huawei.p2p.dictionarysync.HuaweiDictionarySyncInterface;
@@ -231,11 +232,14 @@ import nodomain.freeyourgadget.gadgetbridge.service.devices.huawei.requests.SetW
 import nodomain.freeyourgadget.gadgetbridge.service.devices.huawei.requests.SetWearMessagePushRequest;
 import nodomain.freeyourgadget.gadgetbridge.service.devices.huawei.requests.GetNotificationCapabilitiesRequest;
 import nodomain.freeyourgadget.gadgetbridge.service.devices.huawei.requests.SetWorkModeRequest;
+import nodomain.freeyourgadget.gadgetbridge.service.devices.huawei.utils.HuaweiGPSTrackConverter;
+import nodomain.freeyourgadget.gadgetbridge.service.devices.huawei.utils.HuaweiRouteTrack;
 import nodomain.freeyourgadget.gadgetbridge.service.serial.GBDeviceProtocol;
 import nodomain.freeyourgadget.gadgetbridge.util.DateTimeUtils;
 import nodomain.freeyourgadget.gadgetbridge.util.GB;
 import nodomain.freeyourgadget.gadgetbridge.util.MediaManager;
 import nodomain.freeyourgadget.gadgetbridge.util.StringUtils;
+import nodomain.freeyourgadget.gadgetbridge.util.preferences.DevicePrefs;
 
 public class HuaweiSupportProvider {
     private static final Logger LOG = LoggerFactory.getLogger(HuaweiSupportProvider.class);
@@ -381,7 +385,13 @@ public class HuaweiSupportProvider {
         this.context = context;
         this.huaweiType = getCoordinator().getHuaweiType();
         this.paramsProvider.setAW(getCoordinator().getHuaweiType() == HuaweiDeviceType.AW);
-        this.paramsProvider.setTransactionsCrypted(getCoordinator().isTransactionCrypted());
+        final DevicePrefs devicePrefs = GBApplication.getDevicePrefs(device);
+        final boolean transactionCrypted = switch (devicePrefs.getString("force_encryption", "default")) {
+            case "force_enabled" -> true;
+            case "force_disabled" -> false;
+            default -> getCoordinator().isTransactionCrypted();
+        };
+        this.paramsProvider.setTransactionsCrypted(transactionCrypted);
         mediaManager = new MediaManager(context);
     }
 
@@ -1014,9 +1024,21 @@ public class HuaweiSupportProvider {
                             }
                         }
 
+                        if (getDeviceState().supportsOfflineMap()) {
+                            if (HuaweiP2PMapkitService.getRegisteredInstance(huaweiP2PManager) == null) {
+                                HuaweiP2PMapkitService contactsService = new HuaweiP2PMapkitService(huaweiP2PManager);
+                                contactsService.register();
+                            }
+                        }
+
                         if (HuaweiP2PDirection.getRegisteredInstance(huaweiP2PManager) == null) {
                             HuaweiP2PDirection directionService = new HuaweiP2PDirection(huaweiP2PManager);
                             directionService.register();
+                        }
+
+                        if (HuaweiP2PFitnessData.getRegisteredInstance(huaweiP2PManager) == null) {
+                            HuaweiP2PFitnessData p2PFitnessData = new HuaweiP2PFitnessData(huaweiP2PManager);
+                            p2PFitnessData.register();
                         }
                     }
                 }
@@ -1874,7 +1896,7 @@ public class HuaweiSupportProvider {
                 samples.add(activitySample);
             }
 
-            sampleProvider.addGBActivitySamples(samples.toArray(new HuaweiActivitySample[0]));
+            sampleProvider.addGBActivitySamples(samples);
         } catch (Exception e) {
             LOG.error("Failed to add sleep activity to database", e);
         }
@@ -2386,9 +2408,28 @@ public class HuaweiSupportProvider {
         gpsLastLocation = location;
     }
 
-    public void onInstallApp(Uri uri) {
+    public void onInstallApp(Uri uri, @NonNull final Bundle options) {
         LOG.info("enter onAppInstall uri: {}", uri);
         HuaweiFwHelper huaweiFwHelper = new HuaweiFwHelper(uri, getContext());
+
+        final HuaweiGpxRouteInstallHandler huaweiGpxRouteInstallHandler = new HuaweiGpxRouteInstallHandler(uri, getContext());
+        if (huaweiGpxRouteInstallHandler.isValid()) {
+            final String trackName = options.getString(HuaweiGpxRouteInstallHandler.EXTRA_TRACK_NAME);
+            HuaweiRouteTrack track = HuaweiGPSTrackConverter.getTrack(getDeviceState(), huaweiGpxRouteInstallHandler.getGpxFile(), trackName);
+            HuaweiP2PFitnessData huaweiP2PFitnessData = HuaweiP2PFitnessData.getRegisteredInstance(huaweiP2PManager);
+            huaweiP2PFitnessData.sendTrack(track);
+            return;
+        }
+
+        if(huaweiFwHelper.isOfflineMap) {
+            HuaweiP2PMapkitService mapkitService = HuaweiP2PMapkitService.getRegisteredInstance(huaweiP2PManager);
+            if(mapkitService != null) {
+                mapkitService.startUpload(huaweiFwHelper.getFileName(), huaweiFwHelper.getUriHelper());
+            } else {
+                // not supported by device
+            }
+            return;
+        }
 
         if (huaweiFwHelper.isFirmware) {
             huaweiOTAManager.startFwUpdate(huaweiFwHelper.fwInfo, uri);
@@ -2407,7 +2448,8 @@ public class HuaweiSupportProvider {
         } else {
             fileInfo.setFileName(huaweiFwHelper.getFileName());
         }
-        fileInfo.setBytes(huaweiFwHelper.getBytes());
+
+        fileInfo.setUploadData(new HuaweiUploadManager.UploadDataBuffer(huaweiFwHelper.getBytes()));
 
         fileInfo.setFileUploadCallback(new HuaweiUploadManager.FileUploadCallback() {
             @Override
@@ -2727,8 +2769,8 @@ public class HuaweiSupportProvider {
                             }
                             try (DBHandler db = GBApplication.acquireDB()) {
                                 final DaoSession session = db.getDaoSession();
-                                new HuaweiSleepStatsSampleProvider(gbDevice, session).persistForDevice(context, gbDevice, sleepStatsSamples);
-                                new HuaweiSleepStageSampleProvider(gbDevice, session).persistForDevice(context, gbDevice, sleepStageSamples);
+                                new HuaweiSleepStatsSampleProvider(gbDevice, session).persistSamples(sleepStatsSamples, context);
+                                new HuaweiSleepStageSampleProvider(gbDevice, session).persistSamples(sleepStageSamples, context);
                             } catch (Exception e) {
                                 LOG.error("Cannot save sleep, continue");
                             }
@@ -2903,7 +2945,7 @@ public class HuaweiSupportProvider {
 
                         LOG.debug("Parsing PDR file");
                         HuaweiPdrParser.PdrPoint[] points = HuaweiPdrParser.parseHuaweiPdr(fileRequest.getData());
-                        LOG.info("Points: " + points);
+                        LOG.info("Points: {}", points);
                         //TODO: postprocess and combine with Gps data
                     }
 
@@ -2996,6 +3038,7 @@ public class HuaweiSupportProvider {
                         }
 
                         AutoGpxExporter.doExport(getContext(), getDevice(), null, track);
+                        AutoFitExporter.doExport(getContext(), getDevice(), null, track);
 
                         new HuaweiWorkoutGbParser(getDevice(), getContext()).parseWorkout(databaseId);
 

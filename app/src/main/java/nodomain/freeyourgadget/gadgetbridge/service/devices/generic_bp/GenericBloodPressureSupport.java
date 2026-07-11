@@ -21,9 +21,6 @@ import android.bluetooth.BluetoothGattCharacteristic;
 import android.content.Intent;
 import android.widget.Toast;
 
-import androidx.annotation.CallSuper;
-import androidx.localbroadcastmanager.content.LocalBroadcastManager;
-
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -33,7 +30,7 @@ import nodomain.freeyourgadget.gadgetbridge.GBApplication;
 import nodomain.freeyourgadget.gadgetbridge.R;
 import nodomain.freeyourgadget.gadgetbridge.database.DBHandler;
 import nodomain.freeyourgadget.gadgetbridge.deviceevents.GBDeviceEventVersionInfo;
-import nodomain.freeyourgadget.gadgetbridge.devices.sbm_67.GenericBloodPressureSampleProvider;
+import nodomain.freeyourgadget.gadgetbridge.devices.GenericBloodPressureSampleProvider;
 import nodomain.freeyourgadget.gadgetbridge.entities.DaoSession;
 import nodomain.freeyourgadget.gadgetbridge.entities.GenericBloodPressureSample;
 import nodomain.freeyourgadget.gadgetbridge.impl.GBDevice;
@@ -168,7 +165,7 @@ public class GenericBloodPressureSupport extends AbstractBTLESingleDeviceSupport
         try (DBHandler handler = GBApplication.acquireDB()) {
             final DaoSession session = handler.getDaoSession();
             final GenericBloodPressureSampleProvider sampleProvider = new GenericBloodPressureSampleProvider(getDevice(), session);
-            sampleProvider.persistForDevice(getContext(), getDevice(), List.of(sample));
+            sampleProvider.persistSamples(List.of(sample), getContext());
 
             persistedMeasurements++;
         } catch (final Exception e) {

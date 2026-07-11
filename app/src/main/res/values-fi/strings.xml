@@ -302,7 +302,7 @@
     <string name="pref_title_middle_button_function_double">Keskimmäinen nappi tupla</string>
     <string name="devicestatus_connecting">Laite yhdistyy</string>
     <string name="devicestatus_connected">Laite on yhdistetty</string>
-    <string name="Delete">Poista</string>
+    <string name="delete">Poista</string>
     <string name="pref_message_privacy_mode_off">Näytä sisältö</string>
     <string name="pref_title_weather_location">Sään sijainti (LineageOS:n sään tarjoajaa varten)</string>
     <string name="pref_header_development">Kehittäjäasetukset</string>
@@ -379,13 +379,12 @@
     <string name="weekstepschart_steps_a_month">Askeleet kuukaudessa</string>
     <string name="pref_chart_heartrate_color_orange">Oranssi</string>
     <string name="pref_chart_heartrate_color_red">Punainen</string>
-    <string name="Cancel">Peruuta</string>
+    <string name="cancel">Peruuta</string>
     <string name="ok">OK</string>
     <string name="activity_prefs_gender">Sukupuoli</string>
     <string name="pref_header_charts">Taulukoiden asetukset</string>
     <string name="activity_prefs_height_cm">Pituus (cm)</string>
     <string name="activity_prefs_step_length_cm">Askeleen pituus (cm)</string>
-    <string name="pref_chart_sleep_rolling_24_on">Viimeiset 24h</string>
     <string name="live_activity_heart_rate">Syke</string>
     <string name="action_db_management">Tietojen hallinta</string>
     <string name="watch9_time_hours">Tunnit:</string>
@@ -451,9 +450,6 @@
     <string name="zetime_prefs_inactivity_fr">Perjantai</string>
     <string name="pref_title_location_latitude">Leveysaste</string>
     <string name="pref_title_location_longitude">Pituusaste</string>
-    <string name="distance_format_feet">###ft</string>
-    <string name="distance_format_kilometers">###.#km</string>
-    <string name="distance_format_meters">###m</string>
     <string name="watchface_dialog_widget_width">Vimpaimen leveys (pikseleinä)</string>
     <string name="watchface_dialog_widget_timezone">Aikavyöhyke</string>
     <string name="pref_activity_recognition_mode_auto">automaattinen</string>
@@ -482,7 +478,6 @@
     <string name="changelog_ok_button">Valmis</string>
     <string name="about_contributors">Osallistujat</string>
     <string name="controlcenter_start_activitymonitor">Aktiivisuutesi</string>
-    <string name="preferences_qhybrid_settings">Q Hybridin asetukset</string>
     <string name="changelog_full_title">Muutosloki</string>
     <string name="pref_write_logfiles">Kirjoita lokitiedostoja</string>
     <string name="pref_theme_dynamic_colors_not_available_warning">Dynaamiset värit ei ole tuettu, se vaati Android 12:sta tai uudemman. Tästä johtuen Gadgetbridge käyttää oletus Material 3 -värejä.</string>

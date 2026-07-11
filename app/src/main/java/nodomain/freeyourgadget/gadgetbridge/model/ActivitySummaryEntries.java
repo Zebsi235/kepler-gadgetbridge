@@ -163,6 +163,7 @@ public class ActivitySummaryEntries {
     public static final String STROKE_AVG_PER_SECOND = "averageStrokesPerSecond";
     public static final String STROKE_RATE_AVG = "avgStrokeRate";
     public static final String STROKE_RATE_MAX = "maxStrokeRate";
+    public static final String STROKE_RATE_MIN = "minStrokeRate";
     public static final String STROKES = "strokes";
 
     public static final String JUMP_RATE_AVG = "avgJumpRate";
@@ -178,10 +179,18 @@ public class ActivitySummaryEntries {
     public static final String SWOLF_MIN = "swolfMin";
     public static final String SWIM_AVG_CADENCE = "swim_avg_cadence";
 
+    // Dietary intake kcal (food eaten), NOT energy expenditure. Sourced from Garmin FIT
+    // session.calories_consumed. Distinct from the three "expended" counters below.
     public static final String CALORIES_CONSUMED = "calories_consumed";
+    // Active kcal expended by the workout, excluding basal metabolic rate. The headline
+    // number shown on the watch workout card on Xiaomi devices.
     public static final String CALORIES_BURNT = "active_calories";
+    // Active + resting kcal over the workout window (CALORIES_BURNT + CALORIES_RESTING).
+    // Not emitted by every device or workout type.
     public static final String CALORIES_TOTAL = "caloriesBurnt";
+    // Basal metabolic kcal accrued during the workout window (CALORIES_TOTAL - CALORIES_BURNT).
     public static final String CALORIES_RESTING = "restingCalories";
+
     public static final String TRAINING_EFFECT_AEROBIC = "aerobicTrainingEffect";
     public static final String TRAINING_EFFECT_ANAEROBIC = "anaerobicTrainingEffect";
     public static final String TRAINING_EFFECT_TOTAL = "training_effect_total";
@@ -189,6 +198,38 @@ public class ActivitySummaryEntries {
     public static final String MAXIMUM_OXYGEN_UPTAKE = "maximumOxygenUptake";
     public static final String RECOVERY_TIME = "recoveryTime";
     public static final String RECOVERY_HR = "recoveryHr";
+    public static final String VITALITY_GAIN = "vitality_gain";
+    public static final String THROWS_LOW = "workout_throws_low";
+    public static final String THROWS_MEDIUM = "workout_throws_medium";
+    public static final String THROWS_HIGH = "workout_throws_high";
+    public static final String DISTANCE_GOAL = "workout_distance_goal";
+    public static final String DISTANCE_GOAL_PERCENT = "workout_distance_goal_percent";
+    public static final String DISTANCE_METERS_CALIBRATED = "workout_distance_meters_calibrated";
+    public static final String TIME_GOAL = "configuredTimeGoal";
+    public static final String CALORIES_GOAL = "configuredCaloriesGoal";
+    public static final String CALORIES_GOAL_MAX = "maximumCaloriesGoal";
+    public static final String PACE_GOAL = "configuredPaceGoal";
+    public static final String SPEED_GOAL = "configuredSpeedGoal";
+    public static final String CADENCE_GOAL = "configuredCadenceGoal";
+    public static final String LENGTHS_GOAL = "configuredLengthsGoal";
+    public static final String ACTIVE_CALORIES_GOAL = "active_calories_goal";
+    public static final String GOAL_COUNT = "goalCount";
+    public static final String GROUP_COUNT = "groupCount";
+    public static final String V02MAX_LEVEL = "v02maxLevel";
+    public static final String PROJECTED_TIME_5KM = "projectedTime5km";
+    public static final String PROJECTED_TIME_10KM = "projectedTime10km";
+    public static final String PROJECTED_TIME_HALF_MARATHON = "projectedTimeHalfMarathon";
+    public static final String PROJECTED_TIME_MARATHON = "projectedTimeMarathon";
+    public static final String PUNCH_TOTAL = "totalPunchCount";
+    public static final String PUNCH_PERFECT = "perfectPunchCount";
+    public static final String PUNCH_GOOD = "goodPunchCount";
+    public static final String PUNCH_MISS = "missPunchCount";
+    public static final String TIME_GOAL_PERCENT = "time_goal_percent";
+    public static final String CALORIES_GOAL_PERCENT = "calories_goal_percent";
+    public static final String PACE_GOAL_PERCENT = "pace_goal_percent";
+    public static final String SPEED_GOAL_PERCENT = "speed_goal_percent";
+    public static final String CADENCE_GOAL_PERCENT = "cadence_goal_percent";
+    public static final String LENGTHS_GOAL_PERCENT = "lengths_goal_percent";
     public static final String FLUID_CONSUMED = "fluid_consumed";
     public static final String ESTIMATED_SWEAT_LOSS = "estimatedSweatLoss";
     public static final String LACTATE_THRESHOLD_HR = "lactateThresholdHeartRate";
@@ -215,6 +256,7 @@ public class ActivitySummaryEntries {
     public static final String UNIT_CM = "cm";
     public static final String UNIT_UNIX_EPOCH_SECONDS = "unix_epoch_seconds";
     public static final String UNIT_KCAL = "calories_unit";
+    public static final String UNIT_KCAL_PER_DAY = "unit_kcal_per_day";
     public static final String UNIT_ML = "ml";
     public static final String UNIT_LAPS = "laps_unit";
     public static final String UNIT_KILOMETERS = "km";
@@ -254,8 +296,12 @@ public class ActivitySummaryEntries {
     public static final String UNIT_MM = "unit_millimeter";
     public static final String UNIT_WATT = "unit_watt";
     public static final String UNIT_JOULE = "unit_joule";
+    public static final String UNIT_AMPERE = "unit_ampere";
+    public static final String UNIT_AMPERE_HOUR = "unit_ampere_hour";
     public static final String UNIT_MINUTES_PER_100_METERS = "minutes_100m";
     public static final String UNIT_SECONDS_PER_100_METERS = "seconds_100m";
+    public static final String UNIT_MINUTES_PER_500_METERS = "minutes_500m";
+    public static final String UNIT_SECONDS_PER_500_METERS = "seconds_500m";
     public static final String UNIT_MINUTES_PER_100_YARDS = "minutes_100yd";
     public static final String UNIT_SECONDS_PER_100_YARDS = "seconds_100yd";
     public static final String UNIT_NAUTICAL_MILES = "nautical_miles";
@@ -269,7 +315,7 @@ public class ActivitySummaryEntries {
     public static final String UNIT_LITER = "unit_liter";
     /// UNIX epoc seconds to be formated in local time without showing date
     public static final String UNIT_EPOC_TIME = "unit_epoc_time";
-    /// display time including milli seconds if any
+    /// display time including milliseconds if any
     public static final String UNIT_SECONDS_SPORT = "unit_sports_seconds";
     public static final String UNIT_FOOT = "ft";
     public static final String UNIT_FOOT_PER_HOUR = "foot_per_hour";
@@ -289,6 +335,7 @@ public class ActivitySummaryEntries {
     public static final String GROUP_OTHER = "Other";
     public static final String GROUP_HEART_RATE_ZONES = "HeartRateZones";
     public static final String GROUP_STROKES = "Strokes";
+    public static final String GROUP_THROWS = "Throws";
     public static final String GROUP_JUMPS = "Jumps";
     public static final String GROUP_CYCLING = "cycling";
     public static final String GROUP_SWIMMING = "Swimming";
@@ -303,6 +350,9 @@ public class ActivitySummaryEntries {
     public static final String GROUP_STEPS = "Steps";
     public static final String GROUP_BIKE = "activity_type_biking";
     public static final String GROUP_GEAR_INFO = "Gear";
+    public static final String GROUP_GOALS = "goals";
+    public static final String GROUP_PREDICTIONS = "predictions";
+    public static final String GROUP_PUNCHES = "punches";
     public static final String AVG_DEPTH = "diving_avg_depth";
     public static final String START_CNS = "diving_start_cns";
     public static final String END_CNS = "diving_end_cns";

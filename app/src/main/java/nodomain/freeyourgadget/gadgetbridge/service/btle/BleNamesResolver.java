@@ -589,7 +589,7 @@ public class BleNamesResolver {
         mServices.put("16187f00-0000-1000-8000-00807f9b34fb", "(Propr: Xiaomi Wear Service - Mi Smart Watch 4C/Redmi Band)");
         mServices.put("1314f000-1000-9000-7000-301291e21220", "(Propr: Xiaomi Wear Service - Mi Watch/Mi Watch Color/Mi Watch Color Sport)");
         mServices.put("7495fe00-a7f3-424b-92dd-4a006a3aef56", "(Propr: Xiaomi Wear Service - Mi Watch CN)");
-        mServices.put("0000fff0-0000-1000-8000-00805f9b34fb", "(Propr: Nothing CMF Command");
+        mServices.put("0000fff0-0000-1000-8000-00805f9b34fb", "(Propr: Custom Service)");
         mServices.put("02f00000-0000-0000-0000-00000000ffe0", "(Propr: Nothing CMF Data");
         mServices.put("02f00000-0000-0000-0000-00000000fe00", "(Propr: Nothing CMF Firmware");
         mServices.put("77d4e67c-2fe2-2334-0d35-9ccd078f529c", "(Propr: Nothing CMF Shell");
@@ -606,6 +606,8 @@ public class BleNamesResolver {
         mServices.put("8d53dc1d-1db7-4cd3-868b-8a527460aa84", "(Propr: SMP - Simple Management Protocol)");
         mServices.put("6e40fff0-b5a3-f393-e0a9-e50e24dcca9e", "(Propr: NUS - Nordic UART Service)");
         mServices.put("de5bf728-d711-4e47-af26-65e3012a5dc7", "(Propr: Yawell Serial)");
+        mServices.put("0000ae00-0000-1000-8000-00805f9b34fb", "(Propr: Sinilink-APP)");
+        mServices.put("65970000-4bda-4c1e-af4b-551c4cf74769", "(Propr: Victron)");
 
         // source https://bitbucket.org/bluetooth-SIG/public/src/main/assigned_numbers/uuids/characteristic_uuids.yaml
         mCharacteristics.put("00002a00-0000-1000-8000-00805f9b34fb", "Device Name");
@@ -1202,6 +1204,14 @@ public class BleNamesResolver {
         mCharacteristics.put("6e400003-b5a3-f393-e0a9-e50e24dcca9e", "(Propr: Nordic UART RX)");
         mCharacteristics.put("de5bf729-d711-4e47-af26-65e3012a5dc7", "(Propr: Yawell Notify)");
         mCharacteristics.put("de5bf72a-d711-4e47-af26-65e3012a5dc7", "(Propr: Yawell Write)");
+        mCharacteristics.put("0000ae04-0000-1000-8000-00805f9b34fb", "(Propr: Sinilink-APP RX)");
+        mCharacteristics.put("0000ae10-0000-1000-8000-00805f9b34fb", "(Propr: Sinilink-APP TX)");
+        mCharacteristics.put("6597ffff-4bda-4c1e-af4b-551c4cf74769", "(Propr: Victron Keep-alive)");
+        mCharacteristics.put("6597eeff-4bda-4c1e-af4b-551c4cf74769", "(Propr: Victron Consumed Ah)");
+        mCharacteristics.put("6597ed8e-4bda-4c1e-af4b-551c4cf74769", "(Propr: Victron Power)");
+        mCharacteristics.put("6597ed8d-4bda-4c1e-af4b-551c4cf74769", "(Propr: Victron Voltage)");
+        mCharacteristics.put("6597ed8c-4bda-4c1e-af4b-551c4cf74769", "(Propr: Victron Current)");
+        mCharacteristics.put("65970fff-4bda-4c1e-af4b-551c4cf74769", "(Propr: Victron Charge)");
 
         mValueFormats.put(52, "32bit float");
         mValueFormats.put(50, "16bit float");

@@ -1,8 +1,8 @@
-/*  Copyright (C) 2015-2024 Andreas Shimokawa, Arjan Schrijver, Carsten
+/*  Copyright (C) 2015-2026 Andreas Shimokawa, Arjan Schrijver, Carsten
     Pfeiffer, Daniel Dakhno, Daniele Gobbetti, Davis Mosenkovs, Frank Slezak,
     Gabriele Monaco, Gordon Williams, ivanovlev, JohnnySun, José Rebelo, Julien
     Pivotto, Kasha, mvn23, Petr Vaněk, Sebastian Kranz, Steffen Liebergeld,
-    Taavi Eomäe
+    Taavi Eomäe, Thomas Kuehne
 
     This file is part of Gadgetbridge.
 
@@ -19,6 +19,8 @@
     You should have received a copy of the GNU Affero General Public License
     along with this program.  If not, see <https://www.gnu.org/licenses/>. */
 package nodomain.freeyourgadget.gadgetbridge.model;
+
+import androidx.annotation.Nullable;
 
 import nodomain.freeyourgadget.gadgetbridge.devices.EventHandler;
 import nodomain.freeyourgadget.gadgetbridge.impl.GBDevice;
@@ -84,6 +86,10 @@ public interface DeviceService extends EventHandler {
     String ACTION_CAMERA_STATUS_CHANGE = PREFIX + ".action.camera_status_change";
     String ACTION_REQUEST_MUSIC_LIST = PREFIX + ".action.request_music_list";
     String ACTION_REQUEST_MUSIC_OPERATION = PREFIX + ".action.request_music_operation";
+    String EXTRA_REQUEST_MUSIC_OPERATION = "operation";
+    String EXTRA_REQUEST_MUSIC_PLAY_LIST_INDEX = "playlistIndex";
+    String EXTRA_REQUEST_MUSIC_PLAY_LIST_NAME = "playlistName";
+    String EXTRA_REQUEST_MUSIC_MUSIC_IDS = "musicIds";
 
     String ACTION_SLEEP_AS_ANDROID = ".action.sleep_as_android";
     String EXTRA_SLEEP_AS_ANDROID_ACTION = "sleepasandroid_action";
@@ -160,6 +166,7 @@ public interface DeviceService extends EventHandler {
 
     String EXTRA_REALTIME_SAMPLE = "realtime_sample";
     String EXTRA_TIMESTAMP = "timestamp";
+
     /**
      * Use EXTRA_REALTIME_SAMPLE instead
      */
@@ -194,9 +201,13 @@ public interface DeviceService extends EventHandler {
     /**
      * Requests information from the {@link DeviceCommunicationService} about the connection state,
      * firmware info, etc.
-     * <p/>
+     * <p>
      * Note that this will not need a connection to the device -- only the cached information
      * from the service will be reported.
+     * </p>
      */
     void requestDeviceInfo();
+
+    @Nullable
+    GBDevice getDevice();
 }

@@ -379,7 +379,7 @@ class OneTouchSupport : AbstractBTLESingleDeviceSupport(LOG) {
             GBApplication.acquireDB().use { handler ->
                 val session = handler.getDaoSession()
                 val sampleProvider = GlucoseSampleProvider(device, session)
-                sampleProvider.persistForDevice(context, device, samples)
+                sampleProvider.persistSamples(samples, context)
             }
         } catch (e: Exception) {
             GB.toast(context, "Error storing glucose readings", Toast.LENGTH_LONG, GB.ERROR, e)
@@ -412,31 +412,9 @@ class OneTouchSupport : AbstractBTLESingleDeviceSupport(LOG) {
     private fun handleDeviceInfo(deviceInfo: DeviceInfo) {
         LOG.debug("Device info: {}", deviceInfo)
 
-        val versionCmd = GBDeviceEventVersionInfo()
-
-        if (deviceInfo.hardwareRevision != null) {
-            versionCmd.hwVersion = deviceInfo.hardwareRevision
-        }
-
-        if (deviceInfo.firmwareRevision != null) {
-            versionCmd.fwVersion = deviceInfo.firmwareRevision
-            versionCmd.fwVersion2 = deviceInfo.softwareRevision
-        } else if (deviceInfo.softwareRevision != null) {
-            versionCmd.fwVersion = deviceInfo.softwareRevision
-        }
-
-        handleGBDeviceEvent(versionCmd)
-
-        if (deviceInfo.manufacturerName != null) {
-            handleGBDeviceEvent(GBDeviceEventUpdateDeviceInfo("MANUFACTURER: ", deviceInfo.manufacturerName))
-        }
-
-        if (deviceInfo.modelNumber != null) {
-            handleGBDeviceEvent(GBDeviceEventUpdateDeviceInfo("MODEL: ", deviceInfo.modelNumber))
-        }
-
-        if (deviceInfo.serialNumber != null) {
-            handleGBDeviceEvent(GBDeviceEventUpdateDeviceInfo("SERIAL: ", deviceInfo.serialNumber))
+        val events = DeviceInfoProfile.toDeviceEvents(deviceInfo)
+        for (event in events) {
+            handleGBDeviceEvent(event)
         }
     }
 

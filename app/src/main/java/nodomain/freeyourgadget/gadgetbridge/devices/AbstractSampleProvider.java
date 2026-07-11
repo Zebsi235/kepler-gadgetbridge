@@ -1,5 +1,5 @@
-/*  Copyright (C) 2016-2024 Andreas Shimokawa, Carsten Pfeiffer, Daniel
-    Dakhno, Daniele Gobbetti, José Rebelo, Petr Vaněk
+/*  Copyright (C) 2016-2026 Andreas Shimokawa, Carsten Pfeiffer, Daniel
+    Dakhno, Daniele Gobbetti, José Rebelo, Petr Vaněk, Thomas Kuehne
 
     This file is part of Gadgetbridge.
 
@@ -16,6 +16,11 @@
     You should have received a copy of the GNU Affero General Public License
     along with this program.  If not, see <https://www.gnu.org/licenses/>. */
 package nodomain.freeyourgadget.gadgetbridge.devices;
+
+import static nodomain.freeyourgadget.gadgetbridge.util.GB.toast;
+
+import android.content.Context;
+import android.widget.Toast;
 
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
@@ -37,21 +42,26 @@ import de.greenrobot.dao.AbstractDao;
 import de.greenrobot.dao.Property;
 import de.greenrobot.dao.query.QueryBuilder;
 import de.greenrobot.dao.query.WhereCondition;
+import nodomain.freeyourgadget.gadgetbridge.GBApplication;
+import nodomain.freeyourgadget.gadgetbridge.R;
 import nodomain.freeyourgadget.gadgetbridge.database.DBHelper;
 import nodomain.freeyourgadget.gadgetbridge.entities.AbstractActivitySample;
+import nodomain.freeyourgadget.gadgetbridge.entities.AbstractTimeSample;
 import nodomain.freeyourgadget.gadgetbridge.entities.DaoSession;
 import nodomain.freeyourgadget.gadgetbridge.entities.Device;
+import nodomain.freeyourgadget.gadgetbridge.entities.User;
 import nodomain.freeyourgadget.gadgetbridge.impl.GBDevice;
 import nodomain.freeyourgadget.gadgetbridge.model.ActivityKind;
 import nodomain.freeyourgadget.gadgetbridge.model.ActivitySample;
 import nodomain.freeyourgadget.gadgetbridge.util.DateTimeUtils;
+import nodomain.freeyourgadget.gadgetbridge.util.GB;
 
 /**
  * Base class for all sample providers. A Sample provider is device specific and provides
  * access to the device specific samples. There are both read and write operations.
  * @param <T> the sample type
  */
-public abstract class AbstractSampleProvider<T extends AbstractActivitySample> implements SampleProvider<T> {
+public abstract class AbstractSampleProvider<T extends AbstractActivitySample> implements SampleProvider<T>, PersistenceProvider<T> {
     private static final Logger LOG = LoggerFactory.getLogger(AbstractSampleProvider.class);
 
     private static final WhereCondition[] NO_CONDITIONS = new WhereCondition[0];
@@ -105,7 +115,7 @@ public abstract class AbstractSampleProvider<T extends AbstractActivitySample> i
     }
 
     @Override
-    public void addGBActivitySamples(T[] activitySamples) {
+    public void addGBActivitySamples(@NonNull List<T> activitySamples) {
         getSampleDao().insertOrReplaceInTx(activitySamples);
     }
 
@@ -163,6 +173,29 @@ public abstract class AbstractSampleProvider<T extends AbstractActivitySample> i
         }
         Property deviceProperty = getDeviceIdentifierSampleProperty();
         qb.where(deviceProperty.eq(dbDevice.getId())).orderAsc(getTimestampSampleProperty()).limit(1);
+        List<T> samples = qb.build().list();
+        if (samples.isEmpty()) {
+            return null;
+        }
+        T sample = samples.get(0);
+        sample.setProvider(this);
+        return sample;
+    }
+
+    @Nullable
+    @Override
+    public T getFirstActivitySample(final int after) {
+        QueryBuilder<T> qb = getSampleDao().queryBuilder();
+        Device dbDevice = DBHelper.findDevice(getDevice(), getSession());
+        if (dbDevice == null) {
+            // no device, no sample
+            return null;
+        }
+        Property deviceProperty = getDeviceIdentifierSampleProperty();
+        Property timestampProperty = getTimestampSampleProperty();
+        qb.where(timestampProperty.gt(after))
+                .where(deviceProperty.eq(dbDevice.getId()))
+                .orderAsc(timestampProperty).limit(1);
         List<T> samples = qb.build().list();
         if (samples.isEmpty()) {
             return null;
@@ -385,7 +418,7 @@ public abstract class AbstractSampleProvider<T extends AbstractActivitySample> i
         final int firstTimestamp = ret.get(0).getTimestamp();
         if (firstTimestamp - timestamp_from > 60) {
             // Gap at the start
-            for (int ts = timestamp_from; ts <= firstTimestamp + 60; ts += 60) {
+            for (int ts = firstTimestamp - 60; ts >= timestamp_from; ts -= 60) {
                 ret.add(0, createDummySample(ts));
             }
         }
@@ -404,7 +437,7 @@ public abstract class AbstractSampleProvider<T extends AbstractActivitySample> i
         T previousSample = it.next();
 
         if (LOG.isTraceEnabled()) {
-            LOG.trace("Starting filling gapps at {}", DateTimeUtils.formatDateTime(DateTimeUtils.parseTimestampMillis(previousSample.getTimestamp() * 1000L)));
+            LOG.trace("Starting filling gaps at {}", DateTimeUtils.formatDateTime(DateTimeUtils.parseTimestampMillis(previousSample.getTimestamp() * 1000L)));
         }
 
         while (it.hasNext()) {
@@ -451,5 +484,48 @@ public abstract class AbstractSampleProvider<T extends AbstractActivitySample> i
         dummySample.setActiveCalories(ActivitySample.NOT_MEASURED);
         dummySample.setProvider(this);
         return dummySample;
+    }
+
+    @Override
+    public boolean persistSamples(@NonNull final List<T> samples, @Nullable final Context context) {
+        if (samples.isEmpty()) {
+            return true;
+        }
+
+        LOG.debug(
+                "Will persist {} {} samples",
+                samples.size(),
+                getClass().getSimpleName().replace("Provider", "")
+        );
+
+        try {
+            final DaoSession session = getSession();
+
+            final GBDevice gbDevice = getDevice();
+            final Device device = DBHelper.findDevice(gbDevice, session);
+            if (device == null) {
+                LOG.warn("Device not found in database for '{}'", gbDevice.getAliasOrName());
+                return false;
+            }
+            final long deviceId = device.getId();
+
+            final User user = DBHelper.getUser(session);
+            final long userId = user.getId();
+
+            for (final T sample : samples) {
+                sample.setProvider(this);
+                sample.setDeviceId(deviceId);
+                sample.setUserId(userId);
+            }
+
+            addGBActivitySamples(samples);
+        } catch (final Exception e) {
+            LOG.error("Error saving samples", e);
+            final Context ctx = (context != null) ? context : GBApplication.getContext();
+            final String message = ctx.getString(R.string.persisting_samples_failed, e.getLocalizedMessage());
+            toast(ctx, message, Toast.LENGTH_LONG, GB.ERROR, e);
+            return false;
+        }
+        return true;
     }
 }

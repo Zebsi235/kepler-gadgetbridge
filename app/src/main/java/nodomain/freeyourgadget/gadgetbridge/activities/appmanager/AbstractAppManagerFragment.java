@@ -71,7 +71,6 @@ import java.util.concurrent.Executors;
 
 import nodomain.freeyourgadget.gadgetbridge.GBApplication;
 import nodomain.freeyourgadget.gadgetbridge.R;
-import nodomain.freeyourgadget.gadgetbridge.activities.ExternalPebbleJSActivity;
 import nodomain.freeyourgadget.gadgetbridge.adapter.GBDeviceAppAdapter;
 import nodomain.freeyourgadget.gadgetbridge.database.DBHelper;
 import nodomain.freeyourgadget.gadgetbridge.devices.DeviceCoordinator;
@@ -80,7 +79,6 @@ import nodomain.freeyourgadget.gadgetbridge.devices.qhybrid.FossilFileReader;
 import nodomain.freeyourgadget.gadgetbridge.devices.qhybrid.FossilHRInstallHandler;
 import nodomain.freeyourgadget.gadgetbridge.devices.qhybrid.QHybridConstants;
 import nodomain.freeyourgadget.gadgetbridge.entities.PebbleAppstoreIdEntry;
-import nodomain.freeyourgadget.gadgetbridge.entities.PebbleAppstoreIdEntryDao;
 import nodomain.freeyourgadget.gadgetbridge.impl.GBDevice;
 import nodomain.freeyourgadget.gadgetbridge.impl.GBDeviceApp;
 import nodomain.freeyourgadget.gadgetbridge.model.DeviceService;
@@ -728,7 +726,7 @@ public abstract class AbstractAppManagerFragment extends Fragment {
             return true;
         } else if (itemId == R.id.appmanager_app_openinstore) {
             boolean appStoreAllowed = GBApplication.getPrefs().getBoolean("pref_key_internethelper_allow_pebble_appstore", false);
-            final String url = "https://apps.rebble.io/en_US/search/" + ((selectedApp.getType() == GBDeviceApp.Type.WATCHFACE) ? "watchfaces" : "watchapps") + "/1/?native=true&query=" +  Uri.encode(selectedApp.getUUID().toString());
+            final String url = "https://apps.rebble.io/en_US/search/" + ((selectedApp.getType() == GBDeviceApp.Type.WATCHFACE) ? "watchfaces" : "watchapps") + "/1/?native=true&dev_settings=true&query=" +  Uri.encode(selectedApp.getUUID().toString());
             if (GBApplication.hasDirectInternetAccess() || (appStoreAllowed && InternetHelperSingleton.INSTANCE.ensureInternetHelperBound())) {
                 final Intent startIntent = new Intent(getContext().getApplicationContext(), RebbleAppStoreActivity.class);
                 startIntent.putExtra(DeviceService.EXTRA_URI, url);
@@ -753,7 +751,7 @@ public abstract class AbstractAppManagerFragment extends Fragment {
 
     private void deleteAppConfirm(final GBDeviceApp selectedApp, final boolean deleteFromCache) {
         new MaterialAlertDialogBuilder(getContext())
-                .setTitle(R.string.Delete)
+                .setTitle(R.string.delete)
                 .setMessage(requireContext().getString(R.string.contact_delete_confirm_description, selectedApp.getName()))
                 .setIcon(R.drawable.ic_warning)
                 .setPositiveButton(android.R.string.yes, (dialog, whichButton) -> {

@@ -25,9 +25,11 @@ import android.bluetooth.BluetoothGatt;
 import android.bluetooth.BluetoothGattCharacteristic;
 import android.content.Intent;
 import android.net.Uri;
+import android.os.Bundle;
 import android.util.SparseArray;
 import android.widget.Toast;
 
+import androidx.annotation.Nullable;
 import androidx.localbroadcastmanager.content.LocalBroadcastManager;
 
 import org.slf4j.Logger;
@@ -164,10 +166,10 @@ public class MisfitWatchAdapter extends WatchAdapter {
             }
             case "00002a19-0000-1000-8000-00805f9b34fb": {
                 short level = value[0];
-                gbDevice.setBatteryLevel(level);
+                gbDevice.setBatteryLevel(level, 0);
 
                 GBDeviceEventBatteryInfo batteryInfo = new GBDeviceEventBatteryInfo();
-                batteryInfo.level = gbDevice.getBatteryLevel();
+                batteryInfo.level = gbDevice.getBatteryLevel(0);
                 batteryInfo.state = BatteryState.BATTERY_NORMAL;
                 getDeviceSupport().handleGBDeviceEvent(batteryInfo);
                 break;
@@ -408,7 +410,7 @@ public class MisfitWatchAdapter extends WatchAdapter {
     }
 
     @Override
-    public void onTestNewFunction() {
+    public void onTestNewFunction(@Nullable Bundle options) {
 
     }
 
