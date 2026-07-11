@@ -151,6 +151,19 @@ android {
                 keyPassword System.getProperty("nightly_key_password")
             }
         }
+        // Kepler fork: stable signing key for CI-published debug releases.
+        // When -Dkepler_store_file=... is supplied (see .github/workflows/build.yml
+        // + the KEPLER_KEYSTORE_B64 secret) the mainline debug build is signed with
+        // that fixed key so releases install over each other. Absent the property
+        // (local dev) the default auto-generated debug keystore is used unchanged.
+        debug {
+            if (System.getProperty("kepler_store_file") != null) {
+                storeFile file(System.getProperty("kepler_store_file"))
+                storePassword System.getProperty("kepler_store_password")
+                keyAlias System.getProperty("kepler_key_alias")
+                keyPassword System.getProperty("kepler_key_password")
+            }
+        }
     }
 
     flavorDimensions += "device_type"

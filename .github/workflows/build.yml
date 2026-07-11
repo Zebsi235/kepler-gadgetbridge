@@ -1,0 +1,117 @@
+name: Build & Release (Kepler)
+
+# Builds the mainline debug APK on every push/PR so breakage shows up immediately,
+# and publishes a GitHub Release with the signed APK when a v*-kepler tag is pushed.
+#
+# The build provisions JDK 21 itself (upstream Gadgetbridge's FitCodeGenerator module
+# requires a Java 21 toolchain), so it does not depend on whatever JDK is installed
+# locally. The APK is signed with a stable key kept in the KEPLER_KEYSTORE_* secrets,
+# so successive releases install over one another.
+
+on:
+  push:
+    branches: [ "feat/**" ]
+    tags: [ "v*" ]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: write   # create releases + upload assets on tag builds
+
+concurrency:
+  group: build-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0   # full history: BuildConfig embeds the short git hash
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Install required SDK packages
+        run: |
+          yes | sdkmanager --licenses >/dev/null 2>&1 || true
+          sdkmanager "platform-tools" "platforms;android-36" "build-tools;36.1.0"
+
+      - name: Cache Gradle
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+          key: gradle-${{ runner.os }}-${{ hashFiles('**/*.gradle', '**/*.gradle.kts', 'gradle/wrapper/gradle-wrapper.properties', 'gradle/libs.versions.toml') }}
+          restore-keys: |
+            gradle-${{ runner.os }}-
+
+      - name: Configure signing key
+        id: signing
+        env:
+          KEPLER_KEYSTORE_B64: ${{ secrets.KEPLER_KEYSTORE_B64 }}
+          KEPLER_KEYSTORE_PASSWORD: ${{ secrets.KEPLER_KEYSTORE_PASSWORD }}
+          KEPLER_KEY_ALIAS: ${{ secrets.KEPLER_KEY_ALIAS }}
+          KEPLER_KEY_PASSWORD: ${{ secrets.KEPLER_KEY_PASSWORD }}
+        run: |
+          if [ -z "$KEPLER_KEYSTORE_B64" ]; then
+            echo "No signing secret present - build will use the throwaway debug keystore."
+            echo "signed=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          KS="$RUNNER_TEMP/kepler.keystore"
+          echo "$KEPLER_KEYSTORE_B64" | base64 -d > "$KS"
+          # Feed the key to Gradle via GRADLE_USER_HOME properties so the values
+          # never appear on the command line. build.gradle reads these as
+          # System.getProperty("kepler_*") in the debug signingConfig.
+          mkdir -p "$HOME/.gradle"
+          {
+            echo "systemProp.kepler_store_file=$KS"
+            echo "systemProp.kepler_store_password=$KEPLER_KEYSTORE_PASSWORD"
+            echo "systemProp.kepler_key_alias=$KEPLER_KEY_ALIAS"
+            echo "systemProp.kepler_key_password=$KEPLER_KEY_PASSWORD"
+          } >> "$HOME/.gradle/gradle.properties"
+          echo "signed=true" >> "$GITHUB_OUTPUT"
+
+      - name: Build mainline debug APK
+        run: ./gradlew :app:assembleMainlineDebug --stacktrace
+
+      - name: Unit tests
+        run: ./gradlew :app:testMainlineDebugUnitTest --stacktrace
+
+      - name: Locate & name the APK
+        id: apk
+        run: |
+          SRC=$(find app/build/outputs/apk/mainline/debug -name "*.apk" | head -1)
+          if [ -z "$SRC" ]; then echo "No APK produced" >&2; exit 1; fi
+          VER=$(grep -oE 'versionName "[0-9.]+"' app/build.gradle | grep -oE '[0-9.]+')
+          CODE=$(grep -oE 'versionCode [0-9]+' app/build.gradle | grep -oE '[0-9]+')
+          OUT="Gadgetbridge-Kepler-${VER}-vc${CODE}.apk"
+          cp "$SRC" "$OUT"
+          echo "path=$OUT" >> "$GITHUB_OUTPUT"
+          echo "signed=${{ steps.signing.outputs.signed }}"
+          echo "Built $OUT (signed=${{ steps.signing.outputs.signed }})"
+
+      - name: Upload APK artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: kepler-mainline-debug
+          path: ${{ steps.apk.outputs.path }}
+          if-no-files-found: error
+
+      - name: Publish GitHub Release
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: ${{ steps.apk.outputs.path }}
+          generate_release_notes: true
+          fail_on_unmatched_files: true

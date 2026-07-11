@@ -1,0 +1,84 @@
+name: Watch upstream Gadgetbridge
+
+# Checks daily whether upstream Gadgetbridge (Codeberg) has cut a newer release than
+# the version this fork is currently based on. If so it opens a tracking issue so the
+# sync + release can be done deliberately.
+#
+# Why an issue rather than an automatic merge+publish: syncing upstream into the Kepler
+# branch routinely produces merge conflicts that need human judgement (the 0.92.2 sync
+# hit five). Auto-merging unattended risks publishing a broken or mis-resolved build.
+# Once a sync is done and a v<version>-kepler tag is pushed, build.yml publishes the
+# release automatically.
+
+on:
+  schedule:
+    - cron: "17 6 * * *"   # 06:17 UTC daily
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Compare fork base against latest upstream release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+
+          # Latest upstream release tag (fall back to the newest semver tag).
+          UPSTREAM=$(curl -fsSL "https://codeberg.org/api/v1/repos/Freeyourgadget/Gadgetbridge/releases/latest" \
+                      | python3 -c "import sys,json; print(json.load(sys.stdin).get('tag_name',''))" 2>/dev/null || true)
+          if [ -z "$UPSTREAM" ]; then
+            UPSTREAM=$(curl -fsSL "https://codeberg.org/api/v1/repos/Freeyourgadget/Gadgetbridge/tags?limit=50" \
+                        | python3 -c "import sys,json,re; \
+tags=[t['name'] for t in json.load(sys.stdin) if re.fullmatch(r'[0-9]+\.[0-9]+\.[0-9]+', t['name'])]; \
+tags.sort(key=lambda v: tuple(int(x) for x in v.split('.'))); \
+print(tags[-1] if tags else '')")
+          fi
+
+          # This fork's current upstream base = versionName in app/build.gradle.
+          BASE=$(grep -oE 'versionName "[0-9.]+"' app/build.gradle | grep -oE '[0-9.]+' | head -1)
+
+          echo "Upstream latest: '${UPSTREAM:-none}'   Fork base: '${BASE:-none}'"
+          if [ -z "$UPSTREAM" ] || [ -z "$BASE" ]; then
+            echo "Could not determine one of the versions; skipping."; exit 0
+          fi
+
+          NEWER=$(python3 -c "
+import sys
+def t(v): return tuple(int(x) for x in v.split('.'))
+print('yes' if t('$UPSTREAM') > t('$BASE') else 'no')
+")
+          if [ "$NEWER" != "yes" ]; then
+            echo "Fork is up to date with upstream ($BASE >= $UPSTREAM)."; exit 0
+          fi
+
+          TITLE="Upstream Gadgetbridge $UPSTREAM released — sync & cut v$UPSTREAM-kepler"
+          # Skip if an open issue for this exact version already exists.
+          if gh issue list --state open --search "in:title $UPSTREAM" --json title \
+               | python3 -c "import sys,json; sys.exit(0 if any('$UPSTREAM' in i['title'] for i in json.load(sys.stdin)) else 1)"; then
+            echo "Tracking issue for $UPSTREAM already open; nothing to do."; exit 0
+          fi
+
+          gh issue create --title "$TITLE" --body "$(cat <<EOF
+Upstream **Gadgetbridge $UPSTREAM** is newer than this fork's current base (**$BASE**).
+
+To ship it as a Kepler release:
+
+1. \`git fetch upstream && git checkout feat/f91kepler-device\`
+2. \`git merge upstream/master\` and resolve conflicts (bump \`versionName\` to $UPSTREAM and \`versionCode\` to > upstream's).
+3. Commit the version bump, then \`git tag -a v$UPSTREAM-kepler -m "..."\`.
+4. \`git push origin feat/f91kepler-device && git push origin v$UPSTREAM-kepler\`.
+
+The tag push triggers **Build & Release (Kepler)**, which builds the signed APK and publishes the release automatically.
+EOF
+)"
+          echo "Opened tracking issue: $TITLE"
