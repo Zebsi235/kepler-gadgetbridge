@@ -101,6 +101,7 @@ public final class F91KeplerConstants {
     public static final byte MODE_INFO = 5;
     public static final byte MODE_FLASHLIGHT = 6;
     public static final byte MODE_FINDPHONE = 7;
+    public static final byte MODE_BLE = 8;        // Bluetooth mode (fw v2.15.0+)
 
     // Per-mode position preference keys (Watch-modes ordering). Value is "0"=off
     // or "1".."5" = display position; the watch order is Main, then the optional
@@ -113,6 +114,7 @@ public final class F91KeplerConstants {
     public static final String PREF_MODE_POS_INFO = "f91_mode_pos_info";
     public static final String PREF_MODE_POS_FLASHLIGHT = "f91_mode_pos_flashlight";
     public static final String PREF_MODE_POS_FINDPHONE = "f91_mode_pos_findphone";
+    public static final String PREF_MODE_POS_BLE = "f91_mode_pos_ble";
 
     // Weather condition enum, 1:1 with the firmware's f91_weather.h / icon table.
     public static final int WX_SUN = 0;

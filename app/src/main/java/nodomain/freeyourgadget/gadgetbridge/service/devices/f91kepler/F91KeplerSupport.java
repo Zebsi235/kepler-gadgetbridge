@@ -474,7 +474,8 @@ public class F91KeplerSupport extends AbstractBTLESingleDeviceSupport {
             case F91KeplerConstants.PREF_MODE_POS_STOPWATCH:
             case F91KeplerConstants.PREF_MODE_POS_INFO:
             case F91KeplerConstants.PREF_MODE_POS_FLASHLIGHT:
-            case F91KeplerConstants.PREF_MODE_POS_FINDPHONE: {
+            case F91KeplerConstants.PREF_MODE_POS_FINDPHONE:
+            case F91KeplerConstants.PREF_MODE_POS_BLE: {
                 final TransactionBuilder builder = createTransactionBuilder("set mode order");
                 addModeOrder(builder);
                 builder.queue();
@@ -502,7 +503,8 @@ public class F91KeplerSupport extends AbstractBTLESingleDeviceSupport {
                 modePos(prefs, F91KeplerConstants.PREF_MODE_POS_STOPWATCH, 4),
                 modePos(prefs, F91KeplerConstants.PREF_MODE_POS_INFO, 5),
                 modePos(prefs, F91KeplerConstants.PREF_MODE_POS_FLASHLIGHT, 6),
-                modePos(prefs, F91KeplerConstants.PREF_MODE_POS_FINDPHONE, 7));
+                modePos(prefs, F91KeplerConstants.PREF_MODE_POS_FINDPHONE, 7),
+                modePos(prefs, F91KeplerConstants.PREF_MODE_POS_BLE, 8));
         builder.write(F91KeplerConstants.UUID_CHAR_MODE_ORDER, order);
     }
 

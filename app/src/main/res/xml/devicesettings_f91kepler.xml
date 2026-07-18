@@ -79,6 +79,14 @@
             android:title="@string/f91_pref_title_mode_findphone"
             app:useSimpleSummaryProvider="true" />
 
+        <ListPreference
+            android:defaultValue="8"
+            android:entries="@array/f91_mode_position"
+            android:entryValues="@array/f91_mode_position_values"
+            android:key="f91_mode_pos_ble"
+            android:title="@string/f91_pref_title_mode_ble"
+            app:useSimpleSummaryProvider="true" />
+
     </PreferenceCategory>
 
 </androidx.preference.PreferenceScreen>
