@@ -2150,6 +2150,26 @@
     <string name="f91_pref_title_mode_flashlight">Flashlight mode</string>
     <string name="f91_pref_title_mode_findphone">Find Phone mode</string>
     <string name="f91_pref_title_mode_ble">Bluetooth mode</string>
+    <string name="f91_pref_title_mode_image">Image mode</string>
+    <string name="f91_pref_header_image">Image</string>
+    <string name="f91_pref_title_image">Upload image</string>
+    <string name="f91_pref_summary_image">Convert a photo for the watch\'s black-and-white screen and show it in Image mode</string>
+    <string name="f91_image_choose">Choose image…</string>
+    <string name="f91_image_send">Send to watch</string>
+    <string name="f91_image_fill">Fill the screen (crop to fit)</string>
+    <string name="f91_image_pan">Crop position</string>
+    <string name="f91_image_dither">Dither — better for photos</string>
+    <string name="f91_image_threshold">Brightness threshold</string>
+    <string name="f91_image_invert">Invert</string>
+    <string name="f91_image_none">Choose an image to get started</string>
+    <string name="f91_image_ready">This is exactly what the watch will show</string>
+    <string name="f91_image_showing_stored">Showing the image last sent to the watch</string>
+    <string name="f91_image_sending">Sending the image to the watch…</string>
+    <string name="f91_image_saved_offline">Image saved — it will be sent when the watch connects</string>
+    <string name="f91_image_upload_failed">The watch did not confirm the image upload</string>
+    <string name="f91_image_store_failed">Could not save the image</string>
+    <string name="f91_image_load_failed">Could not read that image</string>
+    <string name="f91_image_no_device">No watch was passed to the image screen</string>
     <string name="devicetype_polarh9" translatable="false">Polar H9</string>
     <string name="devicetype_polarh10" translatable="false">Polar H10</string>
     <string name="devicetype_sonyswr12" translatable="false">Sony SWR12</string>

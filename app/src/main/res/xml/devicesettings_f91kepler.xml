@@ -87,6 +87,27 @@
             android:title="@string/f91_pref_title_mode_ble"
             app:useSimpleSummaryProvider="true" />
 
+        <ListPreference
+            android:defaultValue="9"
+            android:entries="@array/f91_mode_position"
+            android:entryValues="@array/f91_mode_position_values"
+            android:key="f91_mode_pos_image"
+            android:title="@string/f91_pref_title_mode_image"
+            app:useSimpleSummaryProvider="true" />
+
+    </PreferenceCategory>
+
+    <PreferenceCategory
+        android:key="f91_pref_category_image"
+        android:title="@string/f91_pref_header_image">
+
+        <!-- Opened by F91KeplerSettingsCustomizer (no <intent>: the activity needs
+             the GBDevice, which only the customizer can hand it). -->
+        <Preference
+            android:key="f91_image_upload"
+            android:summary="@string/f91_pref_summary_image"
+            android:title="@string/f91_pref_title_image" />
+
     </PreferenceCategory>
 
 </androidx.preference.PreferenceScreen>

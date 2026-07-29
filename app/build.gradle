@@ -131,10 +131,11 @@ android {
 
         // Note: always bump BOTH versionCode and versionName!
         // versionName tracks the upstream GB base (0.92.2 after the Codeberg sync).
-        // versionCode must stay above upstream's (251), so this Kepler release is 252.
+        // versionCode must stay above upstream's (251); 252 was the first Kepler
+        // release on this base, 253 adds the Bluetooth + Image watch modes.
         // Release tag: v0.92.2-kepler.
         versionName "0.92.2"
-        versionCode 252
+        versionCode 253
         vectorDrawables.useSupportLibrary = true
         buildConfigField "String", "GIT_HASH_SHORT", "\"${getGitHashShort()}\""
         buildConfigField "String", "GIT_DIRTY_STATUS", "\"${getGitDirtyFlag()}\""

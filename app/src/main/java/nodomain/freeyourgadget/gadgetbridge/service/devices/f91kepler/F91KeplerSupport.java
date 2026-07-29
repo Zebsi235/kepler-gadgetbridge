@@ -20,6 +20,7 @@ import android.bluetooth.BluetoothGatt;
 import android.bluetooth.BluetoothGattCharacteristic;
 import android.content.SharedPreferences;
 import android.text.format.DateFormat;
+import android.widget.Toast;
 
 import org.apache.commons.lang3.StringUtils;
 import org.slf4j.Logger;
@@ -32,12 +33,15 @@ import java.util.List;
 import java.util.TimeZone;
 
 import nodomain.freeyourgadget.gadgetbridge.GBApplication;
+import nodomain.freeyourgadget.gadgetbridge.R;
 import nodomain.freeyourgadget.gadgetbridge.activities.devicesettings.DeviceSettingsPreferenceConst;
 import nodomain.freeyourgadget.gadgetbridge.deviceevents.GBDeviceEventBatteryInfo;
 import nodomain.freeyourgadget.gadgetbridge.deviceevents.GBDeviceEventFindPhone;
 import nodomain.freeyourgadget.gadgetbridge.deviceevents.GBDeviceEventMusicControl;
 import nodomain.freeyourgadget.gadgetbridge.deviceevents.GBDeviceEventVersionInfo;
 import nodomain.freeyourgadget.gadgetbridge.devices.f91kepler.F91KeplerConstants;
+import nodomain.freeyourgadget.gadgetbridge.devices.f91kepler.F91KeplerImageCodec;
+import nodomain.freeyourgadget.gadgetbridge.devices.f91kepler.F91KeplerImageStore;
 import nodomain.freeyourgadget.gadgetbridge.impl.GBDevice;
 import nodomain.freeyourgadget.gadgetbridge.model.Alarm;
 import nodomain.freeyourgadget.gadgetbridge.model.CallSpec;
@@ -46,6 +50,7 @@ import nodomain.freeyourgadget.gadgetbridge.model.NotificationType;
 import nodomain.freeyourgadget.gadgetbridge.model.WeatherSpec;
 import nodomain.freeyourgadget.gadgetbridge.model.weather.Weather;
 import nodomain.freeyourgadget.gadgetbridge.util.AlarmUtils;
+import nodomain.freeyourgadget.gadgetbridge.util.GB;
 import nodomain.freeyourgadget.gadgetbridge.service.btle.AbstractBTLESingleDeviceSupport;
 import nodomain.freeyourgadget.gadgetbridge.service.btle.GattService;
 import nodomain.freeyourgadget.gadgetbridge.service.btle.TransactionBuilder;
@@ -66,7 +71,8 @@ import nodomain.freeyourgadget.gadgetbridge.service.btle.profiles.deviceinfo.Dev
  *   <li>battery → standard Battery Service (read + notify)</li>
  *   <li>{@link #onFindDevice} → flash the "FIND" alert on the watch,
  *       {@link #onReset} → reboot</li>
- *   <li>{@link #onSendConfiguration} → 12/24h time mode + DST flag</li>
+ *   <li>{@link #onSendConfiguration} → 12/24h time mode, DST flag, mode order,
+ *       image upload</li>
  * </ul>
  */
 public class F91KeplerSupport extends AbstractBTLESingleDeviceSupport {
@@ -82,6 +88,12 @@ public class F91KeplerSupport extends AbstractBTLESingleDeviceSupport {
      *  capped at the firmware's ring size. GB owns the active set; the watch is
      *  told the current top-N (so dismissals are reflected). */
     private static final int F91_RECENT_MAX = 5;
+
+    /** Upload attempts per reconciliation round: the first try plus one retry. */
+    private static final int IMAGE_MAX_ATTEMPTS = 2;
+    /** Uploads spent on the current frame; reset once the watch confirms it. */
+    private int imageAttempts;
+
     private final List<RecentNotif> recent = new ArrayList<>();
     private static final class RecentNotif {
         final int id;
@@ -101,6 +113,7 @@ public class F91KeplerSupport extends AbstractBTLESingleDeviceSupport {
         addSupportedService(F91KeplerConstants.UUID_SERVICE_MUSIC);
         addSupportedService(F91KeplerConstants.UUID_SERVICE_FIND_PHONE);
         addSupportedService(F91KeplerConstants.UUID_SERVICE_UI_CONFIG);
+        addSupportedService(F91KeplerConstants.UUID_SERVICE_IMAGE);
         addSupportedService(GattService.UUID_SERVICE_BATTERY_SERVICE);
         addSupportedService(GattService.UUID_SERVICE_DEVICE_INFORMATION);
 
@@ -153,6 +166,9 @@ public class F91KeplerSupport extends AbstractBTLESingleDeviceSupport {
         addWeather(builder);
         // Likewise re-push the notification history (also volatile on the watch).
         addRecentNotifications(builder);
+        // And the uploaded image -- but that one is 28 writes, so ask the watch
+        // what it is holding first instead of re-sending it on every reconnect.
+        addImageCheck(builder);
         return builder;
     }
 
@@ -184,6 +200,22 @@ public class F91KeplerSupport extends AbstractBTLESingleDeviceSupport {
             }
         }
         return super.onCharacteristicChanged(gatt, characteristic, value);
+    }
+
+    /**
+     * ImageControl (A3F2) reads report {@code [valid][xor8]}, which is the watch's
+     * own account of the image it is holding. Every image decision runs through
+     * this one answer -- see {@link #reconcileImage}.
+     */
+    @Override
+    public boolean onCharacteristicRead(final BluetoothGatt gatt,
+                                        final BluetoothGattCharacteristic characteristic,
+                                        final byte[] value, final int status) {
+        if (F91KeplerConstants.UUID_CHAR_IMAGE_CONTROL.equals(characteristic.getUuid())) {
+            reconcileImage(status == BluetoothGatt.GATT_SUCCESS ? value : null);
+            return true;
+        }
+        return super.onCharacteristicRead(gatt, characteristic, value, status);
     }
 
     private void handleBatteryInfo(final BatteryInfo info) {
@@ -450,6 +482,68 @@ public class F91KeplerSupport extends AbstractBTLESingleDeviceSupport {
         builder.queue();
     }
 
+    // --- Image (Image mode) -------------------------------------------------
+
+    /**
+     * Ask the watch what image it holds, but only when we have one to compare
+     * against. The answer arrives in {@link #onCharacteristicRead}.
+     */
+    private void addImageCheck(final TransactionBuilder builder) {
+        if (F91KeplerImageStore.load(getDevice()) == null) {
+            return;
+        }
+        imageAttempts = 0;
+        builder.read(F91KeplerConstants.UUID_CHAR_IMAGE_CONTROL);
+    }
+
+    /**
+     * Decide what to do about the stored image given the watch's ImageControl
+     * report: matching checksum means it is already there, anything else means
+     * upload. Because {@link #sendImage} ends with another read, a failed upload
+     * comes back through here, which is what bounds it to one retry before the
+     * user is told -- no silent looping, and no state flag pretending success the
+     * watch never confirmed.
+     */
+    private void reconcileImage(final byte[] control) {
+        final byte[] frame = F91KeplerImageStore.load(getDevice());
+        if (frame == null) {
+            return;
+        }
+        if (F91KeplerProtocol.imageControlMatches(control, F91KeplerImageCodec.xor8(frame))) {
+            LOG.debug("F91 watch already holds the stored image, skipping the upload");
+            imageAttempts = 0;
+            return;
+        }
+        if (imageAttempts >= IMAGE_MAX_ATTEMPTS) {
+            LOG.warn("F91 image not confirmed after {} upload attempts, giving up", imageAttempts);
+            imageAttempts = 0;
+            GB.toast(getContext(), getContext().getString(R.string.f91_image_upload_failed),
+                     Toast.LENGTH_LONG, GB.ERROR);
+            return;
+        }
+        imageAttempts++;
+        LOG.debug("F91 uploading the stored image (attempt {})", imageAttempts);
+        sendImage(frame);
+    }
+
+    /**
+     * Upload one frame: begin, the 26 chunks, then commit with the checksum. The
+     * writes are write-with-response and the queue preserves their order, so the
+     * firmware sees a complete buffer before it latches. The trailing read is the
+     * verification -- the watch reports back the checksum it actually latched.
+     */
+    private void sendImage(final byte[] frame) {
+        final TransactionBuilder builder = createTransactionBuilder("send image");
+        builder.write(F91KeplerConstants.UUID_CHAR_IMAGE_CONTROL, F91KeplerProtocol.imageBegin());
+        for (final byte[] chunk : F91KeplerProtocol.imageChunks(frame)) {
+            builder.write(F91KeplerConstants.UUID_CHAR_IMAGE_CHUNK, chunk);
+        }
+        builder.write(F91KeplerConstants.UUID_CHAR_IMAGE_CONTROL,
+                      F91KeplerProtocol.imageCommit(F91KeplerImageCodec.xor8(frame)));
+        builder.read(F91KeplerConstants.UUID_CHAR_IMAGE_CONTROL);
+        builder.queue();
+    }
+
     // --- Settings -----------------------------------------------------------
 
     @Override
@@ -475,10 +569,23 @@ public class F91KeplerSupport extends AbstractBTLESingleDeviceSupport {
             case F91KeplerConstants.PREF_MODE_POS_INFO:
             case F91KeplerConstants.PREF_MODE_POS_FLASHLIGHT:
             case F91KeplerConstants.PREF_MODE_POS_FINDPHONE:
-            case F91KeplerConstants.PREF_MODE_POS_BLE: {
+            case F91KeplerConstants.PREF_MODE_POS_BLE:
+            case F91KeplerConstants.PREF_MODE_POS_IMAGE: {
                 final TransactionBuilder builder = createTransactionBuilder("set mode order");
                 addModeOrder(builder);
                 builder.queue();
+                break;
+            }
+            case F91KeplerConstants.PREF_IMAGE_UPLOAD: {
+                // The activity has already stored the packed frame; this is just
+                // "send it now". Counts as the first of the two attempts.
+                final byte[] frame = F91KeplerImageStore.load(getDevice());
+                if (frame == null) {
+                    LOG.warn("F91 image upload requested but no frame is stored");
+                    break;
+                }
+                imageAttempts = 1;
+                sendImage(frame);
                 break;
             }
             default:
@@ -488,10 +595,10 @@ public class F91KeplerSupport extends AbstractBTLESingleDeviceSupport {
 
     /**
      * Build the ModeOrder from the per-mode position prefs (Main is always first;
-     * each optional mode's position 1..7 sets its slot, "0" = off) and write it
+     * each optional mode's position 1..9 sets its slot, "0" = off) and write it
      * to the UI Config char. The watch validates, applies, and persists it.
      * Defaults give the canonical order Notifications, Timer, Music, Stopwatch,
-     * Info, Flashlight, Find Phone.
+     * Info, Flashlight, Find Phone, Bluetooth, Image.
      */
     private void addModeOrder(final TransactionBuilder builder) {
         final SharedPreferences prefs =
@@ -504,7 +611,8 @@ public class F91KeplerSupport extends AbstractBTLESingleDeviceSupport {
                 modePos(prefs, F91KeplerConstants.PREF_MODE_POS_INFO, 5),
                 modePos(prefs, F91KeplerConstants.PREF_MODE_POS_FLASHLIGHT, 6),
                 modePos(prefs, F91KeplerConstants.PREF_MODE_POS_FINDPHONE, 7),
-                modePos(prefs, F91KeplerConstants.PREF_MODE_POS_BLE, 8));
+                modePos(prefs, F91KeplerConstants.PREF_MODE_POS_BLE, 8),
+                modePos(prefs, F91KeplerConstants.PREF_MODE_POS_IMAGE, 9));
         builder.write(F91KeplerConstants.UUID_CHAR_MODE_ORDER, order);
     }
 

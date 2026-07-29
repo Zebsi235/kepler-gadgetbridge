@@ -235,22 +235,23 @@ final class F91KeplerProtocol {
 
     /**
      * ModeOrder characteristic (UI Config, F2F1): Main (always first) followed by
-     * the optional modes, ordered by their configured position (1..7); a position
+     * the optional modes, ordered by their configured position (1..9); a position
      * &lt;= 0 means the mode is off (omitted). Ties are broken by canonical id so
      * the result is deterministic. Positions are given in canonical order
      * (Notifications, Timer, Music, Stopwatch, Info, Flashlight, Find Phone,
-     * Bluetooth).
+     * Bluetooth, Image).
      */
     static byte[] modeOrder(final int posNotif, final int posTimer, final int posMusic,
                             final int posStopwatch, final int posInfo,
                             final int posFlashlight, final int posFindphone,
-                            final int posBle) {
+                            final int posBle, final int posImage) {
         final byte[] ids = { F91KeplerConstants.MODE_NOTIF, F91KeplerConstants.MODE_TIMER,
                              F91KeplerConstants.MODE_MUSIC, F91KeplerConstants.MODE_STOPWATCH,
                              F91KeplerConstants.MODE_INFO, F91KeplerConstants.MODE_FLASHLIGHT,
-                             F91KeplerConstants.MODE_FINDPHONE, F91KeplerConstants.MODE_BLE };
+                             F91KeplerConstants.MODE_FINDPHONE, F91KeplerConstants.MODE_BLE,
+                             F91KeplerConstants.MODE_IMAGE };
         final int[] pos = { posNotif, posTimer, posMusic, posStopwatch, posInfo,
-                            posFlashlight, posFindphone, posBle };
+                            posFlashlight, posFindphone, posBle, posImage };
         final boolean[] used = new boolean[ids.length];
 
         final ByteArrayOutputStream out = new ByteArrayOutputStream();
@@ -268,5 +269,52 @@ final class F91KeplerProtocol {
             out.write(ids[best]);
         }
         return out.toByteArray();
+    }
+
+    // --- Image Service (A3F0) ----------------------------------------------
+
+    /** ImageControl write that arms a transfer and invalidates the current image. */
+    static byte[] imageBegin() {
+        return new byte[]{F91KeplerConstants.IMAGE_CTRL_BEGIN};
+    }
+
+    /**
+     * ImageControl write that latches the staged frame: {@code [0x02][xor8]}. The
+     * firmware recomputes the checksum over its 480-byte buffer and rejects the
+     * write on a mismatch, which is how a mis-ordered or short upload is caught.
+     */
+    static byte[] imageCommit(final byte xor8) {
+        return new byte[]{F91KeplerConstants.IMAGE_CTRL_COMMIT, xor8};
+    }
+
+    /**
+     * Split a 480-byte frame into the 26 ImageChunk writes: {@code [seq][data]},
+     * where chunk {@code seq} carries the 19 bytes at offset {@code seq * 19} and
+     * the last chunk carries the remaining 5.
+     */
+    static byte[][] imageChunks(final byte[] frame) {
+        if (frame == null || frame.length != F91KeplerConstants.IMAGE_BYTES) {
+            throw new IllegalArgumentException("expected " + F91KeplerConstants.IMAGE_BYTES
+                    + " bytes, got " + (frame == null ? -1 : frame.length));
+        }
+        final byte[][] chunks = new byte[F91KeplerConstants.IMAGE_CHUNK_COUNT][];
+        for (int seq = 0; seq < chunks.length; seq++) {
+            final int offset = seq * F91KeplerConstants.IMAGE_CHUNK_DATA;
+            final int length = Math.min(F91KeplerConstants.IMAGE_CHUNK_DATA, frame.length - offset);
+            final byte[] write = new byte[1 + length];
+            write[0] = (byte) seq;
+            System.arraycopy(frame, offset, write, 1, length);
+            chunks[seq] = write;
+        }
+        return chunks;
+    }
+
+    /**
+     * True when an ImageControl read ({@code [valid][xor8]}) says the watch is
+     * holding exactly the frame with this checksum — i.e. there is nothing to
+     * upload. Any short, absent or invalid response counts as a mismatch.
+     */
+    static boolean imageControlMatches(final byte[] value, final byte xor8) {
+        return value != null && value.length >= 2 && value[0] == 1 && value[1] == xor8;
     }
 }

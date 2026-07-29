@@ -18,6 +18,8 @@ package nodomain.freeyourgadget.gadgetbridge.service.devices.f91kepler;
 
 import static org.junit.Assert.assertArrayEquals;
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertTrue;
 
 import org.junit.Test;
 
@@ -131,14 +133,15 @@ public class F91KeplerProtocolTest {
 
     @Test
     public void modeOrder_defaultPositionsAreCanonicalFullOrder() {
-        // positions notif..ble = 1..8 -> Main + canonical order.
-        assertArrayEquals(new byte[]{0, 1, 2, 3, 4, 5, 6, 7, 8},
-                F91KeplerProtocol.modeOrder(1, 2, 3, 4, 5, 6, 7, 8));
+        // positions notif..image = 1..9 -> Main + canonical order, the firmware's
+        // default {0..9} at F91_UI_CONFIG_MAX_MODES = 10.
+        assertArrayEquals(new byte[]{0, 1, 2, 3, 4, 5, 6, 7, 8, 9},
+                F91KeplerProtocol.modeOrder(1, 2, 3, 4, 5, 6, 7, 8, 9));
     }
 
     @Test
     public void modeOrder_allOffIsMainOnly() {
-        assertArrayEquals(new byte[]{0}, F91KeplerProtocol.modeOrder(0, 0, 0, 0, 0, 0, 0, 0));
+        assertArrayEquals(new byte[]{0}, F91KeplerProtocol.modeOrder(0, 0, 0, 0, 0, 0, 0, 0, 0));
     }
 
     @Test
@@ -146,28 +149,38 @@ public class F91KeplerProtocolTest {
         // notif=5,timer=4,music=3,stopwatch=2,info=1 (flashlight/findphone off) ->
         // sorted by position: Main, Info(5), Stopwatch(4), Music(3), Timer(2), Notif(1).
         assertArrayEquals(new byte[]{0, 5, 4, 3, 2, 1},
-                F91KeplerProtocol.modeOrder(5, 4, 3, 2, 1, 0, 0, 0));
+                F91KeplerProtocol.modeOrder(5, 4, 3, 2, 1, 0, 0, 0, 0));
     }
 
     @Test
     public void modeOrder_offModesAreOmitted() {
         // Only Timer (pos 1) and Stopwatch (pos 2) on -> Main, Timer, Stopwatch.
         assertArrayEquals(new byte[]{0, 2, 4},
-                F91KeplerProtocol.modeOrder(0, 1, 0, 2, 0, 0, 0, 0));
+                F91KeplerProtocol.modeOrder(0, 1, 0, 2, 0, 0, 0, 0, 0));
     }
 
     @Test
     public void modeOrder_tiesBreakByCanonicalId() {
         // Timer and Music both at position 1 -> Timer (lower canonical id) first.
         assertArrayEquals(new byte[]{0, 2, 3},
-                F91KeplerProtocol.modeOrder(0, 1, 1, 0, 0, 0, 0, 0));
+                F91KeplerProtocol.modeOrder(0, 1, 1, 0, 0, 0, 0, 0, 0));
     }
 
     @Test
     public void modeOrder_flashlightAndFindphoneCanBeOrdered() {
         // Only Flashlight (pos 1) and Find Phone (pos 2) on -> Main, Flashlight, Find Phone.
         assertArrayEquals(new byte[]{0, 6, 7},
-                F91KeplerProtocol.modeOrder(0, 0, 0, 0, 0, 1, 2, 0));
+                F91KeplerProtocol.modeOrder(0, 0, 0, 0, 0, 1, 2, 0, 0));
+    }
+
+    @Test
+    public void modeOrder_imageCanBePositionedAndDisabled() {
+        // Image (id 9) first after Main, everything else off.
+        assertArrayEquals(new byte[]{0, 9},
+                F91KeplerProtocol.modeOrder(0, 0, 0, 0, 0, 0, 0, 0, 1));
+        // Image off, Bluetooth on -> Image is omitted entirely.
+        assertArrayEquals(new byte[]{0, 8},
+                F91KeplerProtocol.modeOrder(0, 0, 0, 0, 0, 0, 0, 1, 0));
     }
 
     @Test
@@ -192,5 +205,64 @@ public class F91KeplerProtocolTest {
         assertEquals(3, out[1]);
         assertEquals(11, out[2]);                 // app truncated to 11
         assertEquals(3 + 11 + 20, out.length);    // sender truncated to 20
+    }
+
+    // --- Image Service ------------------------------------------------------
+
+    @Test
+    public void imageControlWrites_areTheBeginAndCommitOpcodes() {
+        assertArrayEquals(new byte[]{0x01}, F91KeplerProtocol.imageBegin());
+        assertArrayEquals(new byte[]{0x02, (byte) 0xAB}, F91KeplerProtocol.imageCommit((byte) 0xAB));
+    }
+
+    @Test
+    public void imageChunks_split480BytesInto25FullChunksPlusARemainder() {
+        final byte[] frame = new byte[F91KeplerConstants.IMAGE_BYTES];
+        final byte[][] chunks = F91KeplerProtocol.imageChunks(frame);
+
+        assertEquals(F91KeplerConstants.IMAGE_CHUNK_COUNT, chunks.length);
+        for (int seq = 0; seq < 25; seq++) {
+            assertEquals("chunk " + seq + " payload", 19, chunks[seq].length - 1);
+            assertEquals("chunk " + seq + " seq byte", seq, chunks[seq][0]);
+        }
+        // 25 * 19 = 475, so the last chunk carries the remaining 5 bytes.
+        assertEquals(5, chunks[25].length - 1);
+        assertEquals(25, chunks[25][0]);
+    }
+
+    @Test
+    public void imageChunks_carryTheFrameInOffsetOrder() {
+        // Fill with a position-dependent pattern so a wrong offset cannot pass.
+        final byte[] frame = new byte[F91KeplerConstants.IMAGE_BYTES];
+        for (int i = 0; i < frame.length; i++) {
+            frame[i] = (byte) (i * 7 + 1);
+        }
+        final byte[][] chunks = F91KeplerProtocol.imageChunks(frame);
+
+        // Reassembling the payloads at seq*19 must reproduce the frame exactly.
+        final byte[] rebuilt = new byte[F91KeplerConstants.IMAGE_BYTES];
+        for (final byte[] chunk : chunks) {
+            final int offset = (chunk[0] & 0xFF) * F91KeplerConstants.IMAGE_CHUNK_DATA;
+            System.arraycopy(chunk, 1, rebuilt, offset, chunk.length - 1);
+        }
+        assertArrayEquals(frame, rebuilt);
+    }
+
+    @Test(expected = IllegalArgumentException.class)
+    public void imageChunks_rejectsAWrongSizedFrame() {
+        F91KeplerProtocol.imageChunks(new byte[479]);
+    }
+
+    @Test
+    public void imageControlMatches_onlyAcceptsAValidMatchingChecksum() {
+        assertTrue(F91KeplerProtocol.imageControlMatches(new byte[]{1, 0x5A}, (byte) 0x5A));
+        // Watch reports "no image".
+        assertFalse(F91KeplerProtocol.imageControlMatches(new byte[]{0, 0x5A}, (byte) 0x5A));
+        // Watch holds a different image.
+        assertFalse(F91KeplerProtocol.imageControlMatches(new byte[]{1, 0x5B}, (byte) 0x5A));
+        // Unusable answers must read as "needs uploading", never as a match.
+        assertFalse(F91KeplerProtocol.imageControlMatches(new byte[]{1}, (byte) 0x5A));
+        assertFalse(F91KeplerProtocol.imageControlMatches(new byte[0], (byte) 0x5A));
+        assertFalse(F91KeplerProtocol.imageControlMatches(null, (byte) 0x5A));
     }
 }

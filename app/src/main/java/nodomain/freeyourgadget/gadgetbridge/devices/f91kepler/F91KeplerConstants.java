@@ -53,7 +53,8 @@ public final class F91KeplerConstants {
     public static final UUID UUID_CHAR_ALARM_TIME = base("B2F5");
     public static final UUID UUID_CHAR_ALARM_ENABLED = base("B2F6");
 
-    // Device Control Service: command (W) + diagnostics (R, 10 bytes).
+    // Device Control Service: command (W) + diagnostics (R, 22 bytes as of
+    // firmware v2.17.1 -- the block grows by appending, so parse by offset).
     public static final UUID UUID_SERVICE_DEVICE_CONTROL = base("C2F0");
     public static final UUID UUID_CHAR_DEVICE_COMMAND = base("C2F1");
     public static final UUID UUID_CHAR_DIAGNOSTICS = base("C2F2");
@@ -86,10 +87,38 @@ public final class F91KeplerConstants {
     public static final byte FIND_PHONE_CMD_STOP = 0x01;
 
     // UI Config Service (firmware P7): a single ModeOrder char carrying the
-    // enabled set + display order of the watch's modes as a 1..5 byte array of
-    // mode ids. READ + encrypted-WRITE.
+    // enabled set + display order of the watch's modes as a 1..10 byte array of
+    // mode ids (F91_UI_CONFIG_MAX_MODES, raised to 10 in firmware v2.16.0).
+    // READ + encrypted-WRITE.
     public static final UUID UUID_SERVICE_UI_CONFIG = base("F2F0");
     public static final UUID UUID_CHAR_MODE_ORDER = base("F2F1");
+
+    // Image Service (firmware v2.16.0): one full-screen 1-bit image, staged in
+    // 19-byte chunks and latched by a checksummed commit. RAM-only on the watch,
+    // so Gadgetbridge re-pushes it on reconnect (see F91KeplerImageStore).
+    public static final UUID UUID_SERVICE_IMAGE = base("A3F0");
+    // ImageChunk, encrypted write: [seq][1..19 data], chunk `seq` lands at seq*19.
+    public static final UUID UUID_CHAR_IMAGE_CHUNK = base("A3F1");
+    // ImageControl, encrypted read + write: read [valid][xor8], write begin/commit.
+    public static final UUID UUID_CHAR_IMAGE_CONTROL = base("A3F2");
+
+    /** ImageControl write opcode: arm a transfer (invalidates the current image). */
+    public static final byte IMAGE_CTRL_BEGIN = 0x01;
+    /** ImageControl write opcode: latch the staged frame, followed by its xor8. */
+    public static final byte IMAGE_CTRL_COMMIT = 0x02;
+
+    /** Panel width in pixels. */
+    public static final int IMAGE_WIDTH = 96;
+    /** Visible panel height. The 480-byte frame covers 40 rows; row 39 is offscreen. */
+    public static final int IMAGE_HEIGHT = 39;
+    /** 96 columns × 5 pages — exactly one SSD1306 framebuffer. */
+    public static final int IMAGE_BYTES = 480;
+    /** Payload bytes per ImageChunk write (the rest of the 20-byte ATT budget). */
+    public static final int IMAGE_CHUNK_DATA = 19;
+    /** ceil(480 / 19): chunks 0..24 carry 19 bytes, chunk 25 carries the last 5. */
+    public static final int IMAGE_CHUNK_COUNT = 26;
+    /** Name of the per-device file holding the last uploaded frame. */
+    public static final String IMAGE_FILE_NAME = "f91_image.bin";
 
     // Mode (screen) ids, 1:1 with the firmware's screen_id_t. MODE_MAIN is the
     // pinned home (always present, index 0); the rest are optional.
@@ -102,9 +131,10 @@ public final class F91KeplerConstants {
     public static final byte MODE_FLASHLIGHT = 6;
     public static final byte MODE_FINDPHONE = 7;
     public static final byte MODE_BLE = 8;        // Bluetooth mode (fw v2.15.0+)
+    public static final byte MODE_IMAGE = 9;      // Image mode (fw v2.16.0+)
 
     // Per-mode position preference keys (Watch-modes ordering). Value is "0"=off
-    // or "1".."5" = display position; the watch order is Main, then the optional
+    // or "1".."9" = display position; the watch order is Main, then the optional
     // modes sorted by position (ties broken by canonical id). Main has no pref
     // (always first).
     public static final String PREF_MODE_POS_NOTIF = "f91_mode_pos_notif";
@@ -115,6 +145,7 @@ public final class F91KeplerConstants {
     public static final String PREF_MODE_POS_FLASHLIGHT = "f91_mode_pos_flashlight";
     public static final String PREF_MODE_POS_FINDPHONE = "f91_mode_pos_findphone";
     public static final String PREF_MODE_POS_BLE = "f91_mode_pos_ble";
+    public static final String PREF_MODE_POS_IMAGE = "f91_mode_pos_image";
 
     // Weather condition enum, 1:1 with the firmware's f91_weather.h / icon table.
     public static final int WX_SUN = 0;
@@ -147,4 +178,7 @@ public final class F91KeplerConstants {
     // Device-specific preference keys (see res/xml/devicesettings_f91kepler.xml).
     public static final String PREF_DST = "f91_dst";
     public static final String PREF_NOTIFICATION_POPUP = "f91_notification_popup";
+    /** Opens {@link F91KeplerImageActivity}; also the onSendConfiguration key the
+     *  activity uses to ask the service to upload the stored frame. */
+    public static final String PREF_IMAGE_UPLOAD = "f91_image_upload";
 }

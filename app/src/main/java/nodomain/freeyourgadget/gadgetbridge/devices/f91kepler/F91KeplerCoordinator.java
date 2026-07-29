@@ -21,6 +21,7 @@ import androidx.annotation.NonNull;
 import java.util.regex.Pattern;
 
 import nodomain.freeyourgadget.gadgetbridge.R;
+import nodomain.freeyourgadget.gadgetbridge.activities.devicesettings.DeviceSpecificSettingsCustomizer;
 import nodomain.freeyourgadget.gadgetbridge.devices.AbstractBLEDeviceCoordinator;
 import nodomain.freeyourgadget.gadgetbridge.impl.GBDevice;
 import nodomain.freeyourgadget.gadgetbridge.service.DeviceSupport;
@@ -92,6 +93,13 @@ public class F91KeplerCoordinator extends AbstractBLEDeviceCoordinator {
                 R.xml.devicesettings_timeformat,
                 R.xml.devicesettings_f91kepler,
         };
+    }
+
+    @Override
+    public DeviceSpecificSettingsCustomizer getDeviceSpecificSettingsCustomizer(
+            @NonNull final GBDevice device) {
+        // Only job: make the "Upload image" entry open F91KeplerImageActivity.
+        return new F91KeplerSettingsCustomizer();
     }
 
     @Override
