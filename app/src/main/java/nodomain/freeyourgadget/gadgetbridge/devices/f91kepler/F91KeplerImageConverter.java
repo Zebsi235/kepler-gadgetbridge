@@ -159,6 +159,10 @@ public final class F91KeplerImageConverter {
     public static Bitmap toPreview(final boolean[] lit, final int scale) {
         final int width = F91KeplerConstants.IMAGE_WIDTH;
         final int height = F91KeplerConstants.IMAGE_HEIGHT;
+        if (lit == null || lit.length != width * height) {
+            throw new IllegalArgumentException(
+                    "expected " + (width * height) + " pixels, got " + (lit == null ? -1 : lit.length));
+        }
         final int[] argb = new int[lit.length];
         for (int i = 0; i < lit.length; i++) {
             argb[i] = lit[i] ? Color.WHITE : Color.BLACK;

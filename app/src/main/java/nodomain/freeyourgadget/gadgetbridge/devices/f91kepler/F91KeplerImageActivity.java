@@ -18,6 +18,7 @@ package nodomain.freeyourgadget.gadgetbridge.devices.f91kepler;
 
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
+import android.graphics.drawable.Drawable;
 import android.net.Uri;
 import android.os.Bundle;
 import android.view.MenuItem;
@@ -157,8 +158,21 @@ public class F91KeplerImageActivity extends AbstractGBActivity {
             return;
         }
         bits = F91KeplerImageCodec.unpackImage(stored);
-        preview.setImageBitmap(F91KeplerImageConverter.toPreview(bits, PREVIEW_SCALE));
+        showPreview(bits);
         status.setText(R.string.f91_image_showing_stored);
+    }
+
+    /**
+     * Show a one-bit result. The blow-up is nearest-neighbour, and the ImageView
+     * scales it again to the screen width -- so filtering has to be off there too,
+     * or the preview would be a smoothed lie about what the panel shows.
+     */
+    private void showPreview(final boolean[] lit) {
+        preview.setImageBitmap(F91KeplerImageConverter.toPreview(lit, PREVIEW_SCALE));
+        final Drawable drawable = preview.getDrawable();
+        if (drawable != null) {
+            drawable.setFilterBitmap(false);
+        }
     }
 
     private void loadSource(final Uri uri) {
@@ -201,8 +215,19 @@ public class F91KeplerImageActivity extends AbstractGBActivity {
         panRow.setVisibility(fillSwitch.isChecked() ? View.VISIBLE : View.GONE);
         thresholdRow.setVisibility(ditherSwitch.isChecked() ? View.GONE : View.VISIBLE);
 
-        if (source == null) {
-            // Nothing picked yet: either the stored frame is on screen, or nothing is.
+        // The conversion controls only mean something once a photo is picked. A
+        // stored frame can still be re-sent, but it cannot be re-converted -- the
+        // source is long gone -- so leaving the controls live would invite the
+        // user to adjust settings that do nothing.
+        final boolean hasSource = source != null;
+        fillSwitch.setEnabled(hasSource);
+        panBar.setEnabled(hasSource);
+        ditherSwitch.setEnabled(hasSource);
+        thresholdBar.setEnabled(hasSource);
+        invertSwitch.setEnabled(hasSource);
+
+        if (!hasSource) {
+            // Either the stored frame is on screen, or there is nothing to send.
             sendButton.setEnabled(bits != null);
             if (bits == null) {
                 status.setText(R.string.f91_image_none);
@@ -214,7 +239,7 @@ public class F91KeplerImageActivity extends AbstractGBActivity {
                 source, fillSwitch.isChecked(), panBar.getProgress() / 100f);
         bits = F91KeplerImageConverter.toBits(panel, ditherSwitch.isChecked(),
                 thresholdBar.getProgress(), invertSwitch.isChecked());
-        preview.setImageBitmap(F91KeplerImageConverter.toPreview(bits, PREVIEW_SCALE));
+        showPreview(bits);
         status.setText(R.string.f91_image_ready);
         sendButton.setEnabled(true);
     }

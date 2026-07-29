@@ -91,8 +91,13 @@ public class F91KeplerSupport extends AbstractBTLESingleDeviceSupport {
 
     /** Upload attempts per reconciliation round: the first try plus one retry. */
     private static final int IMAGE_MAX_ATTEMPTS = 2;
-    /** Uploads spent on the current frame; reset once the watch confirms it. */
-    private int imageAttempts;
+    /** Uploads spent on the current frame; reset once the watch confirms it.
+     *  Touched from both the service thread and the GATT callback thread. */
+    private volatile int imageAttempts;
+    /** Set when a round ran out of attempts, so a watch that keeps refusing the
+     *  image is not re-uploaded to (and re-toasted about) on every reconnect.
+     *  Cleared when the user sends an image again. */
+    private volatile boolean imageGaveUp;
 
     private final List<RecentNotif> recent = new ArrayList<>();
     private static final class RecentNotif {
@@ -216,6 +221,25 @@ public class F91KeplerSupport extends AbstractBTLESingleDeviceSupport {
             return true;
         }
         return super.onCharacteristicRead(gatt, characteristic, value, status);
+    }
+
+    /**
+     * A rejected image write is the failure the commit checksum exists to catch,
+     * and it also cancels the rest of its transaction -- so the verification read
+     * queued behind it never runs. Report it here instead, so the upload still
+     * gets its one retry and the user still hears about a persistent failure.
+     */
+    @Override
+    public boolean onCharacteristicWrite(final BluetoothGatt gatt,
+                                         final BluetoothGattCharacteristic characteristic,
+                                         final int status) {
+        if (status != BluetoothGatt.GATT_SUCCESS && characteristic != null
+                && (F91KeplerConstants.UUID_CHAR_IMAGE_CHUNK.equals(characteristic.getUuid())
+                    || F91KeplerConstants.UUID_CHAR_IMAGE_CONTROL.equals(characteristic.getUuid()))) {
+            LOG.warn("F91 image write to {} failed with status {}", characteristic.getUuid(), status);
+            reconcileImage(null);
+        }
+        return super.onCharacteristicWrite(gatt, characteristic, status);
     }
 
     private void handleBatteryInfo(final BatteryInfo info) {
@@ -489,24 +513,27 @@ public class F91KeplerSupport extends AbstractBTLESingleDeviceSupport {
      * against. The answer arrives in {@link #onCharacteristicRead}.
      */
     private void addImageCheck(final TransactionBuilder builder) {
-        if (F91KeplerImageStore.load(getDevice()) == null) {
+        imageAttempts = 0;
+        if (imageGaveUp || F91KeplerImageStore.load(getDevice()) == null) {
             return;
         }
-        imageAttempts = 0;
         builder.read(F91KeplerConstants.UUID_CHAR_IMAGE_CONTROL);
     }
 
     /**
-     * Decide what to do about the stored image given the watch's ImageControl
-     * report: matching checksum means it is already there, anything else means
-     * upload. Because {@link #sendImage} ends with another read, a failed upload
-     * comes back through here, which is what bounds it to one retry before the
-     * user is told -- no silent looping, and no state flag pretending success the
-     * watch never confirmed.
+     * Decide what to do about the stored image: a matching checksum means the
+     * watch already has it, anything else means upload. Passing {@code null}
+     * states "the watch does not have it" without asking.
+     *
+     * <p>Every image decision funnels through here, and each call spends at most
+     * one upload, so the round is bounded to the first try plus one retry before
+     * the user is told. Nothing here trusts a local flag: the watch either
+     * confirms the checksum or it does not.
      */
     private void reconcileImage(final byte[] control) {
         final byte[] frame = F91KeplerImageStore.load(getDevice());
         if (frame == null) {
+            imageAttempts = 0;
             return;
         }
         if (F91KeplerProtocol.imageControlMatches(control, F91KeplerImageCodec.xor8(frame))) {
@@ -517,6 +544,7 @@ public class F91KeplerSupport extends AbstractBTLESingleDeviceSupport {
         if (imageAttempts >= IMAGE_MAX_ATTEMPTS) {
             LOG.warn("F91 image not confirmed after {} upload attempts, giving up", imageAttempts);
             imageAttempts = 0;
+            imageGaveUp = true;
             GB.toast(getContext(), getContext().getString(R.string.f91_image_upload_failed),
                      Toast.LENGTH_LONG, GB.ERROR);
             return;
@@ -529,8 +557,15 @@ public class F91KeplerSupport extends AbstractBTLESingleDeviceSupport {
     /**
      * Upload one frame: begin, the 26 chunks, then commit with the checksum. The
      * writes are write-with-response and the queue preserves their order, so the
-     * firmware sees a complete buffer before it latches. The trailing read is the
-     * verification -- the watch reports back the checksum it actually latched.
+     * firmware sees a complete buffer before it latches.
+     *
+     * <p>Two things can then happen, and both come back to
+     * {@link #reconcileImage}. If every write is accepted, the trailing read
+     * reports the checksum the watch actually latched. If a write is rejected --
+     * which is exactly what the firmware does to a commit whose checksum does not
+     * match its buffer -- the queue abandons the rest of this transaction,
+     * including that read, so {@link #onCharacteristicWrite} reports the failure
+     * instead.
      */
     private void sendImage(final byte[] frame) {
         final TransactionBuilder builder = createTransactionBuilder("send image");
@@ -584,6 +619,8 @@ public class F91KeplerSupport extends AbstractBTLESingleDeviceSupport {
                     LOG.warn("F91 image upload requested but no frame is stored");
                     break;
                 }
+                // An explicit send is also the way out of a given-up round.
+                imageGaveUp = false;
                 imageAttempts = 1;
                 sendImage(frame);
                 break;
