@@ -17,19 +17,17 @@
 package nodomain.freeyourgadget.gadgetbridge.devices.f91kepler;
 
 import android.graphics.Bitmap;
-import android.graphics.Canvas;
 import android.graphics.Color;
-import android.graphics.Paint;
-import android.graphics.RectF;
 
 /**
  * Turns an arbitrary photo into the watch's 96×39 one-bit image.
  *
- * <p>The pipeline is: crop/scale to the panel's aspect, reduce to luminance, then
- * either diffuse the error (Floyd–Steinberg, good for photos) or hard-threshold
- * (good for logos and text). The grayscale and one-bit steps take and return
- * plain arrays so they are unit-tested; only the two Bitmap adapters at the
- * bottom touch {@code android.graphics}.
+ * <p>The pipeline is: the caller crops to the panel's aspect (see
+ * {@link F91KeplerCropView}), this class downscales that crop to the panel, reduces
+ * it to luminance, then either diffuses the error (Floyd–Steinberg, good for photos)
+ * or hard-thresholds (good for logos and text). The grayscale and one-bit steps take
+ * and return plain arrays so they are unit-tested; only the two Bitmap adapters at
+ * the bottom touch {@code android.graphics}.
  */
 public final class F91KeplerImageConverter {
     private F91KeplerImageConverter() {
@@ -111,30 +109,14 @@ public final class F91KeplerImageConverter {
     // --- Bitmap adapters ----------------------------------------------------
 
     /**
-     * Render {@code source} into a 96×39 bitmap. {@code fill} crops the overflowing
-     * axis so the panel is fully covered, with {@code pan} (0..1) sliding the crop
-     * window; otherwise the image is letterboxed on black. The result is always
-     * exactly panel-sized, so the caller never has to think about scaling again.
+     * Downscale an already-cropped bitmap (panel aspect, from {@link
+     * F91KeplerCropView#getCropBitmap()}) to the exact 96×39 panel with bilinear
+     * filtering, so the caller never has to think about scaling again. The crop view
+     * enforces the panel aspect ratio, so this is a straight resize with no letterbox.
      */
-    public static Bitmap fitToPanel(final Bitmap source, final boolean fill, final float pan) {
-        final int width = F91KeplerConstants.IMAGE_WIDTH;
-        final int height = F91KeplerConstants.IMAGE_HEIGHT;
-        final Bitmap panel = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888);
-        final Canvas canvas = new Canvas(panel);
-        canvas.drawColor(Color.BLACK);
-
-        final float scale = fill
-                ? Math.max((float) width / source.getWidth(), (float) height / source.getHeight())
-                : Math.min((float) width / source.getWidth(), (float) height / source.getHeight());
-        final float drawWidth = source.getWidth() * scale;
-        final float drawHeight = source.getHeight() * scale;
-        final float slide = Math.max(0f, Math.min(1f, pan));
-        final float left = drawWidth > width ? -(drawWidth - width) * slide : (width - drawWidth) / 2f;
-        final float top = drawHeight > height ? -(drawHeight - height) * slide : (height - drawHeight) / 2f;
-
-        canvas.drawBitmap(source, null, new RectF(left, top, left + drawWidth, top + drawHeight),
-                new Paint(Paint.FILTER_BITMAP_FLAG));
-        return panel;
+    public static Bitmap scaleToPanel(final Bitmap crop) {
+        return Bitmap.createScaledBitmap(
+                crop, F91KeplerConstants.IMAGE_WIDTH, F91KeplerConstants.IMAGE_HEIGHT, true);
     }
 
     /**

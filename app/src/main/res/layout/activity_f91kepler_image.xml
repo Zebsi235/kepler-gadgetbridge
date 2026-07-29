@@ -9,62 +9,36 @@
         android:orientation="vertical"
         android:padding="16dp">
 
-        <!-- The preview is the packed result at 4x nearest-neighbour, i.e. exactly
-             the pixels the watch will light. -->
-        <ImageView
-            android:id="@+id/f91_image_preview"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:adjustViewBounds="true"
-            android:background="#000000"
-            android:contentDescription="@string/f91_pref_title_image"
-            android:padding="8dp"
-            android:scaleType="fitCenter" />
-
-        <TextView
-            android:id="@+id/f91_image_status"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="8dp"
-            android:text="@string/f91_image_none" />
-
         <Button
             android:id="@+id/f91_image_choose"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginTop="16dp"
             android:text="@string/f91_image_choose" />
 
-        <androidx.appcompat.widget.SwitchCompat
-            android:id="@+id/f91_image_fill"
+        <!-- Fixed 96:39-aspect crop window: pinch to zoom, drag to position. Hidden
+             until a photo is picked. -->
+        <nodomain.freeyourgadget.gadgetbridge.devices.f91kepler.F91KeplerCropView
+            android:id="@+id/f91_image_crop"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginTop="16dp"
-            android:text="@string/f91_image_fill" />
+            android:background="#000000"
+            android:visibility="gone" />
 
-        <LinearLayout
-            android:id="@+id/f91_image_pan_row"
+        <TextView
+            android:id="@+id/f91_image_crop_hint"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:orientation="vertical">
-
-            <TextView
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="8dp"
-                android:text="@string/f91_image_pan" />
-
-            <SeekBar
-                android:id="@+id/f91_image_pan"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content" />
-        </LinearLayout>
+            android:layout_marginTop="4dp"
+            android:text="@string/f91_image_crop_hint"
+            android:textSize="12sp"
+            android:visibility="gone" />
 
         <androidx.appcompat.widget.SwitchCompat
             android:id="@+id/f91_image_dither"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginTop="8dp"
+            android:layout_marginTop="16dp"
             android:text="@string/f91_image_dither" />
 
         <LinearLayout
@@ -91,6 +65,26 @@
             android:layout_height="wrap_content"
             android:layout_marginTop="8dp"
             android:text="@string/f91_image_invert" />
+
+        <!-- The preview is the packed result at 4x nearest-neighbour, i.e. exactly
+             the pixels the watch will light. -->
+        <ImageView
+            android:id="@+id/f91_image_preview"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="16dp"
+            android:adjustViewBounds="true"
+            android:background="#000000"
+            android:contentDescription="@string/f91_pref_title_image"
+            android:padding="8dp"
+            android:scaleType="fitCenter" />
+
+        <TextView
+            android:id="@+id/f91_image_status"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:text="@string/f91_image_none" />
 
         <Button
             android:id="@+id/f91_image_send"

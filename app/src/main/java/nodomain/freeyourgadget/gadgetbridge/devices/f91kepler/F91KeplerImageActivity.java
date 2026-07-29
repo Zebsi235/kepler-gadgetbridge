@@ -49,14 +49,15 @@ import nodomain.freeyourgadget.gadgetbridge.impl.GBDevice;
 import nodomain.freeyourgadget.gadgetbridge.util.GB;
 
 /**
- * Picks a photo, converts it to the watch's 96×39 black-and-white panel and
- * uploads it to Image mode.
+ * Picks a photo, lets the user crop it to the watch's 96×39 panel (pinch to zoom,
+ * drag to position — see {@link F91KeplerCropView}), converts it to black-and-white
+ * and uploads it to Image mode.
  *
- * <p>Every control re-renders the preview, and the preview is the packed result
- * blown up with nearest-neighbour sampling — so what is on screen is pixel-exact
- * what the watch will light. Pressing send stores the frame (see
- * {@link F91KeplerImageStore}) and asks the service to upload it; if the watch is
- * away, the stored frame goes out on the next connect instead.
+ * <p>Every control — and every crop pan/zoom — re-renders the preview, and the
+ * preview is the packed result blown up with nearest-neighbour sampling, so what is
+ * on screen is pixel-exact what the watch will light. Pressing send stores the frame
+ * (see {@link F91KeplerImageStore}) and asks the service to upload it; if the watch
+ * is away, the stored frame goes out on the next connect instead.
  */
 public class F91KeplerImageActivity extends AbstractGBActivity {
     private static final Logger LOG = LoggerFactory.getLogger(F91KeplerImageActivity.class);
@@ -68,11 +69,10 @@ public class F91KeplerImageActivity extends AbstractGBActivity {
 
     private GBDevice device;
 
+    private F91KeplerCropView cropView;
+    private View cropHint;
     private ImageView preview;
     private TextView status;
-    private SwitchCompat fillSwitch;
-    private View panRow;
-    private SeekBar panBar;
     private SwitchCompat ditherSwitch;
     private View thresholdRow;
     private SeekBar thresholdBar;
@@ -98,11 +98,10 @@ public class F91KeplerImageActivity extends AbstractGBActivity {
             return;
         }
 
+        cropView = findViewById(R.id.f91_image_crop);
+        cropHint = findViewById(R.id.f91_image_crop_hint);
         preview = findViewById(R.id.f91_image_preview);
         status = findViewById(R.id.f91_image_status);
-        fillSwitch = findViewById(R.id.f91_image_fill);
-        panRow = findViewById(R.id.f91_image_pan_row);
-        panBar = findViewById(R.id.f91_image_pan);
         ditherSwitch = findViewById(R.id.f91_image_dither);
         thresholdRow = findViewById(R.id.f91_image_threshold_row);
         thresholdBar = findViewById(R.id.f91_image_threshold);
@@ -111,8 +110,9 @@ public class F91KeplerImageActivity extends AbstractGBActivity {
 
         thresholdBar.setMax(255);
         thresholdBar.setProgress(F91KeplerImageConverter.DEFAULT_THRESHOLD);
-        panBar.setMax(100);
-        panBar.setProgress(50);
+
+        // Panning/zooming the crop re-renders the one-bit preview once the gesture settles.
+        cropView.setOnCropChangedListener(this::render);
 
         picker = registerForActivityResult(new ActivityResultContracts.OpenDocument(), uri -> {
             if (uri != null) {
@@ -125,7 +125,6 @@ public class F91KeplerImageActivity extends AbstractGBActivity {
         sendButton.setOnClickListener(v -> send());
 
         final CompoundButton.OnCheckedChangeListener onToggle = (button, checked) -> render();
-        fillSwitch.setOnCheckedChangeListener(onToggle);
         ditherSwitch.setOnCheckedChangeListener(onToggle);
         invertSwitch.setOnCheckedChangeListener(onToggle);
 
@@ -143,7 +142,6 @@ public class F91KeplerImageActivity extends AbstractGBActivity {
             public void onStopTrackingTouch(final SeekBar bar) {
             }
         };
-        panBar.setOnSeekBarChangeListener(onSlide);
         thresholdBar.setOnSeekBarChangeListener(onSlide);
 
         ditherSwitch.setChecked(true);
@@ -186,6 +184,7 @@ public class F91KeplerImageActivity extends AbstractGBActivity {
             GB.toast(this, getString(R.string.f91_image_load_failed), Toast.LENGTH_LONG, GB.ERROR);
             return;
         }
+        cropView.setImage(source);
         render();
     }
 
@@ -212,16 +211,16 @@ public class F91KeplerImageActivity extends AbstractGBActivity {
 
     /** Re-run the conversion for the current settings and update the preview. */
     private void render() {
-        panRow.setVisibility(fillSwitch.isChecked() ? View.VISIBLE : View.GONE);
         thresholdRow.setVisibility(ditherSwitch.isChecked() ? View.GONE : View.VISIBLE);
 
-        // The conversion controls only mean something once a photo is picked. A
-        // stored frame can still be re-sent, but it cannot be re-converted -- the
-        // source is long gone -- so leaving the controls live would invite the
+        // The crop and conversion controls only mean something once a photo is
+        // picked. A stored frame can still be re-sent, but it cannot be re-converted
+        // -- the source is long gone -- so leaving the controls live would invite the
         // user to adjust settings that do nothing.
         final boolean hasSource = source != null;
-        fillSwitch.setEnabled(hasSource);
-        panBar.setEnabled(hasSource);
+        final int sourceVisibility = hasSource ? View.VISIBLE : View.GONE;
+        cropView.setVisibility(sourceVisibility);
+        cropHint.setVisibility(sourceVisibility);
         ditherSwitch.setEnabled(hasSource);
         thresholdBar.setEnabled(hasSource);
         invertSwitch.setEnabled(hasSource);
@@ -235,8 +234,13 @@ public class F91KeplerImageActivity extends AbstractGBActivity {
             return;
         }
 
-        final Bitmap panel = F91KeplerImageConverter.fitToPanel(
-                source, fillSwitch.isChecked(), panBar.getProgress() / 100f);
+        final Bitmap crop = cropView.getCropBitmap();
+        if (crop == null) {
+            // The crop view has not been laid out yet; it will call back through the
+            // crop-changed listener once it has a size, and this will run again.
+            return;
+        }
+        final Bitmap panel = F91KeplerImageConverter.scaleToPanel(crop);
         bits = F91KeplerImageConverter.toBits(panel, ditherSwitch.isChecked(),
                 thresholdBar.getProgress(), invertSwitch.isChecked());
         showPreview(bits);
