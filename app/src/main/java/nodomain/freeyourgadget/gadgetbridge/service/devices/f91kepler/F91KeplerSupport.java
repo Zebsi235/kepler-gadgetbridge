@@ -117,6 +117,7 @@ public class F91KeplerSupport extends AbstractBTLESingleDeviceSupport {
         addSupportedService(F91KeplerConstants.UUID_SERVICE_WEATHER);
         addSupportedService(F91KeplerConstants.UUID_SERVICE_MUSIC);
         addSupportedService(F91KeplerConstants.UUID_SERVICE_FIND_PHONE);
+        addSupportedService(F91KeplerConstants.UUID_SERVICE_ALERT);   // issue #209
         addSupportedService(F91KeplerConstants.UUID_SERVICE_UI_CONFIG);
         addSupportedService(F91KeplerConstants.UUID_SERVICE_IMAGE);
         addSupportedService(GattService.UUID_SERVICE_BATTERY_SERVICE);
@@ -164,6 +165,9 @@ public class F91KeplerSupport extends AbstractBTLESingleDeviceSupport {
         // Subscribe to the Find Phone notify: a button on the watch's Find Phone
         // mode rings/stops this phone.
         builder.notify(F91KeplerConstants.UUID_CHAR_FIND_PHONE_CMD, true);
+        // The watch pushes an AlertEvent when its timer expires or its alarm
+        // fires, so this phone can ring/vibrate as a backup (issue #209).
+        builder.notify(F91KeplerConstants.UUID_CHAR_ALERT_EVENT, true);
         // Re-push the cached weather on connect: the watch's weather is volatile
         // (RAM only, wiped on reset/reconnect), and GB otherwise only sends on a
         // weather refresh -- so without this a reconnect leaves the slot empty
@@ -204,7 +208,45 @@ public class F91KeplerSupport extends AbstractBTLESingleDeviceSupport {
                 return true;
             }
         }
+        if (F91KeplerConstants.UUID_CHAR_ALERT_EVENT.equals(characteristic.getUuid())
+                && value != null && value.length >= 1) {
+            handleAlertEvent(value[0]);
+            return true;
+        }
         return super.onCharacteristicChanged(gatt, characteristic, value);
+    }
+
+    /**
+     * Raise a phone-side alert for a watch timer/alarm event (issue #209).
+     *
+     * <p>Gated per event type, because the two are wanted independently: a timer
+     * is usually deliberate and nearby, an alarm often is not. If the relevant
+     * switch is off the event is swallowed silently -- the watch has no way to
+     * know the phone's preference and should not need one.
+     */
+    private void handleAlertEvent(final byte ev) {
+        final SharedPreferences prefs =
+                GBApplication.getDeviceSpecificSharedPrefs(getDevice().getAddress());
+        final boolean enabled;
+        if (ev == F91KeplerConstants.ALERT_EVENT_ALARM) {
+            enabled = prefs.getBoolean(F91KeplerConstants.PREF_ALERT_ALARM, true);
+        } else if (ev == F91KeplerConstants.ALERT_EVENT_TIMER) {
+            enabled = prefs.getBoolean(F91KeplerConstants.PREF_ALERT_TIMER, true);
+        } else {
+            enabled = false;    // unknown event: never guess
+        }
+        if (!enabled) {
+            return;
+        }
+        final boolean vibrateOnly = "vibrate".equals(
+                prefs.getString(F91KeplerConstants.PREF_ALERT_MODE, "ring"));
+        final GBDeviceEventFindPhone.Event event =
+                F91KeplerProtocol.alertEvent(ev, vibrateOnly);
+        if (event != GBDeviceEventFindPhone.Event.UNKNOWN) {
+            final GBDeviceEventFindPhone fp = new GBDeviceEventFindPhone();
+            fp.event = event;
+            handleGBDeviceEvent(fp);
+        }
     }
 
     /**

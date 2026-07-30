@@ -25,6 +25,7 @@ import org.junit.Test;
 
 import java.nio.charset.StandardCharsets;
 
+import nodomain.freeyourgadget.gadgetbridge.deviceevents.GBDeviceEventFindPhone;
 import nodomain.freeyourgadget.gadgetbridge.deviceevents.GBDeviceEventMusicControl;
 import nodomain.freeyourgadget.gadgetbridge.devices.f91kepler.F91KeplerConstants;
 
@@ -123,6 +124,44 @@ public class F91KeplerProtocolTest {
                 F91KeplerProtocol.musicCommand(F91KeplerConstants.MUSIC_CMD_NEXT));
         assertEquals(GBDeviceEventMusicControl.Event.PREVIOUS,
                 F91KeplerProtocol.musicCommand(F91KeplerConstants.MUSIC_CMD_PREV));
+    }
+
+    // --- issue #209: the watch's timer/alarm alert -------------------------
+    // There is no findPhoneCommand test upstream, so these also stand in as the
+    // first coverage of a watch->phone notify decoder in this fork.
+
+    @Test
+    public void alertEvent_ringsForBothTimerAndAlarm() {
+        assertEquals(GBDeviceEventFindPhone.Event.START,
+                F91KeplerProtocol.alertEvent(F91KeplerConstants.ALERT_EVENT_TIMER, false));
+        assertEquals(GBDeviceEventFindPhone.Event.START,
+                F91KeplerProtocol.alertEvent(F91KeplerConstants.ALERT_EVENT_ALARM, false));
+    }
+
+    @Test
+    public void alertEvent_vibrateOnlyUsesTheVibrateEvent() {
+        assertEquals(GBDeviceEventFindPhone.Event.START_VIBRATE,
+                F91KeplerProtocol.alertEvent(F91KeplerConstants.ALERT_EVENT_TIMER, true));
+        assertEquals(GBDeviceEventFindPhone.Event.START_VIBRATE,
+                F91KeplerProtocol.alertEvent(F91KeplerConstants.ALERT_EVENT_ALARM, true));
+    }
+
+    @Test
+    public void alertEvent_unknownByteNeverAlerts() {
+        // A future firmware event must not make an older app ring for something
+        // it does not understand.
+        assertEquals(GBDeviceEventFindPhone.Event.UNKNOWN,
+                F91KeplerProtocol.alertEvent((byte) 0x02, false));
+        assertEquals(GBDeviceEventFindPhone.Event.UNKNOWN,
+                F91KeplerProtocol.alertEvent((byte) 0xFF, true));
+    }
+
+    @Test
+    public void alertEvent_wireValuesMatchTheFirmware() {
+        // f91_alert.h: ALERT_EVENT_TIMER = 0, ALERT_EVENT_ALARM = 1. If these
+        // drift the phone alerts for the wrong thing.
+        assertEquals(0, F91KeplerConstants.ALERT_EVENT_TIMER);
+        assertEquals(1, F91KeplerConstants.ALERT_EVENT_ALARM);
     }
 
     @Test

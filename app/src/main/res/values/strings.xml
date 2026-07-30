@@ -2135,6 +2135,12 @@
     <string name="devicetype_tlw64" translatable="false">TLW64</string>
     <string name="devicetype_pinetime_jf" translatable="false">PineTime (JF Firmware)</string>
     <string name="devicetype_f91_kepler" translatable="false">F91 Kepler</string>
+    <string name="f91_pref_header_alerts">Timer &amp; alarm alerts</string>
+    <string name="f91_pref_title_alert_timer">Alert me when the timer ends</string>
+    <string name="f91_pref_summary_alert_timer">Ring or vibrate this phone when the watch\'s timer reaches zero. The watch itself is silent.</string>
+    <string name="f91_pref_title_alert_alarm">Alert me when the alarm fires</string>
+    <string name="f91_pref_summary_alert_alarm">Ring or vibrate this phone when the watch\'s alarm goes off. The watch alarm is visual only, so this is easy to miss otherwise.</string>
+    <string name="f91_pref_title_alert_mode">How to alert</string>
     <string name="f91_pref_title_dst">Daylight saving time</string>
     <string name="f91_pref_summary_dst">Tell the watch that DST is currently active</string>
     <string name="f91_pref_title_notification_popup">Show sender as full-screen popup</string>
