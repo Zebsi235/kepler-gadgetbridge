@@ -311,6 +311,52 @@ final class F91KeplerProtocol {
         return new byte[]{(byte) s};
     }
 
+    /**
+     * Radio schedule (B2F7, issue #213): {@code [enabled][start u16 LE][end u16 LE]}
+     * in LOCAL minutes since midnight.
+     *
+     * A zero-length window (start == end) is sent as DISABLED rather than as a
+     * window: the firmware refuses it, and silently turning "no window" into a
+     * permanent radio-off would be far worse than ignoring a misconfiguration.
+     * Out-of-range minutes are clamped into the day for the same reason
+     * brightness clamps -- a value the watch will refuse is not worth sending.
+     */
+    static byte[] radioSchedule(final boolean enabled, final int startMin, final int endMin) {
+        final int start = Math.max(0, Math.min(startMin, 1439));
+        final int end = Math.max(0, Math.min(endMin, 1439));
+        final boolean on = enabled && start != end;
+        return new byte[]{
+                (byte) (on ? 1 : 0),
+                (byte) (start & 0xFF), (byte) ((start >> 8) & 0xFF),
+                (byte) (end & 0xFF), (byte) ((end >> 8) & 0xFF),
+        };
+    }
+
+    /**
+     * Minutes since midnight from an {@code "HH:mm"} preference (what
+     * XTimePreference stores). Returns {@code def} for anything unparseable, so a
+     * corrupted preference cannot silence the radio at an arbitrary hour.
+     */
+    static int minutesFromHhMm(final String hhmm, final int def) {
+        if (hhmm == null) {
+            return def;
+        }
+        final String[] parts = hhmm.split(":");
+        if (parts.length != 2) {
+            return def;
+        }
+        try {
+            final int h = Integer.parseInt(parts[0].trim());
+            final int m = Integer.parseInt(parts[1].trim());
+            if (h < 0 || h > 23 || m < 0 || m > 59) {
+                return def;
+            }
+            return h * 60 + m;
+        } catch (final NumberFormatException e) {
+            return def;
+        }
+    }
+
     // --- Image Service (A3F0) ----------------------------------------------
 
     /** ImageControl write that arms a transfer and invalidates the current image. */

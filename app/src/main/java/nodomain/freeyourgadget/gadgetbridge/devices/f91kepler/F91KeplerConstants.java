@@ -126,6 +126,19 @@ public final class F91KeplerConstants {
     public static final int BRIGHTNESS_STEPS = 5;
     public static final int BRIGHTNESS_DEFAULT = 2;
 
+    /**
+     * Radio schedule, encrypted read + write, 5 bytes (firmware v2.26.0, issue
+     * #213): {@code [enabled][start u16 LE][end u16 LE]} where the two uint16s
+     * are LOCAL minutes since midnight (0..1439). Wrap is allowed, so an
+     * overnight 23:00->07:00 window is 1380 -> 420.
+     *
+     * Minutes rather than an absolute epoch (unlike the alarm, B2F5) because the
+     * window has to recur daily with no phone involvement -- the phone may well
+     * be disconnected at the boundary. The watch rejects an out-of-range or
+     * zero-length window and keeps whatever it had.
+     */
+    public static final UUID UUID_CHAR_RADIO_SCHED = base("B2F7");
+
     // Image Service (firmware v2.16.0): one full-screen 1-bit image, staged in
     // 19-byte chunks and latched by a checksummed commit. RAM-only on the watch,
     // so Gadgetbridge re-pushes it on reconnect (see F91KeplerImageStore).
@@ -182,6 +195,12 @@ public final class F91KeplerConstants {
 
     /** Display brightness step, "0".."4" (issue #211). */
     public static final String PREF_BRIGHTNESS = "f91_brightness";
+
+    /** Scheduled radio-off window ("sleep times", issue #213). The two time
+     *  preferences are XTimePreference, i.e. stored as "HH:mm" strings. */
+    public static final String PREF_SLEEP_ENABLED = "f91_sleep_enabled";
+    public static final String PREF_SLEEP_START = "f91_sleep_start";
+    public static final String PREF_SLEEP_END = "f91_sleep_end";
 
     // Weather condition enum, 1:1 with the firmware's f91_weather.h / icon table.
     public static final int WX_SUN = 0;
