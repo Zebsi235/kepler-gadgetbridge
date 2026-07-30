@@ -109,6 +109,22 @@ public final class F91KeplerConstants {
     // READ + encrypted-WRITE.
     public static final UUID UUID_SERVICE_UI_CONFIG = base("F2F0");
     public static final UUID UUID_CHAR_MODE_ORDER = base("F2F1");
+    /**
+     * Brightness, encrypted read + write, one byte (firmware v2.25.0, issue
+     * #211). The value is a STEP INDEX on the watch's ladder, not an SSD1306
+     * contrast byte: the firmware owns the mapping (f91_brightness.c) precisely
+     * so no phone can dim the panel to unreadable. The watch rejects a step it
+     * does not have, and persists an accepted one.
+     */
+    public static final UUID UUID_CHAR_BRIGHTNESS = base("F2F2");
+
+    /**
+     * Brightness steps the firmware ladder has, and the step it defaults to
+     * (which maps to the contrast the watch used before the setting existed).
+     * Mirrors F91_BRIGHTNESS_STEPS / F91_BRIGHTNESS_DEFAULT.
+     */
+    public static final int BRIGHTNESS_STEPS = 5;
+    public static final int BRIGHTNESS_DEFAULT = 2;
 
     // Image Service (firmware v2.16.0): one full-screen 1-bit image, staged in
     // 19-byte chunks and latched by a checksummed commit. RAM-only on the watch,
@@ -163,6 +179,9 @@ public final class F91KeplerConstants {
     public static final String PREF_MODE_POS_FINDPHONE = "f91_mode_pos_findphone";
     public static final String PREF_MODE_POS_BLE = "f91_mode_pos_ble";
     public static final String PREF_MODE_POS_IMAGE = "f91_mode_pos_image";
+
+    /** Display brightness step, "0".."4" (issue #211). */
+    public static final String PREF_BRIGHTNESS = "f91_brightness";
 
     // Weather condition enum, 1:1 with the firmware's f91_weather.h / icon table.
     public static final int WX_SUN = 0;

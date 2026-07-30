@@ -13,6 +13,24 @@
         <item>ring</item>
         <item>vibrate</item>
     </string-array>
+    <!-- F91 Kepler display brightness steps (issue #211). The values are step
+         indices on the firmware's ladder (f91_brightness.c), NOT SSD1306
+         contrast bytes: the watch owns that mapping. Keep the count in step
+         with F91KeplerConstants.BRIGHTNESS_STEPS. -->
+    <string-array name="f91_brightness">
+        <item>@string/f91_brightness_night</item>
+        <item>@string/f91_brightness_dim</item>
+        <item>@string/f91_brightness_default</item>
+        <item>@string/f91_brightness_bright</item>
+        <item>@string/f91_brightness_max</item>
+    </string-array>
+    <string-array name="f91_brightness_values" translatable="false">
+        <item>0</item>
+        <item>1</item>
+        <item>2</item>
+        <item>3</item>
+        <item>4</item>
+    </string-array>
     <string-array name="f91_mode_position">
         <item>@string/f91_mode_position_off</item>
         <item>1</item>

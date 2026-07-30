@@ -2141,6 +2141,12 @@
     <string name="f91_pref_title_alert_alarm">Alert me when the alarm fires</string>
     <string name="f91_pref_summary_alert_alarm">Ring or vibrate this phone when the watch\'s alarm goes off. The watch alarm is visual only, so this is easy to miss otherwise.</string>
     <string name="f91_pref_title_alert_mode">How to alert</string>
+    <string name="f91_pref_title_brightness">Display brightness</string>
+    <string name="f91_brightness_night">Night (dimmest)</string>
+    <string name="f91_brightness_dim">Dim</string>
+    <string name="f91_brightness_default">Default</string>
+    <string name="f91_brightness_bright">Bright</string>
+    <string name="f91_brightness_max">Maximum</string>
     <string name="f91_pref_title_dst">Daylight saving time</string>
     <string name="f91_pref_summary_dst">Tell the watch that DST is currently active</string>
     <string name="f91_pref_title_notification_popup">Show sender as full-screen popup</string>

@@ -292,6 +292,35 @@ public class F91KeplerProtocolTest {
         F91KeplerProtocol.imageChunks(new byte[479]);
     }
 
+    // --- Brightness (F2F2, issue #211) -----------------------------------
+
+    @Test
+    public void brightness_isASingleStepByte() {
+        assertArrayEquals(new byte[]{0}, F91KeplerProtocol.brightness(0));
+        assertArrayEquals(new byte[]{2}, F91KeplerProtocol.brightness(2));
+        assertArrayEquals(new byte[]{4}, F91KeplerProtocol.brightness(4));
+    }
+
+    /** The default the settings XML declares must be the step the watch defaults
+     *  to, or a fresh pairing would silently change the panel brightness. */
+    @Test
+    public void brightness_defaultStepMatchesTheFirmwareDefault() {
+        assertArrayEquals(new byte[]{(byte) F91KeplerConstants.BRIGHTNESS_DEFAULT},
+                          F91KeplerProtocol.brightness(F91KeplerConstants.BRIGHTNESS_DEFAULT));
+    }
+
+    /** A step the watch does not have is clamped here, not sent and refused: a
+     *  stale preference must never make brightness unchangeable. */
+    @Test
+    public void brightness_clampsOutOfRangeSteps() {
+        assertArrayEquals(new byte[]{0}, F91KeplerProtocol.brightness(-1));
+        assertArrayEquals(new byte[]{0}, F91KeplerProtocol.brightness(Integer.MIN_VALUE));
+        assertArrayEquals(new byte[]{(byte) (F91KeplerConstants.BRIGHTNESS_STEPS - 1)},
+                          F91KeplerProtocol.brightness(F91KeplerConstants.BRIGHTNESS_STEPS));
+        assertArrayEquals(new byte[]{(byte) (F91KeplerConstants.BRIGHTNESS_STEPS - 1)},
+                          F91KeplerProtocol.brightness(Integer.MAX_VALUE));
+    }
+
     @Test
     public void imageControlMatches_onlyAcceptsAValidMatchingChecksum() {
         assertTrue(F91KeplerProtocol.imageControlMatches(new byte[]{1, 0x5A}, (byte) 0x5A));

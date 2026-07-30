@@ -294,6 +294,23 @@ final class F91KeplerProtocol {
         return out.toByteArray();
     }
 
+    /**
+     * Brightness characteristic (UI Config, F2F2): one step index (issue #211).
+     * The watch rejects a step outside its ladder with an ATT error, so an
+     * out-of-range preference is clamped here rather than sent and refused --
+     * a stale pref from a future build must not leave the user unable to change
+     * brightness at all.
+     */
+    static byte[] brightness(final int step) {
+        int s = step;
+        if (s < 0) {
+            s = 0;
+        } else if (s > F91KeplerConstants.BRIGHTNESS_STEPS - 1) {
+            s = F91KeplerConstants.BRIGHTNESS_STEPS - 1;
+        }
+        return new byte[]{(byte) s};
+    }
+
     // --- Image Service (A3F0) ----------------------------------------------
 
     /** ImageControl write that arms a transfer and invalidates the current image. */

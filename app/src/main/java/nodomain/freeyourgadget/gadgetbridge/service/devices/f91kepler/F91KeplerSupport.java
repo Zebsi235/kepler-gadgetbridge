@@ -72,7 +72,7 @@ import nodomain.freeyourgadget.gadgetbridge.service.btle.profiles.deviceinfo.Dev
  *   <li>{@link #onFindDevice} → flash the "FIND" alert on the watch,
  *       {@link #onReset} → reboot</li>
  *   <li>{@link #onSendConfiguration} → 12/24h time mode, DST flag, mode order,
- *       image upload</li>
+ *       display brightness, image upload</li>
  * </ul>
  */
 public class F91KeplerSupport extends AbstractBTLESingleDeviceSupport {
@@ -653,6 +653,12 @@ public class F91KeplerSupport extends AbstractBTLESingleDeviceSupport {
                 builder.queue();
                 break;
             }
+            case F91KeplerConstants.PREF_BRIGHTNESS: {
+                final TransactionBuilder builder = createTransactionBuilder("set brightness");
+                addBrightness(builder);
+                builder.queue();
+                break;
+            }
             case F91KeplerConstants.PREF_IMAGE_UPLOAD: {
                 // The activity has already stored the packed frame; this is just
                 // "send it now". Counts as the first of the two attempts.
@@ -695,6 +701,29 @@ public class F91KeplerSupport extends AbstractBTLESingleDeviceSupport {
         builder.write(F91KeplerConstants.UUID_CHAR_MODE_ORDER, order);
     }
 
+    /**
+     * Write the display brightness step to the UI Config Brightness char (issue
+     * #211). The watch applies it immediately and persists it in SNV, so -- like
+     * the mode order -- this is sent on a preference change only, not re-pushed
+     * on every connect. The tradeoff: a factory reset or an SNV wipe on the watch
+     * leaves this preference showing a value the watch no longer has, until it is
+     * changed once. Same hole the mode order has; re-pushing both on connect is
+     * the fix if it ever bites.
+     */
+    private void addBrightness(final TransactionBuilder builder) {
+        final SharedPreferences prefs =
+                GBApplication.getDeviceSpecificSharedPrefs(getDevice().getAddress());
+        final int step = modePos(prefs, F91KeplerConstants.PREF_BRIGHTNESS,
+                                 F91KeplerConstants.BRIGHTNESS_DEFAULT);
+        builder.write(F91KeplerConstants.UUID_CHAR_BRIGHTNESS,
+                      F91KeplerProtocol.brightness(step));
+    }
+
+    /**
+     * Read a numeric string preference, falling back to {@code def} on absence or
+     * garbage. Shared by the mode positions and the brightness step -- both are
+     * ListPreferences, i.e. stored as strings.
+     */
     private static int modePos(final SharedPreferences prefs, final String key, final int def) {
         try {
             return Integer.parseInt(prefs.getString(key, Integer.toString(def)));
