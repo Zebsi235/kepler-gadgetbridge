@@ -29,6 +29,15 @@
 
     </PreferenceCategory>
 
+    <ListPreference
+        android:defaultValue="2"
+        android:entries="@array/f91_brightness"
+        android:entryValues="@array/f91_brightness_values"
+        android:icon="@drawable/ic_brightness_2"
+        android:key="f91_brightness"
+        android:title="@string/f91_pref_title_brightness"
+        app:useSimpleSummaryProvider="true" />
+
     <SwitchPreferenceCompat
         android:defaultValue="false"
         android:key="f91_dst"
