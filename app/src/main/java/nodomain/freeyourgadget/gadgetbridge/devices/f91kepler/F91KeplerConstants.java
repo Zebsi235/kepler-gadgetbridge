@@ -178,6 +178,18 @@ public final class F91KeplerConstants {
     // Device-specific preference keys (see res/xml/devicesettings_f91kepler.xml).
     public static final String PREF_DST = "f91_dst";
     public static final String PREF_NOTIFICATION_POPUP = "f91_notification_popup";
+
+    /**
+     * Default for {@link #PREF_NOTIFICATION_POPUP}: the watch DOES light up for a
+     * notification unless the wearer turns it off.
+     *
+     * A named constant rather than a literal at the call site because the value has
+     * to agree with android:defaultValue in res/xml/devicesettings_f91kepler.xml,
+     * and the two silently disagreeing is precisely how the watch ended up never
+     * waking for a text (issue #2). F91KeplerNotificationPopupDefaultTest asserts
+     * the XML and this constant match, so a change to one side fails the build.
+     */
+    public static final boolean PREF_NOTIFICATION_POPUP_DEFAULT = true;
     /** Opens {@link F91KeplerImageActivity}; also the onSendConfiguration key the
      *  activity uses to ask the service to upload the stored frame. */
     public static final String PREF_IMAGE_UPLOAD = "f91_image_upload";

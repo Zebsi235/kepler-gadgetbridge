@@ -395,9 +395,34 @@ public class F91KeplerSupport extends AbstractBTLESingleDeviceSupport {
         return F91KeplerNotificationTracker.Category.TEXT;
     }
 
+    /**
+     * Whether a notification should raise the watch's full-screen sender popup.
+     *
+     * Defaults to TRUE, and the default matters more than it looks: the popup path
+     * is the only one that powers the OLED, so with this off a text notification
+     * writes the status bar and leaves the panel dark. Measured on the HIL rig with
+     * the panel off: a bar write settles at 3.4 uA (dark), a popup write draws
+     * 2365 uA (lit) — a 700x difference that is simply "the screen came on or it
+     * did not". A watch that never lights up for a message reads as broken, which
+     * is exactly how this was reported (kepler-gadgetbridge #2). Incoming calls are
+     * deliberately NOT gated by this preference, so calls used to wake the screen
+     * while texts did not — the inconsistency that made it look like a defect.
+     *
+     * The cost is affordable: one popup is 2.63 uAh, and the realistic-wear budget
+     * in FW91 docs/POWER_PLAN.md 9.4 already counts 50 notifications a day as
+     * lighting the panel.
+     *
+     * The default itself lives in {@link F91KeplerConstants#PREF_NOTIFICATION_POPUP_DEFAULT}
+     * so that it can be pinned against android:defaultValue in
+     * res/xml/devicesettings_f91kepler.xml by a unit test: the XML governs the
+     * switch's initial position, this fallback governs behaviour before the settings
+     * screen has ever been opened, and the two disagreeing is a silent behaviour
+     * change of exactly the kind this issue was.
+     */
     private boolean isNotificationPopupEnabled() {
         return GBApplication.getDeviceSpecificSharedPrefs(getDevice().getAddress())
-                .getBoolean(F91KeplerConstants.PREF_NOTIFICATION_POPUP, false);
+                .getBoolean(F91KeplerConstants.PREF_NOTIFICATION_POPUP,
+                        F91KeplerConstants.PREF_NOTIFICATION_POPUP_DEFAULT);
     }
 
     // --- Calls --------------------------------------------------------------
