@@ -51,6 +51,35 @@
         android:title="@string/f91_pref_title_notification_popup" />
 
     <PreferenceCategory
+        android:key="f91_pref_category_sleep"
+        android:title="@string/f91_pref_header_sleep">
+
+        <Preference
+            android:selectable="false"
+            android:summary="@string/f91_pref_summary_sleep" />
+
+        <SwitchPreferenceCompat
+            android:defaultValue="false"
+            android:key="f91_sleep_enabled"
+            android:title="@string/f91_pref_title_sleep_enabled" />
+
+        <nodomain.freeyourgadget.gadgetbridge.util.XTimePreference
+            android:defaultValue="23:00"
+            android:dependency="f91_sleep_enabled"
+            android:icon="@drawable/ic_access_time"
+            android:key="f91_sleep_start"
+            android:title="@string/f91_pref_title_sleep_start" />
+
+        <nodomain.freeyourgadget.gadgetbridge.util.XTimePreference
+            android:defaultValue="07:00"
+            android:dependency="f91_sleep_enabled"
+            android:icon="@drawable/ic_access_time"
+            android:key="f91_sleep_end"
+            android:title="@string/f91_pref_title_sleep_end" />
+
+    </PreferenceCategory>
+
+    <PreferenceCategory
         android:key="f91_pref_category_modes"
         android:title="@string/f91_pref_header_modes">
 

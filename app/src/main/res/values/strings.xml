@@ -2142,6 +2142,11 @@
     <string name="f91_pref_summary_alert_alarm">Ring or vibrate this phone when the watch\'s alarm goes off. The watch alarm is visual only, so this is easy to miss otherwise.</string>
     <string name="f91_pref_title_alert_mode">How to alert</string>
     <string name="f91_pref_title_brightness">Display brightness</string>
+    <string name="f91_pref_header_sleep">Sleep times</string>
+    <string name="f91_pref_summary_sleep">The watch turns its Bluetooth radio off during this window to save battery. You can always switch it back on from the watch\'s Bluetooth screen — it stays on until the window ends.</string>
+    <string name="f91_pref_title_sleep_enabled">Radio off overnight</string>
+    <string name="f91_pref_title_sleep_start">Start</string>
+    <string name="f91_pref_title_sleep_end">End</string>
     <string name="f91_brightness_night">Night (dimmest)</string>
     <string name="f91_brightness_dim">Dim</string>
     <string name="f91_brightness_default">Default</string>

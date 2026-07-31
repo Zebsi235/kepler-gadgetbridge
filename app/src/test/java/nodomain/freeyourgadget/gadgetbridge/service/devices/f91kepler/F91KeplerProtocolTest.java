@@ -321,6 +321,61 @@ public class F91KeplerProtocolTest {
                           F91KeplerProtocol.brightness(Integer.MAX_VALUE));
     }
 
+    // --- Radio schedule (B2F7, issue #213) --------------------------------
+
+    @Test
+    public void radioSchedule_packsEnabledAndTwoLittleEndianMinutes() {
+        // 23:00 -> 07:00, the overnight case: 1380 -> 420.
+        assertArrayEquals(new byte[]{1, (byte) 0x64, (byte) 0x05, (byte) 0xA4, (byte) 0x01},
+                          F91KeplerProtocol.radioSchedule(true, 1380, 420));
+    }
+
+    @Test
+    public void radioSchedule_disabledStillCarriesTheTimes() {
+        // The watch ignores the bounds while disabled, but sending them keeps a
+        // read-back meaningful and lets the user re-enable without re-picking.
+        final byte[] got = F91KeplerProtocol.radioSchedule(false, 1380, 420);
+        assertEquals(0, got[0]);
+        assertEquals((byte) 0x64, got[1]);
+    }
+
+    /** A zero-length window must never be sent as enabled: the firmware refuses
+     *  it, and treating it as "all day" would silence the radio permanently. */
+    @Test
+    public void radioSchedule_zeroLengthWindowIsSentDisabled() {
+        assertEquals(0, F91KeplerProtocol.radioSchedule(true, 600, 600)[0]);
+    }
+
+    @Test
+    public void radioSchedule_clampsOutOfRangeMinutes() {
+        final byte[] low = F91KeplerProtocol.radioSchedule(true, -5, 420);
+        assertEquals(0, low[1]);
+        assertEquals(0, low[2]);
+        final byte[] high = F91KeplerProtocol.radioSchedule(true, 5000, 420);
+        assertEquals((byte) (1439 & 0xFF), high[1]);
+        assertEquals((byte) (1439 >> 8), high[2]);
+    }
+
+    @Test
+    public void minutesFromHhMm_parsesWhatTheTimePickerStores() {
+        assertEquals(0, F91KeplerProtocol.minutesFromHhMm("00:00", -1));
+        assertEquals(23 * 60, F91KeplerProtocol.minutesFromHhMm("23:00", -1));
+        assertEquals(7 * 60 + 30, F91KeplerProtocol.minutesFromHhMm("07:30", -1));
+        assertEquals(1439, F91KeplerProtocol.minutesFromHhMm("23:59", -1));
+    }
+
+    /** Garbage falls back to the default rather than to midnight -- a corrupted
+     *  preference must not silence the radio at an arbitrary hour. */
+    @Test
+    public void minutesFromHhMm_fallsBackOnGarbage() {
+        assertEquals(-1, F91KeplerProtocol.minutesFromHhMm(null, -1));
+        assertEquals(-1, F91KeplerProtocol.minutesFromHhMm("", -1));
+        assertEquals(-1, F91KeplerProtocol.minutesFromHhMm("23", -1));
+        assertEquals(-1, F91KeplerProtocol.minutesFromHhMm("24:00", -1));
+        assertEquals(-1, F91KeplerProtocol.minutesFromHhMm("12:60", -1));
+        assertEquals(-1, F91KeplerProtocol.minutesFromHhMm("ab:cd", -1));
+    }
+
     @Test
     public void imageControlMatches_onlyAcceptsAValidMatchingChecksum() {
         assertTrue(F91KeplerProtocol.imageControlMatches(new byte[]{1, 0x5A}, (byte) 0x5A));

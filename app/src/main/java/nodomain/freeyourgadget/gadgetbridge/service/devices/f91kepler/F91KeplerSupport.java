@@ -72,7 +72,7 @@ import nodomain.freeyourgadget.gadgetbridge.service.btle.profiles.deviceinfo.Dev
  *   <li>{@link #onFindDevice} → flash the "FIND" alert on the watch,
  *       {@link #onReset} → reboot</li>
  *   <li>{@link #onSendConfiguration} → 12/24h time mode, DST flag, mode order,
- *       display brightness, image upload</li>
+ *       display brightness, sleep window, image upload</li>
  * </ul>
  */
 public class F91KeplerSupport extends AbstractBTLESingleDeviceSupport {
@@ -155,6 +155,11 @@ public class F91KeplerSupport extends AbstractBTLESingleDeviceSupport {
         }
         addTimeMode(builder);
         addDst(builder);
+        // The sleep window is re-pushed on every connect (issue #213): a
+        // reflashed watch or a wiped SNV would otherwise spend the night
+        // reachable when it was asked to be quiet, and the user would have to
+        // notice and toggle the setting to fix it.
+        addRadioSchedule(builder);
         deviceInfoProfile.requestDeviceInfo(builder);
         builder.setDeviceState(GBDevice.State.INITIALIZED);
         batteryInfoProfile.requestBatteryInfo(builder);
@@ -684,6 +689,14 @@ public class F91KeplerSupport extends AbstractBTLESingleDeviceSupport {
                 builder.queue();
                 break;
             }
+            case F91KeplerConstants.PREF_SLEEP_ENABLED:
+            case F91KeplerConstants.PREF_SLEEP_START:
+            case F91KeplerConstants.PREF_SLEEP_END: {
+                final TransactionBuilder builder = createTransactionBuilder("set sleep window");
+                addRadioSchedule(builder);
+                builder.queue();
+                break;
+            }
             case F91KeplerConstants.PREF_IMAGE_UPLOAD: {
                 // The activity has already stored the packed frame; this is just
                 // "send it now". Counts as the first of the two attempts.
@@ -742,6 +755,30 @@ public class F91KeplerSupport extends AbstractBTLESingleDeviceSupport {
                                  F91KeplerConstants.BRIGHTNESS_DEFAULT);
         builder.write(F91KeplerConstants.UUID_CHAR_BRIGHTNESS,
                       F91KeplerProtocol.brightness(step));
+    }
+
+    /**
+     * Write the scheduled radio-off window to B2F7 (issue #213).
+     *
+     * Re-pushed on connect as well as on change, which the issue asks for
+     * explicitly: a watch that was reflashed or had its SNV wiped gets its sleep
+     * window back without the user thinking about it. The write is cheap (5
+     * bytes) and the watch ignores a schedule identical to the one it holds.
+     *
+     * The times are XTimePreference values, i.e. "HH:mm" strings, converted to
+     * LOCAL minutes since midnight -- which is what the watch compares against
+     * its own clock. Nothing here needs the current time.
+     */
+    private void addRadioSchedule(final TransactionBuilder builder) {
+        final SharedPreferences prefs =
+                GBApplication.getDeviceSpecificSharedPrefs(getDevice().getAddress());
+        final boolean enabled = prefs.getBoolean(F91KeplerConstants.PREF_SLEEP_ENABLED, false);
+        final int start = F91KeplerProtocol.minutesFromHhMm(
+                prefs.getString(F91KeplerConstants.PREF_SLEEP_START, "23:00"), 23 * 60);
+        final int end = F91KeplerProtocol.minutesFromHhMm(
+                prefs.getString(F91KeplerConstants.PREF_SLEEP_END, "07:00"), 7 * 60);
+        builder.write(F91KeplerConstants.UUID_CHAR_RADIO_SCHED,
+                      F91KeplerProtocol.radioSchedule(enabled, start, end));
     }
 
     /**
