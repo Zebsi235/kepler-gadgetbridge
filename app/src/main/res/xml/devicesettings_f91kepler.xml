@@ -3,6 +3,32 @@
     xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto">
 
+    <PreferenceCategory
+        android:key="f91_pref_header_alerts"
+        android:title="@string/f91_pref_header_alerts">
+
+        <SwitchPreferenceCompat
+            android:defaultValue="true"
+            android:key="f91_alert_timer"
+            android:summary="@string/f91_pref_summary_alert_timer"
+            android:title="@string/f91_pref_title_alert_timer" />
+
+        <SwitchPreferenceCompat
+            android:defaultValue="true"
+            android:key="f91_alert_alarm"
+            android:summary="@string/f91_pref_summary_alert_alarm"
+            android:title="@string/f91_pref_title_alert_alarm" />
+
+        <ListPreference
+            android:defaultValue="ring"
+            android:entries="@array/f91_alert_mode"
+            android:entryValues="@array/f91_alert_mode_values"
+            android:key="f91_alert_mode"
+            android:title="@string/f91_pref_title_alert_mode"
+            app:useSimpleSummaryProvider="true" />
+
+    </PreferenceCategory>
+
     <SwitchPreferenceCompat
         android:defaultValue="false"
         android:key="f91_dst"

@@ -209,6 +209,29 @@ final class F91KeplerProtocol {
         }
     }
 
+    /**
+     * Decode an AlertEvent notification byte (Alert Service, D4F1) into the
+     * find-phone event that actually raises the alert on this phone. Issue #209.
+     *
+     * <p>{@code vibrateOnly} selects between the two ways of getting the user's
+     * attention: START rings, START_VIBRATE only vibrates. Both are existing
+     * upstream behaviours, so no new event type is needed.
+     *
+     * <p>Returns {@link GBDeviceEventFindPhone.Event#UNKNOWN} for an unknown
+     * byte, so a future firmware event cannot make an old app ring for something
+     * it does not understand.
+     */
+    static GBDeviceEventFindPhone.Event alertEvent(final byte ev, final boolean vibrateOnly) {
+        switch (ev) {
+            case F91KeplerConstants.ALERT_EVENT_TIMER:
+            case F91KeplerConstants.ALERT_EVENT_ALARM:
+                return vibrateOnly ? GBDeviceEventFindPhone.Event.START_VIBRATE
+                                   : GBDeviceEventFindPhone.Event.START;
+            default:
+                return GBDeviceEventFindPhone.Event.UNKNOWN;
+        }
+    }
+
     /** Displayed widths the watch truncates to; we pre-truncate to keep the
      *  write within the firmware's NotificationEntry max (3 + app + sender). */
     private static final int NOTIF_APP_MAX = 11;

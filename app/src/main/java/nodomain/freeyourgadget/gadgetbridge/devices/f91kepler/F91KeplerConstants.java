@@ -86,6 +86,23 @@ public final class F91KeplerConstants {
     public static final byte FIND_PHONE_CMD_RING = 0x00;
     public static final byte FIND_PHONE_CMD_STOP = 0x01;
 
+    // Alert Service (firmware v2.23.0, issue #209): a single notify-only
+    // AlertEvent char. The watch pushes it when its TIMER expires or its ALARM
+    // fires, so this phone can ring/vibrate as a backup -- the watch's alarm is
+    // visual-only (no buzzer, no motor), so an alert nobody is looking at is
+    // otherwise missed entirely.
+    //
+    // Deliberately NOT a reuse of the Find Phone ring: GBDeviceEventFindPhone
+    // has a fixed meaning and UX, and reusing it would make an alarm
+    // indistinguishable from a find-my-watch ring, with no way to offer the
+    // per-event toggles below.
+    public static final UUID UUID_SERVICE_ALERT = base("D4F0");
+    public static final UUID UUID_CHAR_ALERT_EVENT = base("D4F1");
+
+    /** AlertEvent byte values, 1:1 with the firmware's f91_alert.h. */
+    public static final byte ALERT_EVENT_TIMER = 0x00;
+    public static final byte ALERT_EVENT_ALARM = 0x01;
+
     // UI Config Service (firmware P7): a single ModeOrder char carrying the
     // enabled set + display order of the watch's modes as a 1..10 byte array of
     // mode ids (F91_UI_CONFIG_MAX_MODES, raised to 10 in firmware v2.16.0).
@@ -176,6 +193,12 @@ public final class F91KeplerConstants {
     public static final int CONTACT_NAME_MAX_BYTES = 20;
 
     // Device-specific preference keys (see res/xml/devicesettings_f91kepler.xml).
+    /** Ring/vibrate this phone when the watch's TIMER expires (issue #209). */
+    public static final String PREF_ALERT_TIMER = "f91_alert_timer";
+    /** Ring/vibrate this phone when the watch's ALARM fires (issue #209). */
+    public static final String PREF_ALERT_ALARM = "f91_alert_alarm";
+    /** How to alert: "ring" or "vibrate". */
+    public static final String PREF_ALERT_MODE = "f91_alert_mode";
     public static final String PREF_DST = "f91_dst";
     public static final String PREF_NOTIFICATION_POPUP = "f91_notification_popup";
 

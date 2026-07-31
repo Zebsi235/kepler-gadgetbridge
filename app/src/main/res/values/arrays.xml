@@ -5,6 +5,14 @@
     </string-array>
 
     <!-- F91 Kepler: per-mode display position (Off, or 1..9). -->
+    <string-array name="f91_alert_mode">
+        <item>Ring</item>
+        <item>Vibrate only</item>
+    </string-array>
+    <string-array name="f91_alert_mode_values" translatable="false">
+        <item>ring</item>
+        <item>vibrate</item>
+    </string-array>
     <string-array name="f91_mode_position">
         <item>@string/f91_mode_position_off</item>
         <item>1</item>
