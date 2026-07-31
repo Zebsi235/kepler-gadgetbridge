@@ -10,7 +10,7 @@
         android:title="@string/f91_pref_title_dst" />
 
     <SwitchPreferenceCompat
-        android:defaultValue="false"
+        android:defaultValue="true"
         android:key="f91_notification_popup"
         android:summary="@string/f91_pref_summary_notification_popup"
         android:title="@string/f91_pref_title_notification_popup" />
