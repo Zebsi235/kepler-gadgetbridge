@@ -20,9 +20,9 @@ import java.util.UUID;
 
 /**
  * GATT contract for the F91 Kepler watch (custom Casio F-91W replacement,
- * CC2640R2F, firmware v1.1.0). Pinned 1:1 to the firmware sources under
- * {@code Firmware/f91_kepler_app/PROFILES/} and mirrored by the WatchSim
- * peer ({@code WatchSim/Sources/WatchSim/F91Protocol.swift}). All multi-byte
+ * CC2640R2F, firmware v3.0.0). Pinned to the firmware sources under
+ * {@code Firmware/f91_kepler_app/PROFILES/}; the retired WatchSim peer
+ * ({@code archive/WatchSim/}) no longer tracks this surface. All multi-byte
  * values are little-endian.
  */
 public final class F91KeplerConstants {
@@ -53,8 +53,9 @@ public final class F91KeplerConstants {
     public static final UUID UUID_CHAR_ALARM_TIME = base("B2F5");
     public static final UUID UUID_CHAR_ALARM_ENABLED = base("B2F6");
 
-    // Device Control Service: command (W) + diagnostics (R, 22 bytes as of
-    // firmware v2.17.1 -- the block grows by appending, so parse by offset).
+    // Device Control Service: command (W) + diagnostics (R, 28 bytes as of
+    // firmware v3.0.0 -- the block grows by appending, so parse by offset).
+    // Layout and per-byte meaning: f91_device_control_service.h/.c.
     public static final UUID UUID_SERVICE_DEVICE_CONTROL = base("C2F0");
     public static final UUID UUID_CHAR_DEVICE_COMMAND = base("C2F1");
     public static final UUID UUID_CHAR_DIAGNOSTICS = base("C2F2");
@@ -220,6 +221,10 @@ public final class F91KeplerConstants {
     public static final byte CMD_DISPLAY_TEST_TEXT = 0x13;
     public static final byte CMD_FIND_ON = 0x14;   // flash the "FIND" alert on the watch (find my watch)
     public static final byte CMD_FIND_OFF = 0x15;  // stop the flashing alert
+    // Erases every bond and reboots (factory reset). Firmware-only: deliberately
+    // not wired to any Gadgetbridge action, since the phone losing its own bond
+    // silently would look like a broken watch.
+    public static final byte CMD_CLEAR_BONDS = 0x16;
 
     // Notification bar bitmask bits (f91_notification.h).
     public static final int BIT_EMAIL = 0x01;
