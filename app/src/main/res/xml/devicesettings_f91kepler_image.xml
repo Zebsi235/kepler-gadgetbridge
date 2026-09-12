@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<androidx.preference.PreferenceScreen
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto">
+
+    <!-- Image upload (Image Service A3F0). Only included by F91KeplerCoordinator when the watch's firmware is
+         2.16.0 or newer (or unknown) (see F91KeplerFirmware). -->
+    <PreferenceCategory
+        android:key="f91_pref_category_image"
+        android:title="@string/f91_pref_header_image">
+
+        <!-- Opened by F91KeplerSettingsCustomizer (no <intent>: the activity needs
+             the GBDevice, which only the customizer can hand it). -->
+        <Preference
+            android:key="f91_image_upload"
+            android:summary="@string/f91_pref_summary_image"
+            android:title="@string/f91_pref_title_image" />
+
+    </PreferenceCategory>
+
+</androidx.preference.PreferenceScreen>

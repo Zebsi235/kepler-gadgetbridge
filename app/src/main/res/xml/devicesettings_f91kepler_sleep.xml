@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="utf-8"?>
+<androidx.preference.PreferenceScreen
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto">
+
+    <!-- Radio-off windows (Clock Service B2F7, issue #213). Only included by F91KeplerCoordinator when the watch's firmware is
+         2.26.0 or newer (or unknown) (see F91KeplerFirmware). -->
+    <PreferenceCategory
+        android:key="f91_pref_category_sleep"
+        android:title="@string/f91_pref_header_sleep">
+
+        <Preference
+            android:selectable="false"
+            android:summary="@string/f91_pref_summary_sleep" />
+
+        <SwitchPreferenceCompat
+            android:defaultValue="false"
+            android:key="f91_sleep_enabled"
+            android:title="@string/f91_pref_title_sleep_enabled" />
+
+        <nodomain.freeyourgadget.gadgetbridge.util.XTimePreference
+            android:defaultValue="23:00"
+            android:dependency="f91_sleep_enabled"
+            android:icon="@drawable/ic_access_time"
+            android:key="f91_sleep_start"
+            android:title="@string/f91_pref_title_sleep_start" />
+
+        <nodomain.freeyourgadget.gadgetbridge.util.XTimePreference
+            android:defaultValue="07:00"
+            android:dependency="f91_sleep_enabled"
+            android:icon="@drawable/ic_access_time"
+            android:key="f91_sleep_end"
+            android:title="@string/f91_pref_title_sleep_end" />
+
+    </PreferenceCategory>
+
+</androidx.preference.PreferenceScreen>

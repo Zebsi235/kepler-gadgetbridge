@@ -1,0 +1,90 @@
+<?xml version="1.0" encoding="utf-8"?>
+<androidx.preference.PreferenceScreen
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto">
+
+    <!-- Mode order with all ten screens (UI Config F2F1). Only included by F91KeplerCoordinator when the watch's firmware is
+         2.16.0 or newer (or unknown) (see F91KeplerFirmware). -->
+    <PreferenceCategory
+        android:key="f91_pref_category_modes"
+        android:title="@string/f91_pref_header_modes">
+
+        <Preference
+            android:selectable="false"
+            android:summary="@string/f91_pref_summary_modes" />
+
+        <ListPreference
+            android:defaultValue="1"
+            android:entries="@array/f91_mode_position"
+            android:entryValues="@array/f91_mode_position_values"
+            android:key="f91_mode_pos_notif"
+            android:title="@string/f91_pref_title_mode_notif"
+            app:useSimpleSummaryProvider="true" />
+
+        <ListPreference
+            android:defaultValue="2"
+            android:entries="@array/f91_mode_position"
+            android:entryValues="@array/f91_mode_position_values"
+            android:key="f91_mode_pos_timer"
+            android:title="@string/f91_pref_title_mode_timer"
+            app:useSimpleSummaryProvider="true" />
+
+        <ListPreference
+            android:defaultValue="3"
+            android:entries="@array/f91_mode_position"
+            android:entryValues="@array/f91_mode_position_values"
+            android:key="f91_mode_pos_music"
+            android:title="@string/f91_pref_title_mode_music"
+            app:useSimpleSummaryProvider="true" />
+
+        <ListPreference
+            android:defaultValue="4"
+            android:entries="@array/f91_mode_position"
+            android:entryValues="@array/f91_mode_position_values"
+            android:key="f91_mode_pos_stopwatch"
+            android:title="@string/f91_pref_title_mode_stopwatch"
+            app:useSimpleSummaryProvider="true" />
+
+        <ListPreference
+            android:defaultValue="5"
+            android:entries="@array/f91_mode_position"
+            android:entryValues="@array/f91_mode_position_values"
+            android:key="f91_mode_pos_info"
+            android:title="@string/f91_pref_title_mode_info"
+            app:useSimpleSummaryProvider="true" />
+
+        <ListPreference
+            android:defaultValue="6"
+            android:entries="@array/f91_mode_position"
+            android:entryValues="@array/f91_mode_position_values"
+            android:key="f91_mode_pos_flashlight"
+            android:title="@string/f91_pref_title_mode_flashlight"
+            app:useSimpleSummaryProvider="true" />
+
+        <ListPreference
+            android:defaultValue="7"
+            android:entries="@array/f91_mode_position"
+            android:entryValues="@array/f91_mode_position_values"
+            android:key="f91_mode_pos_findphone"
+            android:title="@string/f91_pref_title_mode_findphone"
+            app:useSimpleSummaryProvider="true" />
+
+        <ListPreference
+            android:defaultValue="8"
+            android:entries="@array/f91_mode_position"
+            android:entryValues="@array/f91_mode_position_values"
+            android:key="f91_mode_pos_ble"
+            android:title="@string/f91_pref_title_mode_ble"
+            app:useSimpleSummaryProvider="true" />
+
+        <ListPreference
+            android:defaultValue="9"
+            android:entries="@array/f91_mode_position"
+            android:entryValues="@array/f91_mode_position_values"
+            android:key="f91_mode_pos_image"
+            android:title="@string/f91_pref_title_mode_image"
+            app:useSimpleSummaryProvider="true" />
+
+    </PreferenceCategory>
+
+</androidx.preference.PreferenceScreen>

@@ -18,6 +18,8 @@ package nodomain.freeyourgadget.gadgetbridge.devices.f91kepler;
 
 import androidx.annotation.NonNull;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.regex.Pattern;
 
 import nodomain.freeyourgadget.gadgetbridge.R;
@@ -91,10 +93,35 @@ public class F91KeplerCoordinator extends AbstractBLEDeviceCoordinator {
 
     @Override
     public int[] getSupportedDeviceSpecificSettings(final GBDevice device) {
-        return new int[]{
-                R.xml.devicesettings_timeformat,
-                R.xml.devicesettings_f91kepler,
-        };
+        // Offer only what this watch's firmware can act on. Each version-dependent
+        // group lives in its own XML so it can be left out; a write to a
+        // characteristic the firmware does not have is silently dropped by
+        // TransactionBuilder, which showed the user a setting that never took.
+        // Unknown version (never connected) -> everything, see F91KeplerFirmware.
+        final String fw = device.getFirmwareVersion();
+        final List<Integer> xml = new ArrayList<>();
+        xml.add(R.xml.devicesettings_timeformat);
+        if (!F91KeplerFirmware.knownBelow(fw, F91KeplerFirmware.MIN_ALERTS)) {
+            xml.add(R.xml.devicesettings_f91kepler_alerts);
+        }
+        if (!F91KeplerFirmware.knownBelow(fw, F91KeplerFirmware.MIN_BRIGHTNESS)) {
+            xml.add(R.xml.devicesettings_f91kepler_brightness);
+        }
+        xml.add(R.xml.devicesettings_f91kepler);
+        if (!F91KeplerFirmware.knownBelow(fw, F91KeplerFirmware.MIN_RADIO_SCHEDULE)) {
+            xml.add(R.xml.devicesettings_f91kepler_sleep);
+        }
+        if (!F91KeplerFirmware.knownBelow(fw, F91KeplerFirmware.MIN_MODE_ORDER_10)) {
+            xml.add(R.xml.devicesettings_f91kepler_modes);
+        }
+        if (!F91KeplerFirmware.knownBelow(fw, F91KeplerFirmware.MIN_IMAGE)) {
+            xml.add(R.xml.devicesettings_f91kepler_image);
+        }
+        final int[] out = new int[xml.size()];
+        for (int i = 0; i < out.length; i++) {
+            out[i] = xml.get(i);
+        }
+        return out;
     }
 
     @Override

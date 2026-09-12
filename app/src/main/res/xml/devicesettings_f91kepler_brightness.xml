@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<androidx.preference.PreferenceScreen
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto">
+
+    <!-- Display brightness (UI Config F2F2, issue #211). Only included by F91KeplerCoordinator when the watch's firmware is
+         2.25.0 or newer (or unknown) (see F91KeplerFirmware). -->
+    <ListPreference
+        android:defaultValue="2"
+        android:entries="@array/f91_brightness"
+        android:entryValues="@array/f91_brightness_values"
+        android:icon="@drawable/ic_brightness_2"
+        android:key="f91_brightness"
+        android:title="@string/f91_pref_title_brightness"
+        app:useSimpleSummaryProvider="true" />
+
+</androidx.preference.PreferenceScreen>

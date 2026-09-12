@@ -221,9 +221,11 @@ public final class F91KeplerConstants {
     public static final byte CMD_DISPLAY_TEST_TEXT = 0x13;
     public static final byte CMD_FIND_ON = 0x14;   // flash the "FIND" alert on the watch (find my watch)
     public static final byte CMD_FIND_OFF = 0x15;  // stop the flashing alert
-    // Erases every bond and reboots (factory reset). Firmware-only: deliberately
-    // not wired to any Gadgetbridge action, since the phone losing its own bond
-    // silently would look like a broken watch.
+    // Erases every bond and reboots (factory reset). Reached only through
+    // Gadgetbridge's Debug screen "Factory reset" button (onReset with
+    // RESET_FLAGS_FACTORY_RESET); never from a normal user path, because the
+    // phone keeps a bond the watch no longer has and must forget it in Android's
+    // Bluetooth settings before it can pair again.
     public static final byte CMD_CLEAR_BONDS = 0x16;
 
     // Notification bar bitmask bits (f91_notification.h).
@@ -242,7 +244,22 @@ public final class F91KeplerConstants {
     public static final String PREF_ALERT_ALARM = "f91_alert_alarm";
     /** How to alert: "ring" or "vibrate". */
     public static final String PREF_ALERT_MODE = "f91_alert_mode";
+    /**
+     * Retired 2026-09-12 -- no longer in any settings XML. The time zone the app
+     * writes to B2F2 is Java's getOffset(), which already includes summer time,
+     * and the firmware adds a further hour whenever B2F4 is 1: with this switch on
+     * the face ran one hour ahead. The app now always writes DST=0. Kept so an
+     * old stored value can be recognised, never read for behaviour.
+     */
     public static final String PREF_DST = "f91_dst";
+    /**
+     * Set when the brightness step was changed while the watch was away, so the
+     * next connect (once the firmware version is known to have F2F2) pushes it.
+     * Brightness is NOT re-pushed unconditionally like the sleep window: SW3 on the
+     * watch's Flashlight screen also changes it, and a blind re-push on every
+     * connect would undo that.
+     */
+    public static final String PREF_BRIGHTNESS_DIRTY = "f91_brightness_dirty";
     public static final String PREF_NOTIFICATION_POPUP = "f91_notification_popup";
 
     /**
