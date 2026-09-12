@@ -32,7 +32,8 @@ human reviews the PR; the release is cut after merge (see the last section).
   - `app/src/main/java/nodomain/freeyourgadget/gadgetbridge/devices/f91kepler/**`
   - `app/src/main/java/nodomain/freeyourgadget/gadgetbridge/service/devices/f91kepler/**`
   - `app/src/test/java/nodomain/freeyourgadget/gadgetbridge/devices/f91kepler/**`
-  - `app/src/main/res/drawable/ic_device_f91kepler*`, `app/src/main/res/xml/devicesettings_f91kepler_*`
+  - `app/src/main/res/xml/devicesettings_f91kepler*.xml` (today: `devicesettings_f91kepler.xml` — the old glob had a trailing `_` and matched nothing)
+  - `app/src/main/res/layout/activity_f91kepler_image.xml` (the image-upload activity)
   - the `F91_KEPLER(...)` entry in `app/src/main/java/.../model/DeviceType.java`
   - the `f91kepler` entries in `app/src/main/res/values/strings.xml` and `arrays.xml`
 

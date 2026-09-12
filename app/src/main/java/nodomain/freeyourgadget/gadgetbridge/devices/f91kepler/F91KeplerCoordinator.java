@@ -29,10 +29,12 @@ import nodomain.freeyourgadget.gadgetbridge.service.devices.f91kepler.F91KeplerS
 
 /**
  * Coordinator for the F91 Kepler watch — a custom Casio F-91W internal
- * replacement (CC2640R2F, firmware v1.1.0) that advertises as "F91 Kepler" and
- * exposes its own Notification / Clock / Device-Control GATT services plus the
- * standard Battery Service. The sensitive characteristics require an encrypted
- * link; firmware v2.0.x uses legacy LE "Just Works" bonding (no PIN).
+ * replacement (CC2640R2F, firmware v3.0.0) that advertises as "F91 Kepler" and
+ * exposes nine custom GATT services -- Notification, Image, Clock, Device
+ * Control, Music, Find Phone, Alert, Weather and UI Config -- plus the standard
+ * Battery and Device Information services. The sensitive characteristics
+ * require an encrypted link; the watch uses legacy LE "Just Works" bonding
+ * (no PIN).
  */
 public class F91KeplerCoordinator extends AbstractBLEDeviceCoordinator {
     @Override
