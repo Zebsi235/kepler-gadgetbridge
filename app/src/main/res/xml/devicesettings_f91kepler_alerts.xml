@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="utf-8"?>
+<androidx.preference.PreferenceScreen
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto">
+
+    <!-- Timer/alarm alert relay (Alert Service D4F1, issue #209). Only included by F91KeplerCoordinator when the watch's firmware is
+         2.23.0 or newer (or unknown) (see F91KeplerFirmware). -->
+    <PreferenceCategory
+        android:key="f91_pref_header_alerts"
+        android:title="@string/f91_pref_header_alerts">
+
+        <SwitchPreferenceCompat
+            android:defaultValue="true"
+            android:key="f91_alert_timer"
+            android:summary="@string/f91_pref_summary_alert_timer"
+            android:title="@string/f91_pref_title_alert_timer" />
+
+        <SwitchPreferenceCompat
+            android:defaultValue="true"
+            android:key="f91_alert_alarm"
+            android:summary="@string/f91_pref_summary_alert_alarm"
+            android:title="@string/f91_pref_title_alert_alarm" />
+
+        <ListPreference
+            android:defaultValue="ring"
+            android:entries="@array/f91_alert_mode"
+            android:entryValues="@array/f91_alert_mode_values"
+            android:key="f91_alert_mode"
+            android:title="@string/f91_pref_title_alert_mode"
+            app:useSimpleSummaryProvider="true" />
+
+    </PreferenceCategory>
+
+</androidx.preference.PreferenceScreen>

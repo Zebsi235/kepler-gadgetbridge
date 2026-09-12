@@ -40,6 +40,7 @@ import nodomain.freeyourgadget.gadgetbridge.deviceevents.GBDeviceEventFindPhone;
 import nodomain.freeyourgadget.gadgetbridge.deviceevents.GBDeviceEventMusicControl;
 import nodomain.freeyourgadget.gadgetbridge.deviceevents.GBDeviceEventVersionInfo;
 import nodomain.freeyourgadget.gadgetbridge.devices.f91kepler.F91KeplerConstants;
+import nodomain.freeyourgadget.gadgetbridge.devices.f91kepler.F91KeplerFirmware;
 import nodomain.freeyourgadget.gadgetbridge.devices.f91kepler.F91KeplerImageCodec;
 import nodomain.freeyourgadget.gadgetbridge.devices.f91kepler.F91KeplerImageStore;
 import nodomain.freeyourgadget.gadgetbridge.impl.GBDevice;
@@ -51,6 +52,7 @@ import nodomain.freeyourgadget.gadgetbridge.model.WeatherSpec;
 import nodomain.freeyourgadget.gadgetbridge.model.weather.Weather;
 import nodomain.freeyourgadget.gadgetbridge.util.AlarmUtils;
 import nodomain.freeyourgadget.gadgetbridge.util.GB;
+import nodomain.freeyourgadget.gadgetbridge.service.serial.GBDeviceProtocol;
 import nodomain.freeyourgadget.gadgetbridge.service.btle.AbstractBTLESingleDeviceSupport;
 import nodomain.freeyourgadget.gadgetbridge.service.btle.GattService;
 import nodomain.freeyourgadget.gadgetbridge.service.btle.TransactionBuilder;
@@ -308,6 +310,41 @@ public class F91KeplerSupport extends AbstractBTLESingleDeviceSupport {
             versionCmd.fwVersion = fw;
         }
         handleGBDeviceEvent(versionCmd);
+        restorePhoneOwnedConfig(fw);
+    }
+
+    /**
+     * Once the firmware version is known for THIS connection, put back the
+     * settings that only the phone owns and that a reflash, SNV wipe or factory
+     * reset on the watch would have lost -- the same reasoning as the sleep
+     * window in initializeDevice, but gated on the version so an older firmware
+     * without the characteristic is never written to (an ATT error in the init
+     * transaction would abort it).
+     *
+     * Mode order: phone-owned, and the firmware skips the SNV write when the
+     * order is unchanged, so re-sending it on every connect costs nothing.
+     * Brightness: only if it was changed while the watch was away (dirty flag),
+     * because SW3 on the watch's Flashlight screen changes it too and a blind
+     * re-push would undo that.
+     */
+    private void restorePhoneOwnedConfig(final String fw) {
+        final SharedPreferences prefs =
+                GBApplication.getDeviceSpecificSharedPrefs(getDevice().getAddress());
+        final TransactionBuilder builder = createTransactionBuilder("restore phone-owned config");
+        boolean any = false;
+        if (F91KeplerFirmware.atLeast(fw, F91KeplerFirmware.MIN_MODE_ORDER_10)) {
+            addModeOrder(builder);
+            any = true;
+        }
+        if (prefs.getBoolean(F91KeplerConstants.PREF_BRIGHTNESS_DIRTY, false)
+                && F91KeplerFirmware.atLeast(fw, F91KeplerFirmware.MIN_BRIGHTNESS)) {
+            addBrightness(builder);
+            prefs.edit().putBoolean(F91KeplerConstants.PREF_BRIGHTNESS_DIRTY, false).apply();
+            any = true;
+        }
+        if (any) {
+            builder.queue();
+        }
     }
 
     // --- Time ---------------------------------------------------------------
@@ -334,9 +371,12 @@ public class F91KeplerSupport extends AbstractBTLESingleDeviceSupport {
     }
 
     private void addDst(final TransactionBuilder builder) {
-        final boolean dst = GBApplication.getDeviceSpecificSharedPrefs(getDevice().getAddress())
-                .getBoolean(F91KeplerConstants.PREF_DST, false);
-        builder.write(F91KeplerConstants.UUID_CHAR_DST, F91KeplerProtocol.dst(dst));
+        // Always 0. The offset written by addSetTime already includes summer time
+        // (TimeZone.getOffset), and the firmware adds one more hour on top when
+        // this flag is 1 -- the old user switch therefore put the face an hour
+        // ahead. Writing 0 on every connect also clears a stale 1 left by that
+        // switch. The iOS app does the same.
+        builder.write(F91KeplerConstants.UUID_CHAR_DST, F91KeplerProtocol.dst(false));
     }
 
     private boolean is24HourMode() {
@@ -573,8 +613,15 @@ public class F91KeplerSupport extends AbstractBTLESingleDeviceSupport {
 
     @Override
     public void onReset(final int flags) {
-        final TransactionBuilder builder = createTransactionBuilder("reset");
-        builder.write(F91KeplerConstants.UUID_CHAR_DEVICE_COMMAND, F91KeplerConstants.CMD_RESET);
+        // Debug screen: "Reboot" -> 0x01 deferred reset; "Factory reset" -> 0x16,
+        // which erases every bond on the watch and reboots. After 0x16 the phone
+        // still holds its side of the bond and must forget the watch in Android's
+        // Bluetooth settings before pairing again -- that is why the ordinary UI
+        // never offers it.
+        final boolean factory = (flags & GBDeviceProtocol.RESET_FLAGS_FACTORY_RESET) != 0;
+        final TransactionBuilder builder = createTransactionBuilder(factory ? "factory reset" : "reset");
+        builder.write(F91KeplerConstants.UUID_CHAR_DEVICE_COMMAND,
+                      factory ? F91KeplerConstants.CMD_CLEAR_BONDS : F91KeplerConstants.CMD_RESET);
         builder.queue();
     }
 
@@ -663,12 +710,6 @@ public class F91KeplerSupport extends AbstractBTLESingleDeviceSupport {
                 builder.queue();
                 break;
             }
-            case F91KeplerConstants.PREF_DST: {
-                final TransactionBuilder builder = createTransactionBuilder("set dst");
-                addDst(builder);
-                builder.queue();
-                break;
-            }
             case F91KeplerConstants.PREF_MODE_POS_NOTIF:
             case F91KeplerConstants.PREF_MODE_POS_TIMER:
             case F91KeplerConstants.PREF_MODE_POS_MUSIC:
@@ -684,6 +725,14 @@ public class F91KeplerSupport extends AbstractBTLESingleDeviceSupport {
                 break;
             }
             case F91KeplerConstants.PREF_BRIGHTNESS: {
+                if (!getDevice().isInitialized()) {
+                    // Nothing to write to: remember it and let handleDeviceInfo
+                    // push it on the next connect, once the firmware is known to
+                    // have F2F2. Without this the change was silently lost.
+                    GBApplication.getDeviceSpecificSharedPrefs(getDevice().getAddress())
+                            .edit().putBoolean(F91KeplerConstants.PREF_BRIGHTNESS_DIRTY, true).apply();
+                    break;
+                }
                 final TransactionBuilder builder = createTransactionBuilder("set brightness");
                 addBrightness(builder);
                 builder.queue();
@@ -720,6 +769,9 @@ public class F91KeplerSupport extends AbstractBTLESingleDeviceSupport {
      * Build the ModeOrder from the per-mode position prefs (Main is always first;
      * each optional mode's position 1..9 sets its slot, "0" = off) and write it
      * to the UI Config char. The watch validates, applies, and persists it.
+     * Sent on change and re-sent on every connect (restorePhoneOwnedConfig) so a
+     * reflashed or reset watch gets its order back; the firmware ignores an
+     * unchanged order without touching flash.
      * Defaults give the canonical order Notifications, Timer, Music, Stopwatch,
      * Info, Flashlight, Find Phone, Bluetooth, Image.
      */
@@ -741,12 +793,11 @@ public class F91KeplerSupport extends AbstractBTLESingleDeviceSupport {
 
     /**
      * Write the display brightness step to the UI Config Brightness char (issue
-     * #211). The watch applies it immediately and persists it in SNV, so -- like
-     * the mode order -- this is sent on a preference change only, not re-pushed
-     * on every connect. The tradeoff: a factory reset or an SNV wipe on the watch
-     * leaves this preference showing a value the watch no longer has, until it is
-     * changed once. Same hole the mode order has; re-pushing both on connect is
-     * the fix if it ever bites.
+     * #211). The watch applies it immediately and persists it in SNV. Sent on a
+     * preference change while connected; a change made while the watch is away
+     * sets PREF_BRIGHTNESS_DIRTY and is pushed by restorePhoneOwnedConfig on the
+     * next connect. Deliberately not re-pushed blindly on every connect: SW3 on
+     * the watch's Flashlight screen changes brightness too.
      */
     private void addBrightness(final TransactionBuilder builder) {
         final SharedPreferences prefs =
