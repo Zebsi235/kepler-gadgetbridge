@@ -39,6 +39,11 @@ jobs:
 
       - name: Set up Android SDK
         uses: android-actions/setup-android@v3
+        with:
+          # The action's default list includes the long-retired 'tools'
+          # package, which current runner SDKs no longer offer, and the step
+          # then fails. Everything else is installed in the next step.
+          packages: platform-tools
 
       - name: Install required SDK packages
         run: |
