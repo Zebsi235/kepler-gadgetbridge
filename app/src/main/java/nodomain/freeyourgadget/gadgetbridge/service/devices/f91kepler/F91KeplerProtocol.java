@@ -20,6 +20,12 @@ import java.io.ByteArrayOutputStream;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.nio.charset.StandardCharsets;
+import java.text.Normalizer;
+import java.util.ArrayList;
+import java.util.Calendar;
+import java.util.List;
+import java.util.Locale;
+import java.util.TimeZone;
 
 import nodomain.freeyourgadget.gadgetbridge.deviceevents.GBDeviceEventFindPhone;
 import nodomain.freeyourgadget.gadgetbridge.deviceevents.GBDeviceEventMusicControl;
@@ -275,23 +281,56 @@ final class F91KeplerProtocol {
                              F91KeplerConstants.MODE_IMAGE };
         final int[] pos = { posNotif, posTimer, posMusic, posStopwatch, posInfo,
                             posFlashlight, posFindphone, posBle, posImage };
-        final boolean[] used = new boolean[ids.length];
+        return modeOrder(ids, pos);
+    }
 
+    /**
+     * ModeOrder for any set of optional screens: {@code ids[i]} at position
+     * {@code pos[i]} (&lt;= 0 = off), given in canonical id order. Main first, then
+     * the enabled screens by position, ties by canonical order -- and at most
+     * {@link F91KeplerConstants#MODES_PER_CYCLE} ids in all. Firmware 3.1 has 14
+     * screens but cycles at most 10 and refuses a longer write (which would also
+     * abort the transaction it rode in), so the screens with the highest
+     * positions are left out; {@link #modeOrderDropped} names them.
+     */
+    static byte[] modeOrder(final byte[] ids, final int[] pos) {
+        final List<Integer> order = rankModes(ids, pos);
+        final int keep = Math.min(order.size(), F91KeplerConstants.MODES_PER_CYCLE - 1);
         final ByteArrayOutputStream out = new ByteArrayOutputStream();
         out.write(F91KeplerConstants.MODE_MAIN);
+        for (int k = 0; k < keep; k++) {
+            out.write(ids[order.get(k)]);
+        }
+        return out.toByteArray();
+    }
+
+    /** The screen ids {@link #modeOrder(byte[], int[])} leaves out for want of room. */
+    static List<Byte> modeOrderDropped(final byte[] ids, final int[] pos) {
+        final List<Integer> order = rankModes(ids, pos);
+        final List<Byte> dropped = new ArrayList<>();
+        for (int k = F91KeplerConstants.MODES_PER_CYCLE - 1; k < order.size(); k++) {
+            dropped.add(ids[order.get(k)]);
+        }
+        return dropped;
+    }
+
+    /** Indices of the enabled screens, best position first, ties by index. */
+    private static List<Integer> rankModes(final byte[] ids, final int[] pos) {
+        final boolean[] used = new boolean[ids.length];
+        final List<Integer> order = new ArrayList<>();
         for (int k = 0; k < ids.length; k++) {
             int best = -1;
             for (int i = 0; i < ids.length; i++) {
                 if (used[i] || pos[i] <= 0) continue;
-                if (best == -1 || pos[i] < pos[best] || (pos[i] == pos[best] && i < best)) {
+                if (best == -1 || pos[i] < pos[best]) {
                     best = i;
                 }
             }
             if (best == -1) break;
             used[best] = true;
-            out.write(ids[best]);
+            order.add(best);
         }
-        return out.toByteArray();
+        return order;
     }
 
     /**
@@ -402,5 +441,145 @@ final class F91KeplerProtocol {
      */
     static boolean imageControlMatches(final byte[] value, final byte xor8) {
         return value != null && value.length >= 2 && value[0] == 1 && value[1] == xor8;
+    }
+
+    // --- Firmware 3.1 ---------------------------------------------------------
+
+    /** UiOptions (F2F3): the bitmask as uint16 little-endian. */
+    static byte[] uiOptions(final int bits) {
+        return new byte[]{(byte) (bits & 0xFF), (byte) ((bits >> 8) & 0xFF)};
+    }
+
+    /**
+     * UiOptions bits from the settings. {@code lang} is the weekday-language
+     * preference: "de", "en", or "auto" -- German when the phone's language is.
+     * Only the four known bits are ever produced; the watch refuses any other.
+     */
+    static int uiOptionBits(final boolean weekday, final String lang, final Locale locale,
+                            final boolean quietText, final boolean hourlyChime) {
+        int bits = 0;
+        if (weekday) {
+            bits |= F91KeplerConstants.UIOPT_WEEKDAY;
+        }
+        final boolean german = "de".equals(lang)
+                || (!"en".equals(lang) && locale != null && "de".equals(locale.getLanguage()));
+        if (german) {
+            bits |= F91KeplerConstants.UIOPT_WEEKDAY_DE;
+        }
+        if (quietText) {
+            bits |= F91KeplerConstants.UIOPT_QUIET_TEXT;
+        }
+        if (hourlyChime) {
+            bits |= F91KeplerConstants.UIOPT_HOURLY_CHIME;
+        }
+        return bits;
+    }
+
+    /** Record (F2F4) frame: {@code [type][index][payload]}. */
+    static byte[] record(final byte type, final int index, final byte[] payload) {
+        final byte[] out = new byte[2 + payload.length];
+        out[0] = type;
+        out[1] = (byte) index;
+        System.arraycopy(payload, 0, out, 2, payload.length);
+        return out;
+    }
+
+    /**
+     * Alarm slot payload {@code [enabled][hh][mm][daymask]}, local time. The
+     * daymask is Gadgetbridge's own repetition mask -- Alarm.ALARM_MON = 1 ..
+     * ALARM_SUN = 64 is bit-for-bit the firmware's Monday = bit 0 -- and
+     * ALARM_ONCE (0) is the firmware's one-shot, which turns itself off as it
+     * fires. Out-of-range times are sent disabled at 00:00 rather than refused.
+     */
+    static byte[] alarmSlot(final boolean enabled, final int hh, final int mm, final int daymask) {
+        final boolean valid = hh >= 0 && hh < 24 && mm >= 0 && mm < 60;
+        return new byte[]{
+                (byte) (enabled && valid ? 1 : 0),
+                (byte) (valid ? hh : 0),
+                (byte) (valid ? mm : 0),
+                (byte) (daymask & 0x7F),
+        };
+    }
+
+    /**
+     * What the watch can show of a counter name: printable ASCII only (the
+     * watch refuses anything else), accents and umlauts transliterated rather
+     * than dropped, at most {@link F91KeplerConstants#COUNTER_NAME_MAX} chars.
+     */
+    static String sanitizeCounterName(final String name) {
+        if (name == null) {
+            return "";
+        }
+        final String t = name.trim()
+                .replace("ä", "ae").replace("ö", "oe").replace("ü", "ue")
+                .replace("Ä", "Ae").replace("Ö", "Oe").replace("Ü", "Ue")
+                .replace("ß", "ss");
+        final String plain = Normalizer.normalize(t, Normalizer.Form.NFD);
+        final StringBuilder out = new StringBuilder();
+        for (int i = 0; i < plain.length() && out.length() < F91KeplerConstants.COUNTER_NAME_MAX; i++) {
+            final char c = plain.charAt(i);
+            if (c >= 0x20 && c <= 0x7E) {
+                out.append(c);
+            }
+        }
+        return out.toString().trim();
+    }
+
+    /**
+     * Counter payload: KEEP the count (0xFFFF) and set the name. The count is
+     * the wearer's -- it is tapped on the watch -- so the phone never writes
+     * one. An empty name removes the counter (its page is then skipped).
+     */
+    static byte[] counterName(final String name) {
+        final byte[] n = sanitizeCounterName(name).getBytes(StandardCharsets.US_ASCII);
+        final byte[] out = new byte[2 + n.length];
+        out[0] = (byte) (F91KeplerConstants.COUNTER_KEEP_VALUE & 0xFF);
+        out[1] = (byte) ((F91KeplerConstants.COUNTER_KEEP_VALUE >> 8) & 0xFF);
+        System.arraycopy(n, 0, out, 2, n.length);
+        return out;
+    }
+
+    /** Forecast day payload {@code [condition 0..7][high i8][low i8]}, clamped. */
+    static byte[] forecastDay(final int cond, final int high, final int low) {
+        return new byte[]{
+                weatherCondition(cond)[0],
+                weatherTemperature(high)[0],
+                weatherTemperature(low)[0],
+        };
+    }
+
+    /** Kelvin (Gadgetbridge's weather unit) to the integer the watch shows. */
+    static int tempInUnit(final double kelvin, final boolean fahrenheit) {
+        final int celsius = (int) Math.round(kelvin - 273.15);
+        return fahrenheit ? (int) Math.round(celsius * 9.0 / 5.0 + 32.0) : celsius;
+    }
+
+    /** Sun payload {@code [rise u16 LE][set u16 LE]}, local minutes or 0xFFFF. */
+    static byte[] sunTimes(final int riseMin, final int setMin) {
+        return new byte[]{
+                (byte) (riseMin & 0xFF), (byte) ((riseMin >> 8) & 0xFF),
+                (byte) (setMin & 0xFF), (byte) ((setMin >> 8) & 0xFF),
+        };
+    }
+
+    /**
+     * Local minute of day of {@code epochSeconds} in {@code tz}, or
+     * {@link F91KeplerConstants#SUN_NONE} when the event is absent (0) or does
+     * not fall on {@code today}'s local date -- polar day or night, where
+     * weather providers report the next event days away.
+     */
+    static int sunMinute(final long epochSeconds, final Calendar today, final TimeZone tz) {
+        if (epochSeconds <= 0) {
+            return F91KeplerConstants.SUN_NONE;
+        }
+        final Calendar c = Calendar.getInstance(tz);
+        c.setTimeInMillis(epochSeconds * 1000L);
+        final Calendar d = (Calendar) today.clone();
+        d.setTimeZone(tz);
+        if (c.get(Calendar.YEAR) != d.get(Calendar.YEAR)
+                || c.get(Calendar.DAY_OF_YEAR) != d.get(Calendar.DAY_OF_YEAR)) {
+            return F91KeplerConstants.SUN_NONE;
+        }
+        return c.get(Calendar.HOUR_OF_DAY) * 60 + c.get(Calendar.MINUTE);
     }
 }

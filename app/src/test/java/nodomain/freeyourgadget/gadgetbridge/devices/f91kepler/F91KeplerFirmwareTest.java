@@ -75,4 +75,17 @@ public class F91KeplerFirmwareTest {
         assertFalse(F91KeplerFirmware.knownBelow("garbage", F91KeplerFirmware.MIN_BRIGHTNESS));
         assertFalse(F91KeplerFirmware.atLeast(null, F91KeplerFirmware.MIN_BRIGHTNESS));
     }
+
+    @Test
+    public void gatesTheWholeThreeOneBatchOnOneThreshold() {
+        assertTrue(F91KeplerFirmware.knownBelow("3.0.3-bl", F91KeplerFirmware.MIN_31));
+        assertTrue(F91KeplerFirmware.knownBelow("2.31.7", F91KeplerFirmware.MIN_31));
+        assertFalse(F91KeplerFirmware.knownBelow("3.1.0-bl", F91KeplerFirmware.MIN_31));
+        assertFalse(F91KeplerFirmware.knownBelow("3.1.1", F91KeplerFirmware.MIN_31));
+        assertFalse(F91KeplerFirmware.knownBelow("3.10.0", F91KeplerFirmware.MIN_31));
+        // unknown: shown (settings) but never written to (support uses atLeast)
+        assertFalse(F91KeplerFirmware.knownBelow(null, F91KeplerFirmware.MIN_31));
+        assertFalse(F91KeplerFirmware.atLeast(null, F91KeplerFirmware.MIN_31));
+        assertTrue(F91KeplerFirmware.atLeast("3.1.0-bl", F91KeplerFirmware.MIN_31));
+    }
 }

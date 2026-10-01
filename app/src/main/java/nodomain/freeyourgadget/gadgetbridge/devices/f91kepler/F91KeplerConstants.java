@@ -20,7 +20,7 @@ import java.util.UUID;
 
 /**
  * GATT contract for the F91 Kepler watch (custom Casio F-91W replacement,
- * CC2640R2F, firmware v3.0.0). Pinned to the firmware sources under
+ * CC2640R2F, firmware v3.1.0). Pinned to the firmware sources under
  * {@code Firmware/f91_kepler_app/PROFILES/}; the retired WatchSim peer
  * ({@code archive/WatchSim/}) no longer tracks this surface. All multi-byte
  * values are little-endian.
@@ -140,6 +140,41 @@ public final class F91KeplerConstants {
      */
     public static final UUID UUID_CHAR_RADIO_SCHED = base("B2F7");
 
+    /**
+     * UiOptions, encrypted read + write, uint16 LE bitmask of opt-in UI switches
+     * (firmware 3.1.0). Default all-off; the watch refuses a write with an
+     * unknown bit, so only the UIOPT_* bits below are ever set. Persisted on the
+     * watch, phone-owned: re-pushed on every 3.1 connect.
+     */
+    public static final UUID UUID_CHAR_UI_OPTIONS = base("F2F3");
+    public static final int UIOPT_WEEKDAY = 1;          // two weekday letters on the face
+    public static final int UIOPT_WEEKDAY_DE = 1 << 1;  // ... in German (MO DI MI ...)
+    public static final int UIOPT_QUIET_TEXT = 1 << 2;  // texts go into the icon strip, not a popup
+    public static final int UIOPT_HOURLY_CHIME = 1 << 3; // 1 s flash at the top of each hour
+
+    /**
+     * Record, encrypted read + write (firmware 3.1.0): one typed-record channel
+     * {@code [type][index][payload 0..16]} for the 3.1 data, so the batch costs
+     * two characteristics of BLE heap instead of one per feature. A write with
+     * no payload selects that record for the next read.
+     */
+    public static final UUID UUID_CHAR_RECORD = base("F2F4");
+    /** 5 slots, {@code [enabled][hh][mm][daymask Mon=bit0..Sun=bit6, 0=once]}, local time. */
+    public static final byte REC_ALARM = 0x01;
+    /** 3 counters, {@code [value u16 LE, 0xFFFF=keep][name 0..10 printable ASCII]}. */
+    public static final byte REC_COUNTER = 0x02;
+    /** Index 0, {@code [rise u16 LE][set u16 LE]} local minutes, 0xFFFF = none today. */
+    public static final byte REC_SUN = 0x03;
+    /** 7 days, index 0 = today, {@code [condition][high i8][low i8]} in the user's unit. */
+    public static final byte REC_FORECAST = 0x04;
+
+    public static final int ALARM_SLOTS_31 = 5;
+    public static final int COUNTERS = 3;
+    public static final int COUNTER_NAME_MAX = 10;
+    public static final int COUNTER_KEEP_VALUE = 0xFFFF;
+    public static final int FORECAST_DAYS = 7;
+    public static final int SUN_NONE = 0xFFFF;
+
     // Image Service (firmware v2.16.0): one full-screen 1-bit image, staged in
     // 19-byte chunks and latched by a checksummed commit. RAM-only on the watch,
     // so Gadgetbridge re-pushes it on reconnect (see F91KeplerImageStore).
@@ -179,6 +214,13 @@ public final class F91KeplerConstants {
     public static final byte MODE_FINDPHONE = 7;
     public static final byte MODE_BLE = 8;        // Bluetooth mode (fw v2.15.0+)
     public static final byte MODE_IMAGE = 9;      // Image mode (fw v2.16.0+)
+    // Firmware 3.1.0: opt-in screens, absent from the watch's default cycle.
+    public static final byte MODE_WEATHER = 10;   // 7-day forecast
+    public static final byte MODE_COUNTER0 = 11;  // named tally counters 1..3; a page
+    public static final byte MODE_COUNTER1 = 12;  // whose counter has no name is
+    public static final byte MODE_COUNTER2 = 13;  // skipped by the watch
+    /** Screens per cycle (SCR_MAX_ENABLED): Main + 9 optional. */
+    public static final int MODES_PER_CYCLE = 10;
 
     // Per-mode position preference keys (Watch-modes ordering). Value is "0"=off
     // or "1".."9" = display position; the watch order is Main, then the optional
@@ -193,6 +235,19 @@ public final class F91KeplerConstants {
     public static final String PREF_MODE_POS_FINDPHONE = "f91_mode_pos_findphone";
     public static final String PREF_MODE_POS_BLE = "f91_mode_pos_ble";
     public static final String PREF_MODE_POS_IMAGE = "f91_mode_pos_image";
+    public static final String PREF_MODE_POS_WEATHER = "f91_mode_pos_weather";     // fw 3.1
+    public static final String PREF_MODE_POS_COUNTER0 = "f91_mode_pos_counter0";   // fw 3.1
+    public static final String PREF_MODE_POS_COUNTER1 = "f91_mode_pos_counter1";   // fw 3.1
+    public static final String PREF_MODE_POS_COUNTER2 = "f91_mode_pos_counter2";   // fw 3.1
+
+    // Firmware 3.1 face and notification options (UiOptions bits).
+    public static final String PREF_WEEKDAY = "f91_weekday";
+    /** "auto" (German when the phone's language is German), "en" or "de". */
+    public static final String PREF_WEEKDAY_LANG = "f91_weekday_lang";
+    public static final String PREF_HOURLY_CHIME = "f91_hourly_chime";
+    public static final String PREF_QUIET_TEXT = "f91_quiet_text";
+    /** Counter names (fw 3.1); empty = counter not in use. */
+    public static final String PREF_COUNTER_NAME_PREFIX = "f91_counter_name_";
 
     /** Display brightness step, "0".."4" (issue #211). */
     public static final String PREF_BRIGHTNESS = "f91_brightness";

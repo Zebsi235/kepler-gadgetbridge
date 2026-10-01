@@ -56,6 +56,17 @@
         <item>9</item>
     </string-array>
 
+    <string-array name="f91_weekday_lang">
+        <item>@string/f91_weekday_lang_auto</item>
+        <item>@string/f91_weekday_lang_en</item>
+        <item>@string/f91_weekday_lang_de</item>
+    </string-array>
+    <string-array name="f91_weekday_lang_values" translatable="false">
+        <item>auto</item>
+        <item>en</item>
+        <item>de</item>
+    </string-array>
+
     <string-array name="pref_theme_options">
         <item>@string/pref_theme_system</item>
         <item>@string/pref_theme_light</item>

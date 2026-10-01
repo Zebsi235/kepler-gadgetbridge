@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="utf-8"?>
+<androidx.preference.PreferenceScreen
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto">
+    <!-- Firmware 3.1 options (UiOptions F2F3). Only included by
+         F91KeplerCoordinator when the watch's firmware is 3.1.0 or newer (or
+         unknown) (see F91KeplerFirmware.MIN_31). Must come after
+         devicesettings_f91kepler.xml: the quiet switch depends on its popup
+         switch. -->
+    <SwitchPreferenceCompat
+        android:defaultValue="false"
+        android:dependency="f91_notification_popup"
+        android:key="f91_quiet_text"
+        android:summary="@string/f91_pref_summary_quiet_text"
+        android:title="@string/f91_pref_title_quiet_text" />
+    <PreferenceCategory
+        android:key="f91_pref_category_face"
+        android:title="@string/f91_pref_header_face">
+        <SwitchPreferenceCompat
+            android:defaultValue="false"
+            android:key="f91_weekday"
+            android:summary="@string/f91_pref_summary_weekday"
+            android:title="@string/f91_pref_title_weekday" />
+        <ListPreference
+            android:defaultValue="auto"
+            android:dependency="f91_weekday"
+            android:entries="@array/f91_weekday_lang"
+            android:entryValues="@array/f91_weekday_lang_values"
+            android:key="f91_weekday_lang"
+            android:title="@string/f91_pref_title_weekday_lang"
+            app:useSimpleSummaryProvider="true" />
+        <SwitchPreferenceCompat
+            android:defaultValue="false"
+            android:key="f91_hourly_chime"
+            android:summary="@string/f91_pref_summary_hourly_chime"
+            android:title="@string/f91_pref_title_hourly_chime" />
+    </PreferenceCategory>
+</androidx.preference.PreferenceScreen>

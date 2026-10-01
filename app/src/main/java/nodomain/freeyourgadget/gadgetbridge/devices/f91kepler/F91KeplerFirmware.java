@@ -55,6 +55,13 @@ public final class F91KeplerFirmware {
     public static final int[] MIN_BRIGHTNESS = {2, 25, 0};
     /** Clock Service RadioSchedule B2F7 (radio-off windows), 2.26.0, issue #213. */
     public static final int[] MIN_RADIO_SCHEDULE = {2, 26, 0};
+    /**
+     * Feature batch 3.1, all at once: UiOptions F2F3 (weekday, quiet texts,
+     * hourly chime), Record F2F4 (5 alarm slots, counters, forecast, sunrise/
+     * sunset) and screen ids 10..13 in ModeOrder. One threshold on purpose --
+     * they shipped together, so there is no per-feature split to get wrong.
+     */
+    public static final int[] MIN_31 = {3, 1, 0};
 
     private static final Pattern VERSION = Pattern.compile("^\\s*v?(\\d+)\\.(\\d+)\\.(\\d+)");
 

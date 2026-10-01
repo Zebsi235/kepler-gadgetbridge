@@ -31,7 +31,7 @@ import nodomain.freeyourgadget.gadgetbridge.service.devices.f91kepler.F91KeplerS
 
 /**
  * Coordinator for the F91 Kepler watch — a custom Casio F-91W internal
- * replacement (CC2640R2F, firmware v3.0.0) that advertises as "F91 Kepler" and
+ * replacement (CC2640R2F, firmware v3.1.0) that advertises as "F91 Kepler" and
  * exposes nine custom GATT services -- Notification, Image, Clock, Device
  * Control, Music, Find Phone, Alert, Weather and UI Config -- plus the standard
  * Battery and Device Information services. The sensitive characteristics
@@ -86,9 +86,13 @@ public class F91KeplerCoordinator extends AbstractBLEDeviceCoordinator {
 
     @Override
     public int getAlarmSlotCount(final GBDevice device) {
-        // The firmware Alarm Service holds a single one-shot alarm
-        // (CHAR5 AlarmTime + CHAR6 AlarmEnabled). See F91KeplerSupport#onSetAlarms.
-        return 1;
+        // Firmware 3.1: five recurring slots (Record ALARM, weekday repeat,
+        // fixed 9-minute snooze on the watch). Older firmware holds a single
+        // one-shot alarm (CHAR5 AlarmTime + CHAR6 AlarmEnabled). Unknown
+        // version -> the 3.1 count, like every other setting (F91KeplerFirmware).
+        // See F91KeplerSupport#onSetAlarms.
+        return F91KeplerFirmware.knownBelow(device.getFirmwareVersion(), F91KeplerFirmware.MIN_31)
+                ? 1 : F91KeplerConstants.ALARM_SLOTS_31;
     }
 
     @Override
@@ -108,11 +112,20 @@ public class F91KeplerCoordinator extends AbstractBLEDeviceCoordinator {
             xml.add(R.xml.devicesettings_f91kepler_brightness);
         }
         xml.add(R.xml.devicesettings_f91kepler);
+        final boolean fw31 = !F91KeplerFirmware.knownBelow(fw, F91KeplerFirmware.MIN_31);
+        if (fw31) {
+            // After devicesettings_f91kepler: its quiet switch depends on the
+            // popup switch defined there.
+            xml.add(R.xml.devicesettings_f91kepler_31_face);
+        }
         if (!F91KeplerFirmware.knownBelow(fw, F91KeplerFirmware.MIN_RADIO_SCHEDULE)) {
             xml.add(R.xml.devicesettings_f91kepler_sleep);
         }
         if (!F91KeplerFirmware.knownBelow(fw, F91KeplerFirmware.MIN_MODE_ORDER_10)) {
             xml.add(R.xml.devicesettings_f91kepler_modes);
+        }
+        if (fw31) {
+            xml.add(R.xml.devicesettings_f91kepler_31_screens);
         }
         if (!F91KeplerFirmware.knownBelow(fw, F91KeplerFirmware.MIN_IMAGE)) {
             xml.add(R.xml.devicesettings_f91kepler_image);
