@@ -109,9 +109,29 @@ jobs:
           if-no-files-found: error
 
       - name: Publish GitHub Release
+        id: release
         if: startsWith(github.ref, 'refs/tags/v')
         uses: softprops/action-gh-release@v2
         with:
           files: ${{ steps.apk.outputs.path }}
           generate_release_notes: true
           fail_on_unmatched_files: true
+
+      # Post the release to #announcements on the Kepler Discord and ping the
+      # opt-in "Release pings" role. Skips quietly when the secret isn't set.
+      - name: Announce on Discord
+        if: startsWith(github.ref, 'refs/tags/v')
+        continue-on-error: true
+        env:
+          WEBHOOK: ${{ secrets.DISCORD_RELEASE_WEBHOOK }}
+          PING_ROLE: "1555337885425860731"
+          TAG: ${{ github.ref_name }}
+          URL: ${{ steps.release.outputs.url }}
+          APK: ${{ steps.apk.outputs.path }}
+        run: |
+          if [ -z "$WEBHOOK" ]; then echo "DISCORD_RELEASE_WEBHOOK not set, skipping"; exit 0; fi
+          MSG=$(printf '<@&%s> New Android app release: **%s**\nDownload `%s` here: <%s>\nIt installs over your previous Kepler release.' \
+            "$PING_ROLE" "$TAG" "$APK" "$URL")
+          jq -n --arg c "$MSG" --arg r "$PING_ROLE" \
+            '{content: $c, allowed_mentions: {roles: [$r]}}' \
+            | curl -fsS -H 'Content-Type: application/json' -d @- "$WEBHOOK"
