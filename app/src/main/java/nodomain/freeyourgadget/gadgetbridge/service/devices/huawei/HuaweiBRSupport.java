@@ -82,6 +82,11 @@ public class HuaweiBRSupport extends AbstractBTBRDeviceSupport {
     }
 
     @Override
+    public void onSocketRead(byte[] data, int channel) {
+        supportProvider.onSocketRead(data, channel);
+    }
+
+    @Override
     public boolean useAutoConnect() {
         return true;
     }
@@ -97,8 +102,8 @@ public class HuaweiBRSupport extends AbstractBTBRDeviceSupport {
     }
 
     @Override
-    public void onReset(int flags) {
-        supportProvider.onReset(flags);
+    public void onFactoryReset() {
+        supportProvider.onFactoryReset();
     }
 
     @Override

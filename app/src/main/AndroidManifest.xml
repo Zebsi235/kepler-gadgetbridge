@@ -95,6 +95,11 @@
     <uses-permission android:name="lineageos.permission.READ_WEATHER" />
     <uses-permission android:name="org.omnirom.omnijaws.READ_WEATHER" />
 
+    <!-- Used for CoMaps navigation data -->
+    <uses-permission android:name="app.comaps.permission.READ_NAVIGATION_DATA" />
+    <uses-permission android:name="app.comaps.fdroid.permission.READ_NAVIGATION_DATA" />
+    <uses-permission android:name="app.comaps.google.permission.READ_NAVIGATION_DATA" />
+
     <!-- Used for starting activities from the background with intents -->
     <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
 
@@ -153,6 +158,9 @@
     <uses-feature
         android:name="android.hardware.camera"
         android:required="false" />
+    <uses-feature
+        android:name="android.hardware.usb.accessory"
+        android:required="false" />
 
     <application
         android:name=".GBApplication"
@@ -164,26 +172,7 @@
         android:networkSecurityConfig="@xml/network_security_config"
         android:roundIcon="@mipmap/ic_launcher_round"
         android:requestLegacyExternalStorage="true"
-        android:theme="@style/GadgetbridgeTheme"
-        tools:replace="android:label">
-        <receiver
-            android:name=".externalevents.sleepasandroid.SleepAsAndroidReceiver"
-            android:enabled="true"
-            android:exported="true" >
-            <intent-filter>
-                <action android:name="com.urbandroid.sleep.watch.START_TRACKING" />
-                <action android:name="com.urbandroid.sleep.watch.STOP_TRACKING" />
-                <action android:name="com.urbandroid.sleep.watch.SET_PAUSE" />
-                <action android:name="com.urbandroid.sleep.watch.SET_SUSPENDED" />
-                <action android:name="com.urbandroid.sleep.watch.SET_BATCH_SIZE" />
-                <action android:name="com.urbandroid.sleep.watch.START_ALARM" />
-                <action android:name="com.urbandroid.sleep.watch.STOP_ALARM" />
-                <action android:name="com.urbandroid.sleep.watch.UPDATE_ALARM" />
-                <action android:name="com.urbandroid.sleep.watch.SHOW_NOTIFICATION" />
-                <action android:name="com.urbandroid.sleep.watch.HINT" />
-                <action android:name="com.urbandroid.sleep.watch.CHECK_CONNECTED" />
-            </intent-filter>
-        </receiver>
+        android:theme="@style/GadgetbridgeTheme">
         <activity
             android:name=".activities.ControlCenterv2"
             android:label="@string/title_activity_controlcenter"
@@ -304,6 +293,10 @@
             android:label="@string/loading"
             android:parentActivityName=".activities.devicesettings.DeviceSettingsActivity" />
         <activity
+            android:name=".devices.garmin.GarminAuthExpiredActivity"
+            android:label="@string/authentication_expired"
+            android:parentActivityName=".activities.devicesettings.DeviceSettingsActivity" />
+        <activity
             android:name=".devices.huawei.ui.HuaweiStressCalibrationActivity"
             android:label="@string/huawei_stress_calibrate"
             android:parentActivityName=".activities.devicesettings.DeviceSettingsActivity" />
@@ -353,6 +346,10 @@
             android:name=".devices.vesc.VescControlActivity"
             android:label="@string/devicetype_vesc"
             android:parentActivityName=".activities.ControlCenterv2" />
+        <activity
+            android:name=".activities.UsbAccessoryConnectActivity"
+            android:label="@string/usb_connect_title"
+            android:launchMode="singleTop" />
         <activity
             android:name=".devices.idasen.IdasenControlActivity"
             android:label="@string/devicetype_idasen"
@@ -723,6 +720,20 @@
                 <action android:name="nodomain.freeyourgadget.gadgetbridge.callcontrol" />
             </intent-filter>
         </receiver>
+        <receiver
+            android:name=".externalevents.UsbAttachReceiver"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.hardware.usb.action.USB_ACCESSORY_DETACHED" />
+                <action android:name="android.hardware.usb.action.USB_ACCESSORY_ATTACHED" />
+            </intent-filter>
+            <meta-data
+                android:name="android.hardware.usb.action.USB_ACCESSORY_DETACHED"
+                android:resource="@xml/usb_accessory_filter" />
+            <meta-data
+                android:name="android.hardware.usb.action.USB_ACCESSORY_ATTACHED"
+                android:resource="@xml/usb_accessory_filter" />
+        </receiver>
         <!--
             forcing the DebugActivity to portrait mode avoids crashes with the progress
             dialog when changing orientation
@@ -805,6 +816,12 @@
             android:configChanges="keyboard|keyboardHidden|orientation|screenSize|layoutDirection|uiMode"
             android:parentActivityName=".activities.ControlCenterv2" />
         <activity
+            android:name=".activities.aawireless.AAWirelessPairedPhonesActivity"
+            android:label="@string/paired_phones"
+            android:launchMode="singleTop"
+            android:configChanges="keyboard|keyboardHidden|orientation|screenSize|layoutDirection|uiMode"
+            android:parentActivityName=".activities.devicesettings.DeviceSettingsActivity" />
+        <activity
             android:name=".devices.miband.MiBandPairingActivity"
             android:label="@string/title_activity_mi_band_pairing" />
         <activity
@@ -849,6 +866,14 @@
         <activity
             android:name=".activities.widgets.WidgetScreensListActivity"
             android:label="@string/menuitem_widgets"
+            android:parentActivityName=".activities.ControlCenterv2" />
+        <activity
+            android:name=".activities.xiaomi.XiaomiVibrationPatternsActivity"
+            android:label="@string/pref_xiaomi_vibration_patterns_title"
+            android:parentActivityName=".activities.ControlCenterv2" />
+        <activity
+            android:name=".activities.casio.CasioIntervalTimerActivity"
+            android:label="@string/pref_casio_interval_timer_title"
             android:parentActivityName=".activities.ControlCenterv2" />
         <activity
             android:name=".activities.ConfigureWorldClocks"
@@ -898,7 +923,8 @@
             android:windowSoftInputMode="stateHidden|adjustPan" />
         <activity
             android:name=".activities.FindPhoneActivity"
-            android:label="Find Phone" />
+            android:label="@string/prefs_find_phone"
+            android:launchMode="singleTask" />
 
         <provider
             android:name=".contentprovider.PebbleContentProvider"
@@ -1100,6 +1126,16 @@
             android:name=".activities.dashboard.DashboardCalendarActivity"
             android:label="@string/menuitem_calendar"
             android:parentActivityName=".activities.ControlCenterv2" />
+
+        <activity
+            android:name=".activities.dashboard.DashboardWidgetsActivity"
+            android:label="@string/pref_dashboard_manage_widgets_title"
+            android:parentActivityName=".activities.DashboardPreferencesActivity" />
+
+        <activity
+            android:name=".activities.dashboard.WidgetInstanceSettingsActivity"
+            android:label="@string/pref_dashboard_widget_settings"
+            android:parentActivityName=".activities.dashboard.DashboardWidgetsActivity" />
 
         <activity
             android:name=".activities.CameraActivity"

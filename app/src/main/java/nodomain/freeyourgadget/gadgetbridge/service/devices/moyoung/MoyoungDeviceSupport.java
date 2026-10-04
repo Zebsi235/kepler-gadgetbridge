@@ -41,6 +41,7 @@ import java.text.ParseException;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Calendar;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.Date;
@@ -123,6 +124,7 @@ import nodomain.freeyourgadget.gadgetbridge.service.btle.profiles.battery.Batter
 import nodomain.freeyourgadget.gadgetbridge.service.btle.profiles.battery.BatteryInfoProfile;
 import nodomain.freeyourgadget.gadgetbridge.service.btle.profiles.deviceinfo.DeviceInfo;
 import nodomain.freeyourgadget.gadgetbridge.service.btle.profiles.deviceinfo.DeviceInfoProfile;
+import nodomain.freeyourgadget.gadgetbridge.service.btle.profiles.heartrate.HeartRate;
 import nodomain.freeyourgadget.gadgetbridge.service.btle.profiles.heartrate.HeartRateProfile;
 import nodomain.freeyourgadget.gadgetbridge.util.AlarmUtils;
 import nodomain.freeyourgadget.gadgetbridge.util.ArrayUtils;
@@ -136,6 +138,7 @@ import nodomain.freeyourgadget.gadgetbridge.util.calendar.CalendarManager;
 public class MoyoungDeviceSupport extends AbstractBTLESingleDeviceSupport {
     private static final Logger LOG = LoggerFactory.getLogger(MoyoungDeviceSupport.class);
     private static final long IDLE_STEPS_INTERVAL = 5 * 60 * 1000;
+    private static final long HEART_RATE_STREAM_SAMPLE_INTERVAL = 60 * 1000;
 
     private final DeviceInfoProfile<MoyoungDeviceSupport> deviceInfoProfile;
     private final BatteryInfoProfile<MoyoungDeviceSupport> batteryInfoProfile;
@@ -148,6 +151,7 @@ public class MoyoungDeviceSupport extends AbstractBTLESingleDeviceSupport {
     private MoyoungPacketIn packetIn = new MoyoungPacketIn();
 
     private boolean realTimeHeartRate;
+    private long lastHeartRateStreamSampleTimestamp = 0;
     private boolean findMyPhoneActive = false;
     private boolean takePhotoActive = false;
     private final Set<CalendarEvent> lastSync = new HashSet<>();
@@ -175,6 +179,9 @@ public class MoyoungDeviceSupport extends AbstractBTLESingleDeviceSupport {
             if (Objects.equals(s, BatteryInfoProfile.ACTION_BATTERY_INFO)) {
                 handleBatteryInfo(intent.getParcelableExtra(BatteryInfoProfile.EXTRA_BATTERY_INFO));
             }
+            if (Objects.equals(s, HeartRateProfile.ACTION_HEART_RATE)) {
+                handleRealtimeHeartRate(intent.getParcelableExtra(HeartRateProfile.EXTRA_HEART_RATE));
+            }
         };
         deviceInfoProfile = new DeviceInfoProfile<>(this);
         deviceInfoProfile.addListener(mListener);
@@ -189,12 +196,15 @@ public class MoyoungDeviceSupport extends AbstractBTLESingleDeviceSupport {
 
     @Override
     protected TransactionBuilder initializeDevice(TransactionBuilder builder) {
-        final int mtu = ((AbstractMoyoungDeviceCoordinator) getDevice().getDeviceCoordinator()).getMtu();
+        final AbstractMoyoungDeviceCoordinator coordinator = (AbstractMoyoungDeviceCoordinator) getDevice().getDeviceCoordinator();
+        final int mtu = coordinator.getMtu();
         builder.requestMtu(mtu + 3);  // Add 3 bytes for the BLE overhead
 
         builder.setDeviceState(GBDevice.State.INITIALIZING);
         builder.notify(MoyoungConstants.UUID_CHARACTERISTIC_DATA_IN, true);
-        deviceInfoProfile.requestDeviceInfo(builder);
+        if (coordinator.supportsDeviceInfoProfile()) {
+            deviceInfoProfile.requestDeviceInfo(builder);
+        }
         setTime(builder);
         setMeasurementSystem(builder);
         sendSetting(builder, getSetting("USER_INFO"), new ActivityUser()); // these settings are write-only, so write them just in case because there is no way to know if they desynced somehow
@@ -302,6 +312,12 @@ public class MoyoungDeviceSupport extends AbstractBTLESingleDeviceSupport {
         }
         if (packetType == MoyoungConstants.CMD_TRIGGER_MEASURE_BLOOD_OXYGEN) {
             int percent = payload[0] & 0xff;
+
+            if (percent <= 0 || percent >= 255) {
+                LOG.warn("Ignoring invalid blood oxygen value: {}", percent);
+                return true;
+            }
+
             LOG.info("Measure blood oxygen finished: {}%", percent);
 
             try (DBHandler dbHandler = GBApplication.acquireDB()) {
@@ -320,6 +336,14 @@ public class MoyoungDeviceSupport extends AbstractBTLESingleDeviceSupport {
             } catch (Exception e) {
                 LOG.error("Error acquiring database for recording SpO2 samples", e);
             }
+
+            // show it on the device card until the device disconnects
+            getDevice().setExtraInfo(AbstractMoyoungDeviceCoordinator.EXTRA_SPO2, String.valueOf(percent));
+            getDevice().sendDeviceUpdateIntent(getContext());
+
+            broadcastSpo2Sample(percent);
+            // and let the dashboard and charts know there is a new value to show
+            GB.signalActivityDataFinish(getDevice());
 
             return true;
         }
@@ -382,6 +406,13 @@ public class MoyoungDeviceSupport extends AbstractBTLESingleDeviceSupport {
 
         if (packetType == MoyoungConstants.CMD_QUERY_PAST_HEART_RATE_1) {
             handleHeartRateHistory(payload);
+            return true;
+        }
+
+        if (packetType == MoyoungConstants.CMD_QUERY_PAST_HEART_RATE_2) {
+            int index = payload[0] & 0xff;
+            byte[] data = Arrays.copyOfRange(payload, 1, payload.length);
+            handlePastHeartRate(index, data);
             return true;
         }
 
@@ -519,8 +550,20 @@ public class MoyoungDeviceSupport extends AbstractBTLESingleDeviceSupport {
         return false;
     }
 
+    private void broadcastSpo2Sample(int percent) {
+        MoyoungSpo2Sample sample = new MoyoungSpo2Sample();
+        sample.setTimestamp(System.currentTimeMillis());
+        sample.setSpo2(percent);
+        Intent intent = new Intent(DeviceService.ACTION_REALTIME_SAMPLES)
+                .putExtra(GBDevice.EXTRA_DEVICE, getDevice())
+                .putExtra(DeviceService.EXTRA_REALTIME_SAMPLE, sample)
+                .putExtra(DeviceService.EXTRA_TIMESTAMP, sample.getTimestamp());
+        LocalBroadcastManager.getInstance(getContext()).sendBroadcast(intent);
+    }
+
     private void broadcastSample(MoyoungActivitySample sample) {
         Intent intent = new Intent(DeviceService.ACTION_REALTIME_SAMPLES)
+                .putExtra(GBDevice.EXTRA_DEVICE, getDevice())
                 .putExtra(DeviceService.EXTRA_REALTIME_SAMPLE, sample)
                 .putExtra(DeviceService.EXTRA_TIMESTAMP, sample.getTimestamp());
         LocalBroadcastManager.getInstance(getContext()).sendBroadcast(intent);
@@ -531,9 +574,51 @@ public class MoyoungDeviceSupport extends AbstractBTLESingleDeviceSupport {
         genericSample.setTimestamp((int) (sample.getTimestamp() / 1000));
         genericSample.setHeartRate(sample.getHeartRate());
         Intent intent = new Intent(DeviceService.ACTION_REALTIME_SAMPLES)
+                .putExtra(GBDevice.EXTRA_DEVICE, getDevice())
                 .putExtra(DeviceService.EXTRA_REALTIME_SAMPLE, genericSample)
                 .putExtra(DeviceService.EXTRA_TIMESTAMP, genericSample.getTimestamp());
         LocalBroadcastManager.getInstance(getContext()).sendBroadcast(intent);
+    }
+
+    /**
+     * Handles heart rate values delivered via the standard Bluetooth Heart Rate profile
+     * (characteristic 0x2A37). Some Moyoung watches (e.g. the L 70) stream their live heart
+     * rate this way instead of replying to the custom CMD_TRIGGER_MEASURE_HEARTRATE packet,
+     * so without this the values are decoded but never shown or stored.
+     */
+    private void handleRealtimeHeartRate(final HeartRate heartRate) {
+        if (heartRate == null || heartRate.getHeartRate() <= 0) {
+            return;
+        }
+        if (!((AbstractMoyoungDeviceCoordinator) getDevice().getDeviceCoordinator()).supportsHeartRateStreaming()) {
+            return;
+        }
+
+        final long now = System.currentTimeMillis();
+
+        final MoyoungHeartRateSample sample = new MoyoungHeartRateSample();
+        sample.setTimestamp(now);
+        sample.setHeartRate(heartRate.getHeartRate());
+
+        // Always broadcast so the live heart rate view updates smoothly
+        broadcastSample(sample);
+
+        // Persist at most once per minute to avoid flooding the database with the ~2 Hz stream
+        if (now - lastHeartRateStreamSampleTimestamp < HEART_RATE_STREAM_SAMPLE_INTERVAL) {
+            return;
+        }
+        lastHeartRateStreamSampleTimestamp = now;
+
+        try (DBHandler dbHandler = GBApplication.acquireDB()) {
+            MoyoungHeartRateSampleProvider sampleProvider = new MoyoungHeartRateSampleProvider(getDevice(), dbHandler.getDaoSession());
+            Long userId = DBHelper.getUser(dbHandler.getDaoSession()).getId();
+            Long deviceId = DBHelper.getDevice(getDevice(), dbHandler.getDaoSession()).getId();
+            sample.setDeviceId(deviceId);
+            sample.setUserId(userId);
+            sampleProvider.addSample(sample);
+        } catch (Exception e) {
+            LOG.error("Error acquiring database for recording heart rate samples", e);
+        }
     }
 
     private void handleDeviceInfo(DeviceInfo info) {
@@ -544,10 +629,17 @@ public class MoyoungDeviceSupport extends AbstractBTLESingleDeviceSupport {
     }
 
     private void handleBatteryInfo(BatteryInfo info) {
-        LOG.warn("Battery info: {}", info);
-        batteryCmd.level = (short) info.getPercentCharged();
-        if (batteryCmd.state == BatteryState.UNKNOWN)
+        LOG.debug("Battery info: {}", info);
+        int level = info.getPercentCharged();
+        // Some Moyoung watches add 100 to the reported level while charging
+        // (i.e. values > 100). Detect charging and recover the real level.
+        if (level > 100) {
+            level -= 100;
+            batteryCmd.state = BatteryState.BATTERY_CHARGING;
+        } else {
             batteryCmd.state = BatteryState.BATTERY_NORMAL;
+        }
+        batteryCmd.level = (short) level;
         handleGBDeviceEvent(batteryCmd);
     }
 
@@ -582,28 +674,28 @@ public class MoyoungDeviceSupport extends AbstractBTLESingleDeviceSupport {
 
     @Override
     public void onNotification(NotificationSpec notificationSpec) {
-        final String senderOrTitle = StringUtils.getFirstOf(notificationSpec.sender, notificationSpec.title);
+        final String senderOrTitle = StringUtils.getFirstOf(notificationSpec.getSender(), notificationSpec.getTitle());
 
         // Notifications are sent with both sender/title and message in 1 packet, separated by a ':',
         // so we have to make sure there is no ':' in the sender/title part
         String message = StringUtils.truncate(senderOrTitle, 32).replace(":", ";") + ":";
-        if (notificationSpec.subject != null) {
-            message += StringUtils.truncate(notificationSpec.subject, 128) + "\n\n";
+        if (notificationSpec.getSubject() != null) {
+            message += StringUtils.truncate(notificationSpec.getSubject(), 128) + "\n\n";
         }
-        if (notificationSpec.body != null) {
-            message += StringUtils.truncate(notificationSpec.body, 512);
+        if (notificationSpec.getBody() != null) {
+            message += StringUtils.truncate(notificationSpec.getBody(), 512);
         }
-        if (notificationSpec.body == null && notificationSpec.subject == null) {
+        if (notificationSpec.getBody() == null && notificationSpec.getSubject() == null) {
             message += " ";
         }
 
         // The notification is split at first : into sender and text
-        sendNotification(MoyoungConstants.notificationType(notificationSpec.type), message);
+        sendNotification(MoyoungConstants.notificationType(notificationSpec.getType()), message);
     }
 
     @Override
     public void onSetCallState(CallSpec callSpec) {
-        if (callSpec.command == CallSpec.CALL_INCOMING)
+        if (callSpec.getCommand() == CallSpec.CALL_INCOMING)
             sendNotification(MoyoungConstants.NOTIFICATION_TYPE_CALL, NotificationUtils.getPreferredTextFor(callSpec));
         else
             sendNotification(MoyoungConstants.NOTIFICATION_TYPE_CALL_OFF_HOOK, "");
@@ -652,6 +744,11 @@ public class MoyoungDeviceSupport extends AbstractBTLESingleDeviceSupport {
             case 0x00:
                 // Single stress measurement result
                 int stressLevel = payload[2] & 0xff;
+
+                if (stressLevel <= 0 || stressLevel >= 255) {
+                    LOG.warn("Ignoring invalid stress value: {}", stressLevel);
+                    return;
+                }
                 try (DBHandler dbHandler = GBApplication.acquireDB()) {
                     MoyoungStressSampleProvider sampleProvider = new MoyoungStressSampleProvider(getDevice(), dbHandler.getDaoSession());
                     Long userId = DBHelper.getUser(dbHandler.getDaoSession()).getId();
@@ -891,7 +988,7 @@ public class MoyoungDeviceSupport extends AbstractBTLESingleDeviceSupport {
     public void onSetMusicState(MusicStateSpec stateSpec) {
         try {
             TransactionBuilder builder = performInitialized("sendMusicState");
-            byte[] payload = new byte[]{(byte) (stateSpec.state == MusicStateSpec.STATE_PLAYING ? 0x01 : 0x00)};
+            byte[] payload = new byte[]{(byte) (stateSpec.getState() == MusicStateSpec.STATE_PLAYING ? 0x01 : 0x00)};
             sendPacket(builder, MoyoungPacketOut.buildPacket(getMtu(), MoyoungConstants.CMD_SET_MUSIC_STATE, payload));
             builder.queue();
         } catch (IOException e) {
@@ -904,12 +1001,12 @@ public class MoyoungDeviceSupport extends AbstractBTLESingleDeviceSupport {
         try {
             TransactionBuilder builder = performInitialized("sendMusicInfo");
 
-            byte[] artistBytes = musicSpec.artist.getBytes();
+            byte[] artistBytes = musicSpec.getArtist().getBytes();
             byte[] artistPayload = new byte[artistBytes.length + 1];
             artistPayload[0] = 1;
             System.arraycopy(artistBytes, 0, artistPayload, 1, artistBytes.length);
             sendPacket(builder, MoyoungPacketOut.buildPacket(getMtu(), MoyoungConstants.CMD_SET_MUSIC_INFO, artistPayload));
-            byte[] trackBytes = musicSpec.track.getBytes();
+            byte[] trackBytes = musicSpec.getTrack().getBytes();
             byte[] trackPayload = new byte[trackBytes.length + 1];
             trackPayload[0] = 0;
             System.arraycopy(trackBytes, 0, trackPayload, 1, trackBytes.length);
@@ -1174,16 +1271,8 @@ public class MoyoungDeviceSupport extends AbstractBTLESingleDeviceSupport {
         }
         try (DBHandler dbHandler = GBApplication.acquireDB()) {
             MoyoungHeartRateSampleProvider sampleProvider = new MoyoungHeartRateSampleProvider(getDevice(), dbHandler.getDaoSession());
-            Long userId = DBHelper.getUser(dbHandler.getDaoSession()).getId();
-            Long deviceId = DBHelper.getDevice(getDevice(), dbHandler.getDaoSession()).getId();
 
-            for (MoyoungHeartRateSample sample : hrSamples) {
-                sample.setDeviceId(deviceId);
-                sample.setUserId(userId);
-            }
-
-            LOG.debug("Will persist {} HR samples", hrSamples.size());
-            sampleProvider.addSamples(hrSamples);
+            sampleProvider.persistSamples(hrSamples, getContext());
         } catch (Exception e) {
             LOG.error("Error acquiring database for recording heart rate samples", e);
         }
@@ -1200,6 +1289,46 @@ public class MoyoungDeviceSupport extends AbstractBTLESingleDeviceSupport {
             builder.queue();
         } catch (IOException e) {
             LOG.error("Failed sending HR history request packet: ", e);
+        }
+    }
+
+    /**
+     * Handles a CMD_QUERY_PAST_HEART_RATE_2 (0x36) packet: today's heart rate history,
+     * one sample per minute. Packet {@code packetIndex} covers minutes
+     * [packetIndex * N, packetIndex * N + N), where N is the number of samples per packet.
+     * A value of 0 means "no measurement".
+     */
+    public void handlePastHeartRate(int packetIndex, byte[] data) {
+        final int samplesPerPacket = 72;  // one sample per minute, 20 packets * 72 = 1440 minutes
+        final List<MoyoungHeartRateSample> hrSamples = new ArrayList<>();
+        final Calendar cal = Calendar.getInstance();
+        cal.set(Calendar.SECOND, 0);
+        cal.set(Calendar.MILLISECOND, 0);
+        for (int i = 0; i < data.length && i < samplesPerPacket; i++) {
+            final int minuteOfDay = packetIndex * samplesPerPacket + i;
+            cal.set(Calendar.HOUR_OF_DAY, minuteOfDay / 60);
+            cal.set(Calendar.MINUTE, minuteOfDay % 60);
+            final int hr = data[i] & 0xff;
+            if (HeartRateUtils.getInstance().isValidHeartRateValue(hr)
+                    && cal.getTimeInMillis() < System.currentTimeMillis()) {
+                MoyoungHeartRateSample sample = new MoyoungHeartRateSample();
+                sample.setTimestamp(cal.getTimeInMillis());
+                sample.setHeartRate(hr);
+                hrSamples.add(sample);
+            }
+        }
+        try (DBHandler dbHandler = GBApplication.acquireDB()) {
+            MoyoungHeartRateSampleProvider sampleProvider = new MoyoungHeartRateSampleProvider(getDevice(), dbHandler.getDaoSession());
+            Long userId = DBHelper.getUser(dbHandler.getDaoSession()).getId();
+            Long deviceId = DBHelper.getDevice(getDevice(), dbHandler.getDaoSession()).getId();
+            for (MoyoungHeartRateSample sample : hrSamples) {
+                sample.setDeviceId(deviceId);
+                sample.setUserId(userId);
+            }
+            LOG.debug("Will persist {} past HR samples (index {})", hrSamples.size(), packetIndex);
+            sampleProvider.addSamples(hrSamples);
+        } catch (Exception e) {
+            LOG.error("Error acquiring database for recording heart rate samples", e);
         }
     }
 
@@ -1393,6 +1522,7 @@ public class MoyoungDeviceSupport extends AbstractBTLESingleDeviceSupport {
             int steps = buffer.getInt();
             int distance = buffer.getInt();
             int calories;
+            float maxSpeed = 0;
             if (protocolVersion == 1) {
                 calories = buffer.getShort();
             } else if (protocolVersion == 2) {
@@ -1401,9 +1531,9 @@ public class MoyoungDeviceSupport extends AbstractBTLESingleDeviceSupport {
                 calories = buffer.getShort();
                 avgHR = buffer.get();
                 buffer.get(); // 0?
-                // todo last 4 bytes?
+                maxSpeed = buffer.getFloat();
             }
-            LOG.info("Training data: start={} end={} totalTimeWithoutPause={} num={} type={} steps={} avgHR={} distance={} calories={}", startTime, endTime, validTime, num, type, steps, avgHR, distance, calories);
+            LOG.info("Training data: start={} end={} totalTimeWithoutPause={} num={} type={} steps={} avgHR={} distance={} calories={} maxSpeed={}", startTime, endTime, validTime, num, type, steps, avgHR, distance, calories, maxSpeed);
 
             // NOTE: We are ignoring the step/distance/calories data here
             // If we had the phone connected, the realtime data is already stored anyway, and I'm
@@ -1454,7 +1584,7 @@ public class MoyoungDeviceSupport extends AbstractBTLESingleDeviceSupport {
     }
 
     @Override
-    public void onReset(int flags) {
+    public void onReboot() {
         // TODO: this shuts down the watch, rather than rebooting it
         // (reboot is not supported, btw)
 
@@ -1480,6 +1610,16 @@ public class MoyoungDeviceSupport extends AbstractBTLESingleDeviceSupport {
     @Override
     public void onHeartRateTest() {
         triggerHeartRateTest(true);
+    }
+
+    private void triggerSpo2Test(boolean start) {
+        try {
+            TransactionBuilder builder = performInitialized("spo2Test");
+            sendPacket(builder, MoyoungPacketOut.buildPacket(getMtu(), MoyoungConstants.CMD_TRIGGER_MEASURE_BLOOD_OXYGEN, new byte[]{start ? (byte) 0 : (byte) -1}));
+            builder.queue();
+        } catch (IOException e) {
+            LOG.error("Error sending blood oxygen test command: ", e);
+        }
     }
 
     public void onAbortHeartRateTest() {
@@ -1537,9 +1677,9 @@ public class MoyoungDeviceSupport extends AbstractBTLESingleDeviceSupport {
     }
 
     @SuppressWarnings("unchecked")
-    private <T extends MoyoungSetting> T getSetting(String id) {
+    private <T extends MoyoungSetting<?>> T getSetting(String id) {
         AbstractMoyoungDeviceCoordinator coordinator = (AbstractMoyoungDeviceCoordinator) getDevice().getDeviceCoordinator();
-        for (MoyoungSetting setting : coordinator.getSupportedSettings()) {
+        for (MoyoungSetting<?> setting : coordinator.getSupportedSettings()) {
             if (setting.name.equals(id))
                 return (T) setting;
         }
@@ -1595,6 +1735,10 @@ public class MoyoungDeviceSupport extends AbstractBTLESingleDeviceSupport {
 
         Prefs prefs = getDevicePrefs();
         switch (config) {
+            case AbstractMoyoungDeviceCoordinator.CONFIG_SPO2_MEASURE:
+                triggerSpo2Test(true);
+                break;
+
             case ActivityUser.PREF_USER_HEIGHT_CM:
             case ActivityUser.PREF_USER_WEIGHT_KG:
             case ActivityUser.PREF_USER_DATE_OF_BIRTH:

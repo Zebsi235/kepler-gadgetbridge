@@ -1,12 +1,12 @@
+import com.android.build.api.variant.ResValue
 import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 
 import java.nio.file.Files
 
 plugins {
     alias(libs.plugins.android.application)
-    alias(libs.plugins.kotlin.android)
     alias(libs.plugins.kotlin.parcelize)
-    alias(libs.plugins.protobuf)
+    alias(libs.plugins.kaitai)
 }
 
 tasks.withType(Test).configureEach {
@@ -29,7 +29,19 @@ final def getVersionCode = { ->
 tasks.register("buildGitChangelog"){
     final def changelogFile = new File("${project.rootDir}/app/build/generated/res/changelog/xml/changelog_git.xml")
 
-    inputs.file(project.rootProject.file(".git/HEAD"))
+    def gitFile = project.rootProject.file('.git')
+    def gitHead = null
+
+    if (gitFile.directory) {
+        gitHead = new File(gitFile, 'HEAD')
+    } else if (gitFile.file) {
+        def gitDir = gitFile.text.trim().replaceFirst(/^gitdir:\s*/, '')
+        gitHead = new File(gitDir).with {
+            isAbsolute() ? new File(it, 'HEAD') : new File(gitFile.parentFile, it.path + '/HEAD')
+        }
+    }
+
+    inputs.file(gitHead)
     outputs.file(changelogFile)
 
     doLast {
@@ -114,29 +126,30 @@ android {
 
     namespace = 'nodomain.freeyourgadget.gadgetbridge'
     compileSdk {
-        version = release(36) {
-            it.minorApiLevel = 1
+        version = release(37) {
+            it.minorApiLevel = 0
         }
     }
-    buildToolsVersion = '36.1.0'
 
     defaultConfig {
         applicationId "nodomain.freeyourgadget.gadgetbridge"
 
         // Note: update toolchain.languageVersion when changing targetSdk
         //noinspection OldTargetApi
-        targetSdk = 34
+        targetSdk = 35
         // Note: update sourceCompatibility and targetCompatibility when changing minSdk
         minSdk = 23
 
         // Note: always bump BOTH versionCode and versionName!
-        // versionName tracks the upstream GB base (0.92.2 after the Codeberg sync).
-        // versionCode must stay above upstream's (251); 252 was the first Kepler
-        // release on this base, 253 adds the Bluetooth + Image watch modes, 254
-        // adds interactive cropping (pinch-zoom + pan) to Image mode.
-        // Release tags: v0.92.2-kepler (252), -kepler-2 (253), -kepler-3 (254).
-        versionName "0.92.2"
-        versionCode 254
+        // versionName tracks the upstream GB base (0.94.0 after the Codeberg sync).
+        // versionCode must stay above upstream's (253 for 0.94.0); 252 was the
+        // first Kepler release on the 0.92.2 base, 253 added the Bluetooth + Image
+        // watch modes, 254 interactive cropping, 255 the 0.94.0 base + firmware
+        // 3.1 support (version-gated settings).
+        // Release tags: v0.92.2-kepler (252), -kepler-2 (253), -kepler-3 (254),
+        // v0.94.0-kepler (255).
+        versionName "0.94.0"
+        versionCode 255
         vectorDrawables.useSupportLibrary = true
         buildConfigField "String", "GIT_HASH_SHORT", "\"${getGitHashShort()}\""
         buildConfigField "String", "GIT_DIRTY_STATUS", "\"${getGitDirtyFlag()}\""
@@ -196,6 +209,7 @@ android {
         main {
             java.srcDirs += "build/generated/sources/gbdao"
             java.srcDirs += "build/generated/sources/fit"
+            kotlin.srcDirs += "build/generated/sources/kaitaiaux"
             res.srcDirs += "build/generated/res/changelog"
         }
         test {
@@ -210,15 +224,20 @@ android {
     }
 
     buildTypes {
+        //debug {
+        //    minifyEnabled true
+        //    proguardFiles getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro"
+        //}
+
         release {
             minifyEnabled true
-            proguardFiles getDefaultProguardFile("proguard-android.txt"), "proguard-rules.pro"
+            proguardFiles getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro"
         }
 
         nightly {
             applicationIdSuffix ".nightly"
             versionNameSuffix "-${getGitHashShort}"
-            proguardFiles getDefaultProguardFile("proguard-android.txt"), "proguard-rules.pro"
+            proguardFiles getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro"
             minifyEnabled true
             debuggable false
 
@@ -232,7 +251,7 @@ android {
         nopebble {
             applicationIdSuffix ".nightly_nopebble"
             versionNameSuffix "-${getGitHashShort}"
-            proguardFiles getDefaultProguardFile("proguard-android.txt"), "proguard-rules.pro"
+            proguardFiles getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro"
             minifyEnabled true
             debuggable false
 
@@ -240,19 +259,6 @@ android {
                 signingConfig = signingConfigs.nightly
             } else {
                 signingConfig = signingConfigs.debug
-            }
-        }
-
-        applicationVariants.all { variant ->
-            variant.resValue "string", "applicationId", variant.applicationId
-
-            if (variant.buildType.name == 'nightly' || variant.buildType.name == 'nopebble') {
-                variant.outputs.all {
-                    setVersionCodeOverride(getVersionCode())
-                    //setVersionNameOverride(getGitHashShort())
-                    setVersionNameOverride(variant.versionName)
-                    outputFileName = "${applicationId}_${variant.versionName}.apk"
-                }
             }
         }
     }
@@ -278,6 +284,36 @@ android {
         aidl = true
         buildConfig = true
         viewBinding = true
+        // AGP 9 defaults to false, but we still use it in the androidComponents.onVariants block below
+        resValues = true
+    }
+    packagingOptions {
+        // Unable to strip the following libraries, packaging them as they are.
+        // https://issuetracker.google.com/issues/353554169
+        jniLibs.keepDebugSymbols.add("**/libimage_processing_util_jni.so")
+        jniLibs.keepDebugSymbols.add("**/libsurface_util_jni.so")
+    }
+}
+
+androidComponents {
+    onVariants(selector().all()) { variant ->
+        variant.resValues.put(
+            variant.makeResValueKey("string", "applicationId"),
+            variant.applicationId.map { new ResValue(it, null) }
+        )
+
+        if (variant.buildType == "nightly" || variant.buildType == "nopebble") {
+            variant.outputs.each { output ->
+                // nightly/nopebble builds get a monotonically increasing versionCode
+                // based on the commit count, instead of the static defaultConfig one.
+                output.versionCode.set(getVersionCode())
+                output.outputFileName.set(
+                    variant.applicationId.zip(output.versionName) { appId, versionName ->
+                        "${appId}_${versionName}.apk"
+                    }
+                )
+            }
+        }
     }
 }
 
@@ -293,8 +329,6 @@ dependencies {
     testImplementation libs.hamcrest
 
     implementation libs.androidx.core.ktx
-    implementation platform(libs.kotlin.bom)
-    implementation libs.kotlin.stdlib
 
     implementation libs.androidx.appcompat
     implementation libs.androidx.preference.ktx
@@ -310,6 +344,7 @@ dependencies {
     implementation libs.androidx.lifecycle.process
     implementation libs.androidx.security.crypto
     implementation libs.androidx.browser
+    implementation libs.androidx.exifinterface
 
     implementation libs.material
     implementation libs.flexbox
@@ -338,6 +373,7 @@ dependencies {
     implementation libs.bundles.mapsforge
     implementation libs.androidsvg
     implementation libs.jsoup
+    implementation libs.kaitai.struct.runtime
 
     // Bouncy Castle is included directly in GB, to avoid pulling the entire dependency
     // It's included in the org.bouncycastle.shaded package, to fix conflicts with roboelectric
@@ -351,17 +387,21 @@ dependencies {
     implementation libs.ahocorasick
 
     // Android Health Connect
-    implementation libs.guava // This is needed because CameraActivity.java line 41 doesn't have a ListenableFuture package
     implementation libs.androidx.health.connect.client
+
+    // Protocol Buffer specifications
+    implementation project(':GBProtobufGenerator')
 }
 
 preBuild.dependsOn(":GBDaoGenerator:genSources")
 preBuild.dependsOn(':FitCodeGenerator:genFit')
+preBuild.dependsOn(':KaitaiAuxGenerator:genKaitaiAux')
 preBuild.dependsOn(tasks.buildGitChangelog)
 
 gradle.beforeProject {
     preBuild.dependsOn(":GBDaoGenerator:genSources")
     preBuild.dependsOn(':FitCodeGenerator:genFit')
+    preBuild.dependsOn(':KaitaiAuxGenerator:genKaitaiAux')
 }
 
 tasks.register('cleanGenerated', Delete) {
@@ -374,17 +414,7 @@ tasks.register('cleanGenerated', Delete) {
 
 tasks.clean.dependsOn(tasks.cleanGenerated)
 
-protobuf {
-    protoc {
-        artifact = libs.protoc.get()
-    }
-    generateProtoTasks {
-        all().each { final task ->
-            task.builtins {
-                java {
-                    option 'lite'
-                }
-            }
-        }
-    }
+kaitai {
+    javaPackage = "nodomain.freeyourgadget.gadgetbridge.kaitai"
+    readWrite = true
 }

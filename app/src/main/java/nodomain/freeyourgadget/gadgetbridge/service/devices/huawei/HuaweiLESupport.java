@@ -61,6 +61,7 @@ public class HuaweiLESupport extends AbstractBTLESingleDeviceSupport {
         addSupportedService(GattService.UUID_SERVICE_DEVICE_INFORMATION);
         addSupportedService(GattService.UUID_SERVICE_HUMAN_INTERFACE_DEVICE);
         addSupportedService(HuaweiConstants.UUID_SERVICE_HUAWEI_SERVICE);
+        addSupportedService(HuaweiConstants.UUID_SERVICE_HONOR_SERVICE);
         supportProvider = new HuaweiSupportProvider(this);
     }
 
@@ -103,8 +104,8 @@ public class HuaweiLESupport extends AbstractBTLESingleDeviceSupport {
     }
 
     @Override
-    public void onReset(int flags) {
-        supportProvider.onReset(flags);
+    public void onFactoryReset() {
+        supportProvider.onFactoryReset();
     }
 
     @Override

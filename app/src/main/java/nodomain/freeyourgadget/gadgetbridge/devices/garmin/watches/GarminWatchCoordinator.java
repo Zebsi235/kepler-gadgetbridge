@@ -3,15 +3,28 @@ package nodomain.freeyourgadget.gadgetbridge.devices.garmin.watches;
 import androidx.annotation.NonNull;
 
 import java.util.Arrays;
+import java.util.EnumSet;
 import java.util.List;
+import java.util.Set;
 
 import nodomain.freeyourgadget.gadgetbridge.R;
+import nodomain.freeyourgadget.gadgetbridge.devices.GenericMetricSampleProvider;
+import nodomain.freeyourgadget.gadgetbridge.devices.SleepAsAndroidFeature;
 import nodomain.freeyourgadget.gadgetbridge.devices.garmin.GarminCoordinator;
 import nodomain.freeyourgadget.gadgetbridge.devices.garmin.GarminCapability;
 import nodomain.freeyourgadget.gadgetbridge.impl.GBDevice;
 import nodomain.freeyourgadget.gadgetbridge.model.Alarm;
+import nodomain.freeyourgadget.gadgetbridge.model.MetricSample;
 
 public abstract class GarminWatchCoordinator extends GarminCoordinator {
+
+    @Override
+    public boolean defaultExploreSync() {
+        // On watches this often results in duplicated activities due to timestamp mismatches,
+        // and they should all have FIT files for activities.
+        return false;
+    }
+
     @Override
     public int getDefaultIconResource() {
         return R.drawable.ic_device_zetime;
@@ -95,6 +108,18 @@ public abstract class GarminWatchCoordinator extends GarminCoordinator {
     @Override
     public boolean supportsVO2MultiSport(@NonNull GBDevice device) {
         return supportsVO2Max(device);
+    }
+
+    @Override
+    public boolean supportsRacePrediction(@NonNull final GBDevice device) {
+        // Not all devices support it, but support is broad.
+        return true;
+    }
+
+    @Override
+    public boolean supportsTrainingReadiness(@NonNull final GBDevice device) {
+        // Not all devices support it, but support is broad.
+        return GenericMetricSampleProvider.supportsMetrics(device, MetricSample.Metric.GARMIN_TRAINING_READINESS);
     }
 
     @Override
@@ -190,6 +215,30 @@ public abstract class GarminWatchCoordinator extends GarminCoordinator {
     @Override
     public boolean supportsFindDevice(@NonNull GBDevice device) {
         return true;
+    }
+
+    @Override
+    public boolean supportsSleepAsAndroid(@NonNull final GBDevice device) {
+        return true;
+    }
+
+    @Override
+    public Set<SleepAsAndroidFeature> getSleepAsAndroidFeatures(@NonNull final GBDevice device) {
+        // Alarms are triggered by vibrating the watch with find device, since most devices do
+        // not support alarms
+        final EnumSet<SleepAsAndroidFeature> features = EnumSet.of(
+                SleepAsAndroidFeature.ACCELEROMETER,
+                SleepAsAndroidFeature.HEART_RATE,
+                SleepAsAndroidFeature.ALARMS,
+                SleepAsAndroidFeature.NOTIFICATIONS
+        );
+        if (supportsHrvMeasurement(device)) {
+            features.add(SleepAsAndroidFeature.RR_INTERVALS);
+        }
+        if (supportsSpo2(device)) {
+            features.add(SleepAsAndroidFeature.SPO2);
+        }
+        return features;
     }
 
     @Override

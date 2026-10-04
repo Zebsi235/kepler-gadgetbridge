@@ -433,12 +433,12 @@ public class F91KeplerSupport extends AbstractBTLESingleDeviceSupport {
 
         if (isNotificationPopupEnabled()) {
             final String sender = StringUtils.firstNonBlank(
-                    notificationSpec.sender, notificationSpec.title, notificationSpec.sourceName);
+                    notificationSpec.getSender(), notificationSpec.getTitle(), notificationSpec.getSourceName());
             if (StringUtils.isNotBlank(sender)) {
                 // Split-tile popup: send the app label (sourceName) + sender so the
                 // watch can show "<app> / <sender> / TEXT". The serializer keeps the
                 // whole payload within the characteristic's byte budget.
-                final String app = StringUtils.firstNonBlank(notificationSpec.sourceName, "");
+                final String app = StringUtils.firstNonBlank(notificationSpec.getSourceName(), "");
                 builder.write(F91KeplerConstants.UUID_CHAR_INCOMING_TEXT,
                               F91KeplerProtocol.incomingTextPopup(app, sender));
             }
@@ -460,8 +460,8 @@ public class F91KeplerSupport extends AbstractBTLESingleDeviceSupport {
     // --- Notification history (Notifications mode) --------------------------
 
     private void addRecent(final NotificationSpec spec) {
-        final String app = StringUtils.firstNonBlank(spec.sourceName, "");
-        final String sender = StringUtils.firstNonBlank(spec.sender, spec.title, "notification");
+        final String app = StringUtils.firstNonBlank(spec.getSourceName(), "");
+        final String sender = StringUtils.firstNonBlank(spec.getSender(), spec.getTitle(), "notification");
         removeRecent(spec.getId());                    // de-dupe by id
         recent.add(0, new RecentNotif(spec.getId(), app, sender));   // newest first
         while (recent.size() > F91_RECENT_MAX) {
@@ -495,7 +495,7 @@ public class F91KeplerSupport extends AbstractBTLESingleDeviceSupport {
     }
 
     private static F91KeplerNotificationTracker.Category categorize(final NotificationSpec spec) {
-        final NotificationType type = spec.type;
+        final NotificationType type = spec.getType();
         if (type == null) {
             return F91KeplerNotificationTracker.Category.TEXT;
         }
@@ -544,11 +544,11 @@ public class F91KeplerSupport extends AbstractBTLESingleDeviceSupport {
 
     @Override
     public void onSetCallState(final CallSpec callSpec) {
-        if (callSpec.command != CallSpec.CALL_INCOMING) {
+        if (callSpec.getCommand() != CallSpec.CALL_INCOMING) {
             // The watch auto-clears the popup after ~5s; nothing to do on accept/end.
             return;
         }
-        final String name = StringUtils.firstNonBlank(callSpec.name, callSpec.number);
+        final String name = StringUtils.firstNonBlank(callSpec.getName(), callSpec.getNumber());
         final TransactionBuilder builder = createTransactionBuilder("incoming call");
         builder.write(F91KeplerConstants.UUID_CHAR_INCOMING_CALL, F91KeplerProtocol.contactName(name));
         builder.queue();

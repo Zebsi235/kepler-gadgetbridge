@@ -20,26 +20,22 @@
 package nodomain.freeyourgadget.gadgetbridge.activities;
 
 import android.Manifest;
+import android.app.Activity;
 import android.content.Context;
 import android.content.Intent;
-import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
 import android.content.pm.ResolveInfo;
 import android.location.Criteria;
 import android.location.Location;
 import android.location.LocationListener;
 import android.location.LocationManager;
+import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
 import android.text.InputType;
-import android.view.View;
-import android.widget.AdapterView;
-import android.widget.ArrayAdapter;
-import android.widget.EditText;
-import android.widget.LinearLayout;
-import android.widget.Spinner;
 import android.widget.Toast;
 
+import androidx.annotation.NonNull;
 import androidx.core.app.ActivityCompat;
 import androidx.localbroadcastmanager.content.LocalBroadcastManager;
 import androidx.preference.ListPreference;
@@ -55,6 +51,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
@@ -72,15 +69,22 @@ import nodomain.freeyourgadget.gadgetbridge.activities.maps.MapsSettingsActivity
 import nodomain.freeyourgadget.gadgetbridge.activities.preferences.HealthConnectPreferencesActivity;
 import nodomain.freeyourgadget.gadgetbridge.activities.quicksettings.QuickSettingsPreferencesActivity;
 import nodomain.freeyourgadget.gadgetbridge.externalevents.TimeChangeReceiver;
+import nodomain.freeyourgadget.gadgetbridge.externalevents.comaps.CoMapsNavigationReceiverFactory;
+import nodomain.freeyourgadget.gadgetbridge.externalevents.opentracks.OpenTracksController;
 import nodomain.freeyourgadget.gadgetbridge.util.FileUtils;
 import nodomain.freeyourgadget.gadgetbridge.util.GB;
+import nodomain.freeyourgadget.gadgetbridge.util.GBPrefs;
+import nodomain.freeyourgadget.gadgetbridge.util.NotificationUtils;
 import nodomain.freeyourgadget.gadgetbridge.util.Prefs;
+import nodomain.freeyourgadget.gadgetbridge.util.preferences.SubtitleListPreference;
 
-public class SettingsActivity extends AbstractSettingsActivityV2 {
+public class SettingsActivity extends AbstractSettingsActivityV2 implements ActivityCompat.OnRequestPermissionsResultCallback {
     public static final String PREF_LANGUAGE = "language";
     public static final String PREF_UNIT_WEIGHT = "unit_weight";
     public static final String PREF_UNIT_TEMPERATURE = "unit_temperature";
     public static final String PREF_UNIT_DISTANCE = "unit_distance";
+
+    public static final int COMAPS_PERMISSION_REQUEST_CODE = 1;
 
     @Override
     protected PreferenceFragmentCompat newFragment() {
@@ -112,11 +116,24 @@ public class SettingsActivity extends AbstractSettingsActivityV2 {
         }
     }
 
+    @Override
+    public void onRequestPermissionsResult(int requestCode, @NonNull String[] permissions, @NonNull int[] grantResults) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults);
+
+        if (requestCode != COMAPS_PERMISSION_REQUEST_CODE) {
+            return;
+        }
+
+        if (Arrays.stream(grantResults).anyMatch(it -> it == PackageManager.PERMISSION_GRANTED)) {
+            GBApplication.getPrefs().getPreferences()
+                    .edit()
+                    .putBoolean(GBPrefs.NAVIGATION_APP_COMAPS, true)
+                    .apply();
+        }
+    }
+
     public static class SettingsFragment extends AbstractPreferenceFragment {
         private static final Logger LOG = LoggerFactory.getLogger(SettingsActivity.class);
-
-        private EditText fitnessAppEditText = null;
-        private int fitnessAppSelectionListSpinnerFirstRun = 0;
 
         @Override
         public void onCreatePreferences(final Bundle savedInstanceState, final String rootKey) {
@@ -315,6 +332,31 @@ public class SettingsActivity extends AbstractSettingsActivityV2 {
                 });
             }
 
+            pref = findPreference("use_updated_location_if_available");
+            if (pref != null) {
+                pref.setOnPreferenceChangeListener((preference, newVal) -> {
+                    if (Boolean.TRUE.equals(newVal) &&
+                            ActivityCompat.checkSelfPermission(requireContext().getApplicationContext(), Manifest.permission.ACCESS_COARSE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
+                        new MaterialAlertDialogBuilder(requireContext())
+                                .setTitle(R.string.warning)
+                                .setMessage(R.string.location_permission_required)
+                                .setIcon(R.drawable.ic_warning)
+                                .setPositiveButton(android.R.string.ok, (dialog, whichButton) -> {
+                                    Intent intent = new Intent(android.provider.Settings.ACTION_APPLICATION_DETAILS_SETTINGS);
+                                    intent.setData(Uri.fromParts("package", requireContext().getPackageName(), null));
+                                    // highlight the permissions entry on supported devices
+                                    final Bundle fragmentArgs = new Bundle();
+                                    fragmentArgs.putString(":settings:fragment_args_key", "permission_settings");
+                                    intent.putExtra(":settings:show_fragment_args", fragmentArgs);
+                                    startActivity(intent);
+                                })
+                                .setNegativeButton(android.R.string.cancel, null)
+                                .show();
+                    }
+                    return true;
+                });
+            }
+
             pref = findPreference("weather_city");
             if (pref != null) {
                 pref.setOnPreferenceChangeListener((preference, newVal) -> {
@@ -505,67 +547,63 @@ public class SettingsActivity extends AbstractSettingsActivityV2 {
             }
 
             //fitness app (OpenTracks) package name selection for OpenTracks observer
-            pref = findPreference("pref_key_opentracks_packagename");
-            if (pref != null) {
-                pref.setOnPreferenceClickListener(preference -> {
-                    final LinearLayout outerLayout = new LinearLayout(requireContext());
-                    outerLayout.setOrientation(LinearLayout.VERTICAL);
-                    final LinearLayout innerLayout = new LinearLayout(requireContext());
-                    innerLayout.setOrientation(LinearLayout.HORIZONTAL);
-                    innerLayout.setPadding(20, 0, 20, 0);
-                    final Spinner selectionListSpinner = new Spinner(requireContext());
-                    String[] appListArray = getResources().getStringArray(R.array.fitness_tracking_apps_package_names);
-                    ArrayAdapter<String> spinnerArrayAdapter = new ArrayAdapter<String>(requireContext(),
-                            android.R.layout.simple_spinner_dropdown_item, appListArray);
-                    selectionListSpinner.setAdapter(spinnerArrayAdapter);
-                    fitnessAppSelectionListSpinnerFirstRun = 0;
-                    addListenerOnSpinnerDeviceSelection(selectionListSpinner);
-                    Prefs prefs1 = GBApplication.getPrefs();
-                    String packageName = prefs1.getString("opentracks_packagename", "de.dennisguse.opentracks");
-                    // Set the spinner to the selected package name by default
-                    for (int i = 0; i < appListArray.length; i++) {
-                        if (appListArray[i].equals(packageName)) {
-                            selectionListSpinner.setSelection(i);
-                            break;
-                        }
+            final SubtitleListPreference opentracksPref = findPreference("opentracks_packagename");
+            if (opentracksPref != null) {
+                final List<String> installedPackages = OpenTracksController.findInstalledPackages();
+                if (installedPackages.isEmpty()) {
+                    opentracksPref.setUnavailable(getString(R.string.pref_summary_opentracks_packagename_not_installed));
+                } else {
+                    opentracksPref.setUnavailable(null);
+                    final CharSequence[] entries = new CharSequence[installedPackages.size()];
+                    final CharSequence[] entryValues = new CharSequence[installedPackages.size()];
+                    for (int i = 0; i < installedPackages.size(); i++) {
+                        final String packageName = installedPackages.get(i);
+                        final String label = NotificationUtils.getApplicationLabel(requireContext(), packageName);
+                        entries[i] = label != null ? label : packageName;
+                        entryValues[i] = packageName;
                     }
-                    fitnessAppEditText = new EditText(requireContext());
-                    fitnessAppEditText.setText(packageName);
-                    innerLayout.addView(fitnessAppEditText);
-                    outerLayout.addView(selectionListSpinner);
-                    outerLayout.addView(innerLayout);
-
-                    new MaterialAlertDialogBuilder(requireContext())
-                            .setCancelable(true)
-                            .setTitle(R.string.pref_title_opentracks_packagename)
-                            .setView(outerLayout)
-                            .setPositiveButton(R.string.ok, (dialog, which) -> {
-                                SharedPreferences.Editor editor = GBApplication.getPrefs().getPreferences().edit();
-                                editor.putString("opentracks_packagename", fitnessAppEditText.getText().toString());
-                                editor.apply();
-                            })
-                            .setNegativeButton(R.string.cancel, (dialog, which) -> {})
-                            .show();
-                    return false;
-                });
-            }
-        }
-
-        private void addListenerOnSpinnerDeviceSelection(Spinner spinner) {
-            spinner.setOnItemSelectedListener(new CustomOnDeviceSelectedListener());
-        }
-
-        public class CustomOnDeviceSelectedListener implements AdapterView.OnItemSelectedListener {
-            @Override
-            public void onItemSelected(AdapterView<?> parent, View view, int pos, long id) {
-                if (++fitnessAppSelectionListSpinnerFirstRun > 1) { //this prevents the setText to be set when spinner just is being initialized
-                    fitnessAppEditText.setText(parent.getItemAtPosition(pos).toString());
+                    opentracksPref.setEntries(entries);
+                    opentracksPref.setEntryValues(entryValues);
+                    opentracksPref.setEntrySubtitles(entryValues);
                 }
             }
 
-            @Override
-            public void onNothingSelected(AdapterView<?> arg0) {
-                // TODO Auto-generated method stub
+            pref = findPreference(GBPrefs.NAVIGATION_APP_COMAPS);
+            if (pref != null) {
+                pref.setOnPreferenceChangeListener((preference, newValue) ->  {
+                    if (!(boolean) newValue) {
+                        return true;
+                    }
+
+                    Activity activity = requireActivity();
+                    List<String> allPermissions = CoMapsNavigationReceiverFactory.discoverInstalledVersions(activity.getPackageManager());
+                    List<String> neededPermissions = allPermissions.stream()
+                            .map(app -> app + CoMapsNavigationReceiverFactory.PERMISSION_SUFFIX)
+                            .filter(it -> activity.checkSelfPermission(it) != PackageManager.PERMISSION_GRANTED)
+                            .toList();
+
+                    if (neededPermissions.isEmpty()) {
+                        return true;
+                    }
+
+                    ActivityCompat.requestPermissions(activity, neededPermissions.toArray(String[]::new), COMAPS_PERMISSION_REQUEST_CODE);
+
+                    if (neededPermissions.stream().anyMatch(activity::shouldShowRequestPermissionRationale)) {
+                        new MaterialAlertDialogBuilder(activity)
+                                .setMessage(activity.getString(R.string.permission_navigation_comaps, activity.getString(R.string.app_name), activity.getString(android.R.string.ok)))
+                                .setPositiveButton(android.R.string.ok, (d, w) -> {
+                                    Intent intent = new Intent(android.provider.Settings.ACTION_APPLICATION_DETAILS_SETTINGS);
+                                    intent.setData(Uri.fromParts("package", activity.getPackageName(), null));
+                                    activity.startActivity(intent);
+                                })
+                                .setNegativeButton(android.R.string.cancel, null)
+                                .show();
+                    }
+
+                    // In the niche case where the user happens to have several versions of CoMaps
+                    // installed, and only grants permission to one, we still enable the option
+                    return neededPermissions.size() < allPermissions.size();
+                });
             }
         }
 

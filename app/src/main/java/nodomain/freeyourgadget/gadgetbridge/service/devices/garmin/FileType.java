@@ -38,7 +38,7 @@ public class FileType {
         // virtual/undocumented
         DIRECTORY(0, 0), // root directory is hardcoded: fileIndex = 0x0000 / 0
         UNKNOWN_1_0(1, 0), // venu 3, fileIndex=4096
-        DEVICE_XML(8, 255), // hardcoded: fileIndex = 0xFFFD / 65533
+        DEVICE_XML(8, 255, false, "DEVICE_XML"), // hardcoded: fileIndex = 0xFFFD / 65533
 
         // fit files
         DEVICE_1(128, 1), // just "-"
@@ -194,12 +194,12 @@ public class FileType {
         }
 
         @Nullable
-        public static FILETYPE findByTypeName(String name) {
-            if(name == null || name.length() < 1){
+        public static FILETYPE findByTypeName(@Nullable String name) {
+            if (name == null || name.length() < 1) {
                 return null;
             }
-            for(FILETYPE type : values()){
-                if(type.typeName != null && name.contentEquals(type.typeName)){
+            for (FILETYPE type : values()) {
+                if (type.typeName != null && name.equalsIgnoreCase(type.typeName)) {
                     return type;
                 }
             }

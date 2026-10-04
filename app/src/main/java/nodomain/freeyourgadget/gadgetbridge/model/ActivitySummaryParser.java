@@ -57,6 +57,7 @@ public interface ActivitySummaryParser {
         );
     }
 
+    @NonNull
     static BaseActivitySummary findOrCreateBaseActivitySummary(final DaoSession session,
                                                                final GBDevice gbDevice,
                                                                final long timestampSeconds) {
@@ -116,5 +117,12 @@ public interface ActivitySummaryParser {
         }
 
         return createBaseActivitySummary(session, deviceId, timestampSeconds);
+    }
+
+    class NoopActivitySummaryParser implements ActivitySummaryParser {
+        @Override
+        public BaseActivitySummary parseBinaryData(final BaseActivitySummary summary, final boolean forDetails) {
+            return summary;
+        }
     }
 }

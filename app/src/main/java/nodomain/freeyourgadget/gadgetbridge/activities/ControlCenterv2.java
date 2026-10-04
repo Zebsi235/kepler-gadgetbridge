@@ -28,6 +28,7 @@ import android.content.IntentFilter;
 import android.content.res.Resources;
 import android.net.Uri;
 import android.os.Bundle;
+import android.os.SystemClock;
 import android.util.TypedValue;
 import android.view.MenuItem;
 import android.view.MotionEvent;
@@ -86,6 +87,7 @@ import nodomain.freeyourgadget.gadgetbridge.util.PermissionsUtils;
 public class ControlCenterv2 extends AppCompatActivity
         implements NavigationView.OnNavigationItemSelectedListener, GBActivity {
     private static final Logger LOG = LoggerFactory.getLogger(ControlCenterv2.class);
+    public static final long REALTIME_HR_SAMPLE_TTL_MS = 5_000L;
     public static final int MENU_REFRESH_CODE = 1;
     private boolean isLanguageInvalid = false;
     private boolean isThemeInvalid = false;
@@ -123,14 +125,34 @@ public class ControlCenterv2 extends AppCompatActivity
     };
     private boolean pesterWithPermissions = true;
     private final Map<GBDevice, ActivitySample> currentHRSample = new HashMap<>();
+    private final Map<GBDevice, Long> currentHRSampleReceivedAt = new HashMap<>();
 
     public ActivitySample getCurrentHRSample(final GBDevice device) {
-        return currentHRSample.get(device);
+        final ActivitySample sample = currentHRSample.get(device);
+
+        if (!device.getDeviceCoordinator().supportsLiveOnlyHeartRateDisplay(device)) {
+            return sample;
+        }
+
+        final Long receivedAt = currentHRSampleReceivedAt.get(device);
+
+        if (sample == null || receivedAt == null) {
+            return null;
+        }
+
+        if (SystemClock.elapsedRealtime() - receivedAt > REALTIME_HR_SAMPLE_TTL_MS) {
+            currentHRSample.remove(device);
+            currentHRSampleReceivedAt.remove(device);
+            return null;
+        }
+
+        return sample;
     }
 
     private void setCurrentHRSample(final GBDevice device, ActivitySample sample) {
         if (HeartRateUtils.getInstance().isValidHeartRateValue(sample.getHeartRate())) {
             currentHRSample.put(device, sample);
+            currentHRSampleReceivedAt.put(device, SystemClock.elapsedRealtime());
         }
     }
 
@@ -179,11 +201,9 @@ public class ControlCenterv2 extends AppCompatActivity
         drawerNavigationView.setNavigationItemSelectedListener(this);
 
         View navigationHeaderView = drawerNavigationView.getHeaderView(0);
-        ViewCompat.setOnApplyWindowInsetsListener(navigationHeaderView, (view, windowInsets) -> {
-            Insets insets = windowInsets.getInsets(WindowInsetsCompat.Type.systemBars() | WindowInsetsCompat.Type.displayCutout());
-            view.setPadding(view.getPaddingLeft(), insets.top, view.getPaddingRight(), view.getPaddingBottom());
-            return windowInsets;
-        });
+        final int headerPaddingLeft = navigationHeaderView.getPaddingLeft();
+        final int headerPaddingRight = navigationHeaderView.getPaddingRight();
+        final int headerPaddingBottom = navigationHeaderView.getPaddingBottom();
 
         // Initialize bottom navigation
         BottomNavigationView navigationView = findViewById(R.id.bottom_nav_bar);
@@ -204,6 +224,23 @@ public class ControlCenterv2 extends AppCompatActivity
 
         // Initialize actionbar
         MaterialToolbar toolbar = findViewById(R.id.toolbar);
+        // targetSdk 35 forces edge-to-edge. We intercept the insets on the ConstraintLayout
+        // itself (main_content) and apply them directly to the toolbar. The drawer header is
+        // padded here too.
+        final View mainContent = findViewById(R.id.main_content);
+        final int toolbarPaddingLeft = toolbar.getPaddingLeft();
+        final int toolbarPaddingRight = toolbar.getPaddingRight();
+        final int toolbarPaddingBottom = toolbar.getPaddingBottom();
+        final int bottomNavPaddingLeft = navigationView.getPaddingLeft();
+        final int bottomNavPaddingRight = navigationView.getPaddingRight();
+        final int bottomNavPaddingTop = navigationView.getPaddingTop();
+        ViewCompat.setOnApplyWindowInsetsListener(mainContent, (view, windowInsets) -> {
+            Insets insets = windowInsets.getInsets(WindowInsetsCompat.Type.systemBars() | WindowInsetsCompat.Type.displayCutout());
+            toolbar.setPadding(toolbarPaddingLeft, insets.top, toolbarPaddingRight, toolbarPaddingBottom);
+            navigationView.setPadding(bottomNavPaddingLeft, bottomNavPaddingTop, bottomNavPaddingRight, insets.bottom);
+            navigationHeaderView.setPadding(headerPaddingLeft, insets.top, headerPaddingRight, headerPaddingBottom);
+            return windowInsets;
+        });
         setSupportActionBar(toolbar);
         DrawerLayout drawer = findViewById(R.id.drawer_layout);
         ActionBarDrawerToggle toggle = new ActionBarDrawerToggle(
