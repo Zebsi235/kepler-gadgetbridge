@@ -125,6 +125,7 @@
         <item name="deviceIconLight">?attr/colorPrimaryVariant</item>
         <item name="deviceIconDark">?attr/colorPrimaryDark</item>
         <item name="spo2_avg_color">@color/spo2_avg_color_light</item>
+        <item name="training_acute_load">@color/training_load</item>
     </style>
     <style name="GadgetbridgeThemeDynamicDark" parent="Theme.Material3.DynamicColors.Dark">
         <item name="textColorPrimary">@color/primarytext_dark</item>
@@ -148,6 +149,7 @@
         <item name="deviceIconLight">?attr/colorPrimaryVariant</item>
         <item name="deviceIconDark">?attr/colorPrimaryDark</item>
         <item name="spo2_avg_color">@color/spo2_avg_color_dark</item>
+        <item name="training_acute_load">@color/training_load_dark</item>
     </style>
     <style name="GadgetbridgeThemeDynamicDarkAmoled" parent="GadgetbridgeThemeDynamicDark">
         <item name="android:windowBackground">@android:color/black</item>

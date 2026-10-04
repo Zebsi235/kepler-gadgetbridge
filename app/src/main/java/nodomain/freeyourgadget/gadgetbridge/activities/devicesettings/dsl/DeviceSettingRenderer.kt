@@ -24,12 +24,15 @@ import android.text.InputFilter
 import android.text.InputFilter.LengthFilter
 import androidx.preference.EditTextPreference
 import androidx.preference.ListPreference
+import androidx.preference.MultiSelectListPreference
 import androidx.preference.Preference
 import androidx.preference.PreferenceCategory
 import androidx.preference.PreferenceGroup
 import androidx.preference.SeekBarPreference
 import androidx.preference.SwitchPreferenceCompat
-import nodomain.freeyourgadget.gadgetbridge.activities.devicesettings.DeviceSpecificSettingsHandler
+import com.google.android.material.dialog.MaterialAlertDialogBuilder
+import nodomain.freeyourgadget.gadgetbridge.R
+import nodomain.freeyourgadget.gadgetbridge.activities.devicesettings.SettingsRenderHost
 import nodomain.freeyourgadget.gadgetbridge.util.Prefs
 import nodomain.freeyourgadget.gadgetbridge.util.preferences.GBSimpleSummaryProvider
 import org.slf4j.Logger
@@ -66,10 +69,11 @@ object DeviceSettingRenderer {
         items: List<DeviceSetting>,
         parent: PreferenceGroup,
         prefs: Prefs,
-        handler: DeviceSpecificSettingsHandler,
+        handler: SettingsRenderHost,
     ): DeviceSettingsRefreshHandle {
         val visibilityPairs = mutableListOf<Pair<Preference, (Prefs) -> Boolean>>()
         val dynamicEntryPairs = mutableListOf<Pair<ListPreference, (Prefs) -> List<ListEntry>>>()
+        val dynamicMultiEntryPairs = mutableListOf<Pair<MultiSelectListPreference, (Prefs) -> List<ListEntry>>>()
         val categoryMemberPairs = mutableListOf<Pair<PreferenceCategory, MutableList<Preference>>>()
         val spListeners = mutableListOf<SharedPreferences.OnSharedPreferenceChangeListener>()
         val mainHandler = Handler(Looper.getMainLooper())
@@ -82,6 +86,9 @@ object DeviceSettingRenderer {
             val context = handler.context
             visibilityPairs.forEach { (pref, predicate) -> pref.isVisible = predicate(livePrefs) }
             dynamicEntryPairs.forEach { (pref, provider) ->
+                applyEntries(pref, provider(livePrefs), context)
+            }
+            dynamicMultiEntryPairs.forEach { (pref, provider) ->
                 applyEntries(pref, provider(livePrefs), context)
             }
             categoryMemberPairs.forEach { (cat, members) ->
@@ -102,6 +109,7 @@ object DeviceSettingRenderer {
             handler,
             visibilityPairs,
             dynamicEntryPairs,
+            dynamicMultiEntryPairs,
             categoryMemberPairs,
             spListeners,
             mainHandler,
@@ -128,13 +136,39 @@ object DeviceSettingRenderer {
         pref.entryValues = entries.map { it.value }.toTypedArray()
     }
 
+    private fun applyEntries(pref: MultiSelectListPreference, entries: List<ListEntry>, context: Context) {
+        pref.entries = entries.map { entry ->
+            when (entry) {
+                is ListEntry.Res -> context.getString(entry.label)
+                is ListEntry.Text -> entry.label
+            }
+        }.toTypedArray()
+        pref.entryValues = entries.map { it.value }.toTypedArray()
+    }
+
+    /**
+     * Summary provider used by [MultiSelectSetting] when no static [MultiSelectSetting.summary] is given:
+     * a comma-delimited list of the currently selected entries' labels, matching [ListPreference.SimpleSummaryProvider]'s
+     * behavior for single-select lists.
+     */
+    private fun multiSelectCommaSummaryProvider(context: Context) =
+        Preference.SummaryProvider<MultiSelectListPreference> { pref ->
+            val entries = pref.entries.orEmpty()
+            val entryValues = pref.entryValues.orEmpty()
+            val selected = entryValues.indices
+                .filter { entryValues[it].toString() in pref.values }
+                .map { entries[it] }
+            if (selected.isEmpty()) context.getString(R.string.not_set) else selected.joinToString(", ")
+        }
+
     private fun renderItems(
         items: List<DeviceSetting>,
         parent: PreferenceGroup,
         prefs: Prefs,
-        handler: DeviceSpecificSettingsHandler,
+        handler: SettingsRenderHost,
         visibilityPairs: MutableList<Pair<Preference, (Prefs) -> Boolean>>,
         dynamicEntryPairs: MutableList<Pair<ListPreference, (Prefs) -> List<ListEntry>>>,
+        dynamicMultiEntryPairs: MutableList<Pair<MultiSelectListPreference, (Prefs) -> List<ListEntry>>>,
         categoryMemberPairs: MutableList<Pair<PreferenceCategory, MutableList<Preference>>>,
         spListeners: MutableList<SharedPreferences.OnSharedPreferenceChangeListener>,
         mainHandler: Handler,
@@ -162,6 +196,7 @@ object DeviceSettingRenderer {
                         handler,
                         visibilityPairs,
                         dynamicEntryPairs,
+                        dynamicMultiEntryPairs,
                         categoryMemberPairs,
                         spListeners,
                         mainHandler,
@@ -193,6 +228,7 @@ object DeviceSettingRenderer {
                         handler,
                         visibilityPairs,
                         dynamicEntryPairs,
+                        dynamicMultiEntryPairs,
                         categoryMemberPairs,
                         spListeners,
                         mainHandler,
@@ -219,10 +255,27 @@ object DeviceSettingRenderer {
                         }
                         if (setting.icon != 0) setIcon(setting.icon)
                         setDefaultValue(setting.defaultValue)
-                        setOnPreferenceChangeListener { _, _ ->
-                            handler.notifyPreferenceChanged(setting.key)
-                            postRefresh()
-                            true
+                        disableDependentsState = setting.disableDependentsState
+                        if (setting.confirmationMessage != 0) {
+                            setOnPreferenceChangeListener { preference, newValue ->
+                                MaterialAlertDialogBuilder(context)
+                                    .setTitle(context.getString(R.string.earfun_change_confirm_title, preference.title))
+                                    .setMessage(setting.confirmationMessage)
+                                    .setPositiveButton(R.string.ok) { _, _ ->
+                                        (preference as SwitchPreferenceCompat).isChecked = newValue as Boolean
+                                        handler.notifyPreferenceChanged(setting.key)
+                                        postRefresh()
+                                    }
+                                    .setNegativeButton(R.string.cancel) { dialog, _ -> dialog.dismiss() }
+                                    .show()
+                                false
+                            }
+                        } else {
+                            setOnPreferenceChangeListener { _, _ ->
+                                handler.notifyPreferenceChanged(setting.key)
+                                postRefresh()
+                                true
+                            }
                         }
                     }
                 }
@@ -260,14 +313,40 @@ object DeviceSettingRenderer {
                     }
                 }
 
+                is MultiSelectSetting -> {
+                    MultiSelectListPreference(context).apply {
+                        key = setting.key
+                        setTitle(setting.title)
+                        setDialogTitle(setting.title)
+                        if (setting.icon != 0) setIcon(setting.icon)
+                        if (setting.entriesProvider != null) {
+                            applyEntries(this, setting.entriesProvider.invoke(prefs), context)
+                            dynamicMultiEntryPairs.add(this to setting.entriesProvider)
+                        } else {
+                            applyEntries(this, setting.entries, context)
+                        }
+                        setDefaultValue(setting.defaultValue)
+                        if (setting.summary != 0) {
+                            setSummary(setting.summary)
+                        } else {
+                            summaryProvider = multiSelectCommaSummaryProvider(context)
+                        }
+                        setOnPreferenceChangeListener { _, _ ->
+                            handler.notifyPreferenceChanged(setting.key)
+                            postRefresh()
+                            true
+                        }
+                    }
+                }
+
                 is SeekBarSetting -> {
                     SeekBarPreference(context).apply {
                         key = setting.key
                         setTitle(setting.title)
                         if (setting.summary != 0) setSummary(setting.summary)
                         if (setting.icon != 0) setIcon(setting.icon)
-                        // TODO: Not supported by our sdk version: min = setting.min
                         max = setting.max
+                        min = setting.min
                         setDefaultValue(setting.defaultValue)
                         showSeekBarValue = setting.showValue
                         setOnPreferenceChangeListener { _, _ ->
@@ -330,9 +409,45 @@ object DeviceSettingRenderer {
                         if (setting.summary != 0) setSummary(setting.summary)
                         if (setting.icon != 0) setIcon(setting.icon)
                         isPersistent = false
-                        setOnPreferenceClickListener {
-                            setting.onClick?.invoke(handler) ?: false
+                        isEnabled = setting.enabled
+                        if (setting.confirmationMessage != 0) {
+                            setOnPreferenceClickListener { preference ->
+                                MaterialAlertDialogBuilder(context)
+                                    .setTitle(preference.title)
+                                    .setMessage(setting.confirmationMessage)
+                                    .setPositiveButton(R.string.ok) { _, _ ->
+                                        setting.onClick?.invoke(handler)
+                                    }
+                                    .setNegativeButton(R.string.cancel) { dialog, _ -> dialog.dismiss() }
+                                    .show()
+                                true
+                            }
+                        } else {
+                            setOnPreferenceClickListener {
+                                setting.onClick?.invoke(handler) ?: false
+                            }
                         }
+                    }
+                }
+
+                is InfoSetting -> {
+                    Preference(context).apply {
+                        key = setting.key
+                        setTitle(setting.title)
+                        if (setting.icon != 0) setIcon(setting.icon)
+                        isPersistent = false
+                        val pref = this
+                        pref.summary = prefs.getString(setting.key, setting.defaultValue)
+                        val listener =
+                            SharedPreferences.OnSharedPreferenceChangeListener { sharedPrefs, changedKey ->
+                                if (changedKey == setting.key) {
+                                    val newValue = sharedPrefs.getString(changedKey, setting.defaultValue)
+                                        ?: setting.defaultValue
+                                    mainHandler.post { pref.summary = newValue }
+                                }
+                            }
+                        spListeners.add(listener)
+                        sp.registerOnSharedPreferenceChangeListener(listener)
                     }
                 }
 
@@ -350,9 +465,11 @@ object DeviceSettingRenderer {
             val dependency: String? = when (setting) {
                 is SwitchSetting -> setting.dependency
                 is ListSetting -> setting.dependency
+                is MultiSelectSetting -> setting.dependency
                 is SeekBarSetting -> setting.dependency
                 is TextSetting -> setting.dependency
-                else -> null
+                is ActionSetting -> setting.dependency
+                is InfoSetting -> setting.dependency
             }
             if (dependency != null) pref.dependency = dependency
 

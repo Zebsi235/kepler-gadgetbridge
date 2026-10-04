@@ -21,6 +21,7 @@ package nodomain.freeyourgadget.gadgetbridge.service;
 
 import android.bluetooth.BluetoothAdapter;
 import android.content.Context;
+import android.hardware.usb.UsbAccessory;
 import android.location.Location;
 import android.net.Uri;
 import android.os.Bundle;
@@ -40,6 +41,7 @@ import nodomain.freeyourgadget.gadgetbridge.activities.devicesettings.DeviceSett
 import nodomain.freeyourgadget.gadgetbridge.capabilities.loyaltycards.LoyaltyCard;
 import nodomain.freeyourgadget.gadgetbridge.deviceevents.GBDeviceEvent;
 import nodomain.freeyourgadget.gadgetbridge.deviceevents.GBDeviceEventCameraRemote;
+import nodomain.freeyourgadget.gadgetbridge.devices.DeviceCoordinator;
 import nodomain.freeyourgadget.gadgetbridge.externalevents.CalendarReceiver;
 import nodomain.freeyourgadget.gadgetbridge.impl.GBDevice;
 import nodomain.freeyourgadget.gadgetbridge.model.Alarm;
@@ -68,7 +70,6 @@ public abstract class AbstractDeviceSupport implements DeviceSupport {
     private static final Logger LOG = LoggerFactory.getLogger(AbstractDeviceSupport.class);
 
     protected GBDevice gbDevice;
-    private BluetoothAdapter btAdapter;
     private Context context;
     private boolean autoReconnect, scanReconnect;
 
@@ -81,9 +82,18 @@ public abstract class AbstractDeviceSupport implements DeviceSupport {
     public static final String BUNDLE_EXTRA_INSTALL_TASK_NAME = "install_handler_task_name";
 
     @Override
-    public void setContext(GBDevice gbDevice, BluetoothAdapter btAdapter, Context context) {
+    public void setContext(@NonNull final GBDevice gbDevice,
+                           @NonNull final BluetoothAdapter btAdapter,
+                           @NonNull final Context context) {
         this.gbDevice = gbDevice;
-        this.btAdapter = btAdapter;
+        this.context = context;
+    }
+
+    @Override
+    public void setContext(@NonNull final GBDevice gbDevice,
+                           @NonNull final UsbAccessory usbAccessory,
+                           @NonNull final Context context) {
+        this.gbDevice = gbDevice;
         this.context = context;
     }
 
@@ -138,11 +148,6 @@ public abstract class AbstractDeviceSupport implements DeviceSupport {
     @Override
     public GBDevice getDevice() {
         return gbDevice;
-    }
-
-    @Override
-    public BluetoothAdapter getBluetoothAdapter() {
-        return btAdapter;
     }
 
     @Override
@@ -466,12 +471,20 @@ public abstract class AbstractDeviceSupport implements DeviceSupport {
     }
 
     /**
-     * If a device can be reset with a command, this method can be
+     * If a device can be rebooted with a command, this method can be
      * overridden and implemented by the device support class.
-     * @param flags can be used to pass flags with the reset command
      */
     @Override
-    public void onReset(int flags) {
+    public void onReboot() {
+
+    }
+
+    /**
+     * If a device can be factory reset with a command, this method can be
+     * overridden and implemented by the device support class.
+     */
+    @Override
+    public void onFactoryReset() {
 
     }
 
@@ -628,6 +641,11 @@ public abstract class AbstractDeviceSupport implements DeviceSupport {
     }
 
     @Override
+    public SleepAsAndroidSender getSleepAsAndroidSender() {
+        return null;
+    }
+
+    @Override
     public void onCameraStatusChange(GBDeviceEventCameraRemote.Event event, String filename) {}
 
     @Override
@@ -645,5 +663,9 @@ public abstract class AbstractDeviceSupport implements DeviceSupport {
                     defaultValue);
         }
         return defaultValue;
+    }
+
+    protected DeviceCoordinator getCoordinator() {
+        return gbDevice.getDeviceCoordinator();
     }
 }

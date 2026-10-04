@@ -1,18 +1,20 @@
 package nodomain.freeyourgadget.gadgetbridge.activities.debug
 
 import android.app.DatePickerDialog
+import android.content.Intent
 import android.os.Bundle
 import android.widget.DatePicker
 import android.widget.Toast
+import androidx.core.content.edit
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import nodomain.freeyourgadget.gadgetbridge.GBApplication
 import nodomain.freeyourgadget.gadgetbridge.R
+import nodomain.freeyourgadget.gadgetbridge.activities.files.FileManagerActivity
 import nodomain.freeyourgadget.gadgetbridge.model.RecordedDataTypes
-import nodomain.freeyourgadget.gadgetbridge.service.serial.GBDeviceProtocol
+import nodomain.freeyourgadget.gadgetbridge.util.DateTimeUtils
 import nodomain.freeyourgadget.gadgetbridge.util.GB
 import java.util.Calendar
-import androidx.core.content.edit
-import nodomain.freeyourgadget.gadgetbridge.util.DateTimeUtils
+
 
 class OtherDebugFragment : AbstractDebugFragment() {
     override fun onCreatePreferences(savedInstanceState: Bundle?, rootKey: String?) {
@@ -84,6 +86,12 @@ class OtherDebugFragment : AbstractDebugFragment() {
             }
         }
 
+        onClick(PREF_DEBUG_BROWSE_CACHE) {
+            val fileManagerIntent = Intent(requireActivity(), FileManagerActivity::class.java)
+            fileManagerIntent.putExtra(FileManagerActivity.EXTRA_PATH, requireContext().externalCacheDir?.path)
+            startActivity(fileManagerIntent)
+        }
+
         onClick(PREF_DEBUG_FETCH_DEBUG_LOGS) {
             runOnDebugDevices("Fetch debug logs", true) {
                 GBApplication.deviceService(it).onFetchRecordedData(RecordedDataTypes.TYPE_DEBUGLOGS)
@@ -92,7 +100,7 @@ class OtherDebugFragment : AbstractDebugFragment() {
 
         onClick(PREF_DEBUG_REBOOT) {
             runOnDebugDevices("Reboot", true) {
-                GBApplication.deviceService(it).onReset(GBDeviceProtocol.RESET_FLAGS_REBOOT)
+                GBApplication.deviceService(it).onReboot()
             }
         }
 
@@ -103,7 +111,7 @@ class OtherDebugFragment : AbstractDebugFragment() {
                 .setMessage(R.string.debugactivity_really_factoryreset)
                 .setPositiveButton(R.string.ok) { _, _ ->
                     runOnDebugDevices(getString(R.string.factory_reset), true) {
-                        GBApplication.deviceService(it).onReset(GBDeviceProtocol.RESET_FLAGS_FACTORY_RESET)
+                        GBApplication.deviceService(it).onFactoryReset()
                     }
                 }
                 .setNegativeButton(R.string.cancel) { _, _ -> }
@@ -116,6 +124,7 @@ class OtherDebugFragment : AbstractDebugFragment() {
         private const val ACTIVITY_LIST_DEBUG_EXTRA_TIME_RANGE = "activity_list_debug_extra_time_range"
         private const val PREF_DEBUG_HEADER_FETCH_RECORDED_DATA = "pref_debug_header_fetch_recorded_data"
         private const val PREF_DEBUG_SET_ACTIVITY_FETCH_TIME = "pref_debug_set_activity_fetch_time"
+        private const val PREF_DEBUG_BROWSE_CACHE = "pref_debug_browse_cache"
         private const val PREF_DEBUG_FETCH_DEBUG_LOGS = "pref_debug_fetch_debug_logs"
         private const val PREF_DEBUG_HEADER_RESET = "pref_debug_header_reset"
         private const val PREF_DEBUG_REBOOT = "pref_debug_reboot"

@@ -368,6 +368,23 @@ public class FileUtils {
         return dir.delete();
     }
 
+    @Nullable
+    public static byte[] getHeader(final File file, final int bytes) {
+        final byte[] header = new byte[bytes];
+
+        try (InputStream is = new FileInputStream(file)) {
+            if (is.read(header) != header.length) {
+                LOG.warn("Read unexpected number of header bytes");
+                return null;
+            }
+        } catch (final IOException e) {
+            LOG.error("Error while reading header bytes", e);
+            return null;
+        }
+
+        return header;
+    }
+
     public static File createTempDir(String prefix) throws IOException {
         File parent = new File(System.getProperty("java.io.tmpdir", "/tmp"));
         for (int i = 1; i < 100; i++) {

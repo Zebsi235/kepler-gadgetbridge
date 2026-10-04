@@ -53,6 +53,7 @@ class HealthConnectDebugFragment : AbstractDebugFragment() {
                     try {
                         GBApplication.acquireDB().use { db ->
                             db.daoSession.healthConnectSyncStateDao.deleteAll()
+                            db.daoSession.healthConnectSleepSessionDao.deleteAll()
                             GB.toast("Health Connect sync state reset successfully", Toast.LENGTH_SHORT, GB.INFO)
                         }
                     } catch (e: Exception) {
@@ -75,7 +76,7 @@ class HealthConnectDebugFragment : AbstractDebugFragment() {
                         val startInstant = startDate.atStartOfDay(ZoneId.systemDefault()).toInstant()
                         val endInstant = Instant.now()
                         try {
-                            val file = GadgetbridgeDataExporter.export(requireContext(), gbDevice, startInstant, endInstant)
+                            val file = GadgetbridgeDataExporter.export(gbDevice, startInstant, endInstant)
                             GB.toast("Exported to ${file.name}", Toast.LENGTH_LONG, GB.INFO)
                         } catch (e: Exception) {
                             GB.toast("Export failed: ${e.message}", Toast.LENGTH_LONG, GB.ERROR, e)

@@ -53,6 +53,7 @@ import nodomain.freeyourgadget.gadgetbridge.service.btle.TransactionBuilder;
 import nodomain.freeyourgadget.gadgetbridge.service.devices.casio.CasioSupport;
 import nodomain.freeyourgadget.gadgetbridge.util.GB;
 import nodomain.freeyourgadget.gadgetbridge.util.StringUtils;
+import nodomain.freeyourgadget.gadgetbridge.util.language.impl.FlattenToAsciiTransliterator;
 
 import static nodomain.freeyourgadget.gadgetbridge.activities.devicesettings.DeviceSettingsPreferenceConst.PREF_DISCONNECTNOTIF_NOSHED;
 
@@ -453,17 +454,16 @@ public class CasioGB6900DeviceSupport extends CasioSupport {
             return;
         try {
             TransactionBuilder builder = performInitialized("showNotification");
-            int len;
 
-            byte[] titleBytes = title.getBytes(StandardCharsets.US_ASCII);
-            len = titleBytes.length > 18 ? 18 : titleBytes.length;
+            final byte[] titleBytes = FlattenToAsciiTransliterator.flatten(title).getBytes(StandardCharsets.US_ASCII);
+            final int len = Math.min(titleBytes.length, 18);
             byte[] msg = new byte[2 + len];
             msg[0] = icon;
             msg[1] = 1;
             System.arraycopy(titleBytes, 0, msg, 2, len);
 
             builder.writeLegacy(getCharacteristic(CasioConstants.ALERT_CHARACTERISTIC_UUID), msg);
-            LOG.info("Showing notification, title: " + title + " message (not sent): " + message);
+            LOG.info("Showing notification, title: {} message (not sent): {}", title, message);
             builder.queue();
         } catch (IOException e) {
             LOG.warn("showNotification failed: " + e.getMessage());
@@ -472,9 +472,9 @@ public class CasioGB6900DeviceSupport extends CasioSupport {
 
     @Override
     public void onNotification(NotificationSpec notificationSpec) {
-        String notificationTitle = StringUtils.getFirstOf(notificationSpec.sender, notificationSpec.title);
+        String notificationTitle = StringUtils.getFirstOf(notificationSpec.getSender(), notificationSpec.getTitle());
         byte icon;
-        switch (notificationSpec.type.getGenericType()) {
+        switch (notificationSpec.getType().getGenericType()) {
             case "generic_sms":
                 icon = CasioConstants.SMS_NOTIFICATION_ID;
                 break;
@@ -488,7 +488,7 @@ public class CasioGB6900DeviceSupport extends CasioSupport {
                 icon = CasioConstants.SNS_NOTIFICATION_ID;
                 break;
         }
-        showNotification(icon, notificationTitle, notificationSpec.body);
+        showNotification(icon, notificationTitle, notificationSpec.getBody());
     }
 
     @Override
@@ -520,9 +520,9 @@ public class CasioGB6900DeviceSupport extends CasioSupport {
 
     @Override
     public void onSetCallState(CallSpec callSpec) {
-        switch (callSpec.command) {
+        switch (callSpec.getCommand()) {
             case CallSpec.CALL_INCOMING:
-                showNotification(CasioConstants.CALL_NOTIFICATION_ID, callSpec.name, callSpec.number);
+                showNotification(CasioConstants.CALL_NOTIFICATION_ID, callSpec.getName(), callSpec.getNumber());
                 break;
             default:
                 LOG.info("not sending CallSpec since only CALL_INCOMING is handled");
@@ -547,14 +547,14 @@ public class CasioGB6900DeviceSupport extends CasioSupport {
         try {
             TransactionBuilder builder = performInitialized("sendMusicInfo");
             String info = "";
-            if (mBufferMusicSpec.track != null && mBufferMusicSpec.track.length() > 0) {
-                info += mBufferMusicSpec.track;
+            if (mBufferMusicSpec.getTrack() != null && mBufferMusicSpec.getTrack().length() > 0) {
+                info += mBufferMusicSpec.getTrack();
             }
-            if (mBufferMusicSpec.album != null && mBufferMusicSpec.album.length() > 0) {
-                info += mBufferMusicSpec.album;
+            if (mBufferMusicSpec.getAlbum() != null && mBufferMusicSpec.getAlbum().length() > 0) {
+                info += mBufferMusicSpec.getAlbum();
             }
-            if (mBufferMusicSpec.artist != null && mBufferMusicSpec.artist.length() > 0) {
-                info += mBufferMusicSpec.artist;
+            if (mBufferMusicSpec.getArtist() != null && mBufferMusicSpec.getArtist().length() > 0) {
+                info += mBufferMusicSpec.getArtist();
             }
             byte[] bInfo = info.getBytes(StandardCharsets.US_ASCII);
             int len = bInfo.length > 17 ? 17 : bInfo.length;

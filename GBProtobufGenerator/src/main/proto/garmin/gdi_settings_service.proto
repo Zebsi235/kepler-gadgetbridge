@@ -1,0 +1,367 @@
+syntax = "proto2";
+
+package garmin_vivomovehr;
+
+option java_package = "nodomain.freeyourgadget.gadgetbridge.proto.garmin.GdiSettingsService";
+option java_multiple_files = true;
+
+message SettingsService {
+  optional ScreenDefinitionRequest definitionRequest = 1;
+  optional ScreenDefinitionResponse definitionResponse = 2;
+
+  optional ScreenStateRequest stateRequest = 3;
+  optional ScreenStateResponse stateResponse = 4;
+
+  optional ChangeRequest changeRequest = 5;
+  optional ChangeResponse changeResponse = 6;
+
+  optional Notification7 from_device7 = 7;
+
+  optional InitRequest initRequest = 8;
+  optional InitResponse initResponse = 9;
+
+  optional Message11 unk11 = 11;
+  optional Message13 unk13 = 13;
+
+  message Message11 {
+    optional uint32 unk1 = 1;
+  }
+
+  message Message13 {
+  }
+}
+
+message ScreenDefinitionRequest {
+  optional uint32 screenId = 1;
+  optional uint32 unk2 = 2; // 0
+  optional string language = 3; // en_US
+}
+
+message ScreenDefinitionResponse {
+  optional uint32 status = 1; // 0 = success, 2 = fail
+  optional ScreenDefinition definition = 2;
+}
+
+message ScreenDefinition {
+  optional uint32 screenId = 1;
+  optional uint32 unk2 = 2; // 0
+  optional uint32 unk3 = 3; // 928002
+  optional Label title = 4;
+  repeated ScreenEntry entry = 5;
+  repeated MenuEntry menu_entry = 6;
+}
+
+message Label {
+  optional string id = 1;
+  optional string text = 2;
+  repeated string unk3 = 3;
+  repeated bytes unk4 = 4;
+}
+
+message ScreenEntry {
+  message Message6 {
+    optional uint32 unk1 = 1;
+    optional string unk2 = 2;
+    optional uint32 unk3 = 3;
+  }
+  message Message7 {
+
+  }
+  message Message8 {
+  }
+
+  message Message10 {
+    optional MenuMessage unk1 = 1;
+  }
+  message Message14 {
+    optional uint32 unk1 = 1;
+    optional uint32 unk2 = 2;
+    optional uint32 unk3 = 3;
+    optional uint32 unk4 = 4;
+  }
+  message Message15 {
+    optional Label unk1 = 1;
+    optional Label unk2 = 2;
+  }
+  optional uint32 id = 1;
+  optional uint32 type = 2;
+  optional Label title = 3;
+  optional uint32 unk4 = 4;
+  optional uint32 icon = 5;
+  optional Message6 unk6 = 6;
+  optional Message7 unk7 = 7;
+  optional Message8 unk8 = 8;
+  optional Target target = 9;
+  optional Message10 unk10 = 10;
+  optional uint32 icon2 = 11;
+  optional SortOptions sortOptions = 12;
+  optional TextOption textOption = 13;
+  optional Message14 unk14 = 14;
+  optional Message15 unk15 = 15; // info text if nothing can be set?
+}
+
+message SortOptions {
+  optional uint32 unk3 = 3; // 1
+  repeated SortEntry entries = 5;
+}
+
+message SortEntry {
+  optional uint32 id = 1;
+  optional Label title = 2;
+  optional uint32 unk5 = 5; // 1
+}
+
+message TextOption {
+  optional TextLimits limits = 1;
+  optional uint32 unk2 = 2; // 0
+}
+
+message TextLimits {
+  optional uint32 maxLength = 1;
+}
+
+message Target {
+  message Time5 {
+    optional uint32 unk1 = 1;
+    optional uint32 unk2 = 2;
+    optional uint32 unk3 = 3;
+  }
+  message Float7 {
+    optional float unk1 = 1;
+    optional float unk2 = 2;
+    optional uint32 unk3 = 3;
+    optional float unk4 = 4;
+  }
+  message Message11 {
+    optional int32 unk1 = 1;
+    optional bytes unk2 = 2;
+    optional uint32 unk5 = 5;
+    optional uint32 unk6 = 6;
+  }
+  optional uint32 type = 1; // 0 subscreen, 1 list preference, 6 other activity, 7 hidden, 9 subscreen with options
+  optional uint32 subscreen = 2; // when 0
+  optional uint32 activity = 3; // when 6
+  optional TargetOptions options = 4; // when 1
+  optional Time5 unk5 = 5;
+  optional Float7 unk7 = 7;
+  optional TargetNumberPicker numberPicker = 8;
+  optional Message11 unk11 = 11;
+}
+
+message ScreenStateRequest {
+  optional uint32 screenId = 1;
+}
+
+message TargetOptions {
+  repeated TargetOptionEntry option = 1;
+  repeated MenuEntry menu_entry = 2;
+}
+
+message TargetOptionEntry {
+  message Message7 {
+    optional uint32 unk1 = 1;
+    optional uint32 unk2 = 2;
+    optional uint32 unk3 = 3;
+    optional uint32 unk4 = 4;
+  }
+  optional uint32 unk1 = 1;
+  optional uint32 unk2 = 2;
+  optional Label title = 3;
+  optional Label subtitle = 4;
+  optional Message7 unk7 = 7;
+}
+
+message TargetNumberPicker {
+  optional uint32 min = 1;
+  optional uint32 max = 2;
+  optional uint32 step = 3; // maybe? 1 on weight
+}
+
+message ScreenStateResponse {
+  optional uint32 unk1 = 1; // 0
+  optional ScreenState state = 2;
+}
+
+message ScreenState {
+  optional uint32 screenId = 1;
+  optional uint32 unk2 = 2; // 0
+  optional uint32 unk3 = 3; // 928002
+  repeated EntryState state = 4;
+}
+
+message EntryState {
+  message Message7 {
+    optional Label label1 = 1;
+    optional Label label2 = 2;
+  }
+  message Message8 {
+    optional uint32 unk1 = 1;
+  }
+  message Message9 {
+    optional Label label1 = 1;
+  }
+  optional uint32 id = 1;
+  optional uint32 state = 2;
+  optional Switch switch = 3;
+  optional Summary summary = 4;
+  optional Message7 unk7 = 7;
+  optional Message8 unk8 = 8;
+  optional Message9 unk9 = 9;
+}
+
+message Switch {
+  optional bool enabled = 1;
+  optional Label title = 2;
+}
+
+message Summary {
+  optional Label title = 1;
+  optional ValueList valueList = 2;
+  optional ValueTimestamp valueTimestamp = 3;
+  optional ValueTime valueTime = 4;
+  optional ValueFloat valueFloat = 5;
+  optional ValueNumber valueNumber = 6;
+  optional ValueDate valueDate = 8;
+  optional ValueHeight valueHeight = 10;
+}
+
+message ValueList {
+  optional uint32 index = 1;
+}
+
+message ValueTime {
+  optional uint32 seconds = 1;
+  optional uint32 timeFormat = 3; // 0 12h, 1 24h
+}
+
+message ValueTimestamp {
+  optional uint32 seconds = 1;
+  optional Label formatted = 2;
+  optional Label titel = 3;
+}
+
+message ValueFloat {
+  optional float value = 1;
+  optional Label formatted = 2;
+  optional Label title = 3;
+  optional Label uom = 4;
+}
+
+message ValueNumber {
+  optional uint32 value = 1;
+  optional Label subtitle = 2;
+  optional Label title = 3;
+  optional Label unit = 4;
+}
+
+message ValueDate {
+  optional Label subtitle = 1;
+  optional Date currentDate = 2;
+  optional Date minDate = 3;
+  optional Date maxDate = 4;
+}
+
+message ValueHeight {
+  optional Label subtitle = 1;
+  optional uint32 value = 2;
+  optional uint32 unit = 3; // 0 cm
+}
+
+message Date {
+  optional uint32 month = 1;
+  optional uint32 day = 2;
+  optional uint32 year = 3;
+}
+
+message ChangeRequest {
+  optional uint32 screenId = 1;
+  optional uint32 entryId = 2;
+  optional Switch switch = 3;
+  optional Option option = 4;
+  optional Time time = 6;
+  optional Number number = 8;
+  optional Position position = 11;
+  optional NewDate newDate = 12;
+  optional Text text = 14;
+  optional Height height = 15;
+
+  message Switch {
+    required bool value = 1;
+  }
+  message Option {
+    optional uint32 index = 1;
+  }
+  message Time {
+    optional uint32 seconds = 1;
+  }
+  message Number {
+    optional uint32 value = 1;
+  }
+  message Position {
+    optional uint32 index = 1;
+    optional bool delete = 2;
+  }
+  message NewDate {
+    optional Date value = 1;
+  }
+  message Text {
+    optional string value = 1;
+  }
+  message Height {
+    optional uint32 value = 1;
+    optional uint32 unit = 2;
+  }
+}
+
+message ChangeResponse {
+  message Message2 {
+    optional Label unk1 = 1;
+    optional Label unk2 = 2;
+    optional Label unk3 = 3;
+  }
+  optional ResponseStatus status = 1;
+  optional Message2 unk2 = 2;
+  optional ScreenState state = 3;
+  optional bool unk4 = 4;
+  optional bool shouldReturn = 5;
+}
+
+message InitRequest {
+  optional string language = 1; // en_US
+  optional string region = 2; // us
+}
+
+message InitResponse {
+  optional string part_number_1 = 1;
+  optional string part_number_2 = 2;
+  repeated uint32 unk3 = 3;
+  optional uint32 unk4 = 4;
+}
+
+enum ResponseStatus {
+  SUCCESS = 0;
+  GENERIC_ERROR = 1;
+}
+
+message Notification7 {
+}
+
+message MenuMessage {
+  optional Label unk1 = 1;
+  optional Label unk2 = 2;
+  optional Label unk3 = 3;
+  optional Label unk4 = 4;
+  optional uint32 unk5 = 5;
+  optional uint32 unk6 = 6;
+}
+
+message MenuEntry {
+  optional uint32 unk1 = 1;
+  optional uint32 unk2 = 2;
+  optional Label label = 3;
+  optional uint32 unk4 = 4;
+  optional Target target = 5;
+  optional uint32 unk6 = 6;
+  optional uint32 unk7 = 7;
+  optional MenuMessage menu_message = 9;
+}

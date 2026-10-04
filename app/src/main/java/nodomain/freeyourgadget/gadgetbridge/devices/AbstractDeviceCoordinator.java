@@ -35,6 +35,7 @@ import android.widget.Toast;
 import androidx.annotation.DrawableRes;
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
+import androidx.annotation.StringRes;
 
 import org.apache.commons.lang3.ArrayUtils;
 import org.slf4j.Logger;
@@ -69,7 +70,11 @@ import nodomain.freeyourgadget.gadgetbridge.capabilities.widgets.WidgetManager;
 import nodomain.freeyourgadget.gadgetbridge.database.DBHandler;
 import nodomain.freeyourgadget.gadgetbridge.database.DBHelper;
 import nodomain.freeyourgadget.gadgetbridge.entities.AlarmDao;
+import nodomain.freeyourgadget.gadgetbridge.entities.BatteryCurrentSampleDao;
 import nodomain.freeyourgadget.gadgetbridge.entities.BatteryLevelDao;
+import nodomain.freeyourgadget.gadgetbridge.entities.BatteryPowerSampleDao;
+import nodomain.freeyourgadget.gadgetbridge.entities.BatteryTemperatureSampleDao;
+import nodomain.freeyourgadget.gadgetbridge.entities.BatteryVoltageSampleDao;
 import nodomain.freeyourgadget.gadgetbridge.entities.CyclingSample;
 import nodomain.freeyourgadget.gadgetbridge.entities.DaoSession;
 import nodomain.freeyourgadget.gadgetbridge.entities.Device;
@@ -77,6 +82,7 @@ import nodomain.freeyourgadget.gadgetbridge.entities.DeviceAttributes;
 import nodomain.freeyourgadget.gadgetbridge.entities.DeviceAttributesDao;
 import nodomain.freeyourgadget.gadgetbridge.entities.GenericTrainingLoadAcuteSample;
 import nodomain.freeyourgadget.gadgetbridge.entities.GenericTrainingLoadChronicSample;
+import nodomain.freeyourgadget.gadgetbridge.entities.HealthConnectSleepSessionDao;
 import nodomain.freeyourgadget.gadgetbridge.entities.HealthConnectSyncStateDao;
 import nodomain.freeyourgadget.gadgetbridge.entities.InternetFirewallRuleDao;
 import nodomain.freeyourgadget.gadgetbridge.impl.GBDevice;
@@ -89,6 +95,7 @@ import nodomain.freeyourgadget.gadgetbridge.model.Alarm;
 import nodomain.freeyourgadget.gadgetbridge.model.BatteryConfig;
 import nodomain.freeyourgadget.gadgetbridge.model.BloodPressureSample;
 import nodomain.freeyourgadget.gadgetbridge.model.BodyEnergySample;
+import nodomain.freeyourgadget.gadgetbridge.model.SolarChargeSample;
 import nodomain.freeyourgadget.gadgetbridge.model.DeviceType;
 import nodomain.freeyourgadget.gadgetbridge.model.GpxActivityTrackProvider;
 import nodomain.freeyourgadget.gadgetbridge.model.HeartRateSample;
@@ -112,6 +119,7 @@ import nodomain.freeyourgadget.gadgetbridge.util.GB;
 import nodomain.freeyourgadget.gadgetbridge.util.GBPrefs;
 import nodomain.freeyourgadget.gadgetbridge.util.Prefs;
 import nodomain.freeyourgadget.gadgetbridge.util.preferences.DevicePrefs;
+import nodomain.freeyourgadget.gadgetbridge.widgets.DeviceWidgetsProvider;
 
 public abstract class AbstractDeviceCoordinator implements DeviceCoordinator {
     private static final Logger LOG = LoggerFactory.getLogger(AbstractDeviceCoordinator.class);
@@ -172,17 +180,27 @@ public abstract class AbstractDeviceCoordinator implements DeviceCoordinator {
         GBDevice gbDevice = new GBDevice(candidate.getDevice().getAddress(), candidate.getName(), null, null, deviceType);
         setBatteryConfigOnDevice(gbDevice);
 
-        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q) {
-            final DevicePrefs devicePreferences = GBApplication.getDevicePrefs(gbDevice);
-            final SharedPreferences.Editor editor = devicePreferences.getPreferences().edit();
+        final DevicePrefs devicePreferences = GBApplication.getDevicePrefs(gbDevice);
+        final SharedPreferences.Editor editor = devicePreferences.getPreferences().edit();
 
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q) {
             // #5414 - Some old Android versions misbehave
             editor.putBoolean(DeviceSettingsPreferenceConst.PREF_CONNECTION_FORCE_LEGACY_GATT, true);
-
-            editor.apply();
         }
 
+        applyDefaultPreferences(devicePreferences, editor);
+
+        editor.apply();
+
         return gbDevice;
+    }
+
+    /**
+     * Allows for default preferences to be applied on device creation. These do not apply to already-paired devices,
+     * for those you should implement a preference migrator in {@link nodomain.freeyourgadget.gadgetbridge.prefs.GBPrefsMigrator}.
+     */
+    protected void applyDefaultPreferences(final DevicePrefs devicePreferences, final SharedPreferences.Editor editor) {
+        // nothing by default
     }
 
     @Override
@@ -230,8 +248,13 @@ public abstract class AbstractDeviceCoordinator implements DeviceCoordinator {
                 deleteDevice(gbDevice, device, session);
                 deleteBy(session.getDeviceAttributesDao(), DeviceAttributesDao.Properties.DeviceId, device.getId());
                 deleteBy(session.getBatteryLevelDao(), BatteryLevelDao.Properties.DeviceId, device.getId());
+                deleteBy(session.getBatteryVoltageSampleDao(), BatteryVoltageSampleDao.Properties.DeviceId, device.getId());
+                deleteBy(session.getBatteryCurrentSampleDao(), BatteryCurrentSampleDao.Properties.DeviceId, device.getId());
+                deleteBy(session.getBatteryPowerSampleDao(), BatteryPowerSampleDao.Properties.DeviceId, device.getId());
+                deleteBy(session.getBatteryTemperatureSampleDao(), BatteryTemperatureSampleDao.Properties.DeviceId, device.getId());
                 deleteBy(session.getAlarmDao(), AlarmDao.Properties.DeviceId, device.getId());
                 deleteBy(session.getHealthConnectSyncStateDao(), HealthConnectSyncStateDao.Properties.DeviceId, device.getId());
+                deleteBy(session.getHealthConnectSleepSessionDao(), HealthConnectSleepSessionDao.Properties.DeviceId, device.getId());
                 deleteBy(session.getInternetFirewallRuleDao(), InternetFirewallRuleDao.Properties.DeviceId, device.getId());
                 session.getDeviceDao().delete(device);
             } else {
@@ -316,6 +339,12 @@ public abstract class AbstractDeviceCoordinator implements DeviceCoordinator {
     @Override
     @Nullable
     public TimeSampleProvider<? extends BodyEnergySample> getBodyEnergySampleProvider(final GBDevice device, final DaoSession session) {
+        return null;
+    }
+
+    @Override
+    @Nullable
+    public TimeSampleProvider<? extends SolarChargeSample> getSolarChargeSampleProvider(final GBDevice device, final DaoSession session) {
         return null;
     }
 
@@ -445,7 +474,7 @@ public abstract class AbstractDeviceCoordinator implements DeviceCoordinator {
     @Override
     @Nullable
     public ActivitySummaryParser getActivitySummaryParser(final GBDevice device, final Context context) {
-        return null;
+        return new ActivitySummaryParser.NoopActivitySummaryParser();
     }
 
     @Override
@@ -549,6 +578,16 @@ public abstract class AbstractDeviceCoordinator implements DeviceCoordinator {
     }
 
     @Override
+    public int getSmartWakeupMaxInterval(@NonNull GBDevice device) {
+        return 255;
+    }
+
+    @Override
+    public String getSmartWakeupDescription(@NonNull GBDevice device) {
+        return null;
+    }
+
+    @Override
     public boolean forcedSmartWakeup(GBDevice device, int alarmPosition) {
         return false;
     }
@@ -611,6 +650,11 @@ public abstract class AbstractDeviceCoordinator implements DeviceCoordinator {
     @Override
     public int getBondingStyle() {
         return BONDING_STYLE_ASK;
+    }
+
+    @Override
+    public boolean requiresAuthKey() {
+        return getBondingStyle() == BONDING_STYLE_REQUIRE_KEY;
     }
 
     @Override
@@ -703,6 +747,26 @@ public abstract class AbstractDeviceCoordinator implements DeviceCoordinator {
     }
 
     @Override
+    public boolean supportsTrainingLoadChronic(@NonNull GBDevice device) {
+        return supportsTrainingLoad(device);
+    }
+
+    @Override
+    public boolean supportsRacePrediction(@NonNull GBDevice device) {
+        return false;
+    }
+
+    @Override
+    public boolean supportsTrainingReadiness(@NonNull GBDevice device) {
+        return false;
+    }
+
+    @Override
+    public boolean supportsSolarCharging(@NonNull GBDevice device) {
+        return false;
+    }
+
+    @Override
     public boolean supportsCharts(@NonNull GBDevice device) {
         // All the default charts (see DefaultChartsProvider)
         return supportsActivityTracking(device) ||
@@ -723,7 +787,10 @@ public abstract class AbstractDeviceCoordinator implements DeviceCoordinator {
                 supportsActiveCalories(device) ||
                 supportsCyclingData(device) ||
                 supportsRespiratoryRate(device) ||
-                supportsBloodPressureMeasurement(device);
+                supportsBloodPressureMeasurement(device) ||
+                supportsRacePrediction(device) ||
+                supportsTrainingReadiness(device) ||
+                supportsSolarCharging(device);
     }
 
     @Override
@@ -749,6 +816,11 @@ public abstract class AbstractDeviceCoordinator implements DeviceCoordinator {
     @Override
     public DeviceChartsProvider getChartsProvider() {
         return DefaultChartsProvider.INSTANCE;
+    }
+
+    @Override
+    public DeviceWidgetsProvider getWidgetsProvider() {
+        return DeviceWidgetsProvider.DEFAULT;
     }
 
     @Override
@@ -943,6 +1015,11 @@ public abstract class AbstractDeviceCoordinator implements DeviceCoordinator {
     }
 
     @Override
+    public boolean supportsLiveOnlyHeartRateDisplay(@NonNull final GBDevice device) {
+        return false;
+    }
+
+    @Override
     public boolean supportsRealtimeData(@NonNull GBDevice device) {
         return false;
     }
@@ -988,7 +1065,7 @@ public abstract class AbstractDeviceCoordinator implements DeviceCoordinator {
     }
 
     @Override
-    public Set<SleepAsAndroidFeature> getSleepAsAndroidFeatures() {
+    public Set<SleepAsAndroidFeature> getSleepAsAndroidFeatures(@NonNull final GBDevice device) {
         return Collections.emptySet();
     }
 
@@ -1000,6 +1077,7 @@ public abstract class AbstractDeviceCoordinator implements DeviceCoordinator {
         if (connectionType.usesBluetoothClassic() || connectionType.usesBluetoothLE()) {
             settings = ArrayUtils.insert(0, settings, R.xml.devicesettings_reconnect_periodic);
             settings = ArrayUtils.insert(0, settings, R.xml.devicesettings_device_connect_back);
+            settings = ArrayUtils.insert(0, settings, R.xml.devicesettings_device_connect_by_trigger);
             if (supportsConnectionPriority()) {
                 settings = ArrayUtils.add(settings, R.xml.devicesettings_connection_priority_low_power);
             }
@@ -1163,6 +1241,21 @@ public abstract class AbstractDeviceCoordinator implements DeviceCoordinator {
     }
 
     @Override
+    public boolean supportsCustomVibrationPatterns(@NonNull final GBDevice device) {
+        return false;
+    }
+
+    @Override
+    public int getVibrationPresetNameRes(final int presetId) {
+        return 0;
+    }
+
+    @Override
+    public boolean isProtectedVibrationPatternId(final int id) {
+        return false;
+    }
+
+    @Override
     public AbstractNotificationPattern[] getNotificationVibrationPatterns() {
         return new AbstractNotificationPattern[0];
     }
@@ -1183,14 +1276,26 @@ public abstract class AbstractDeviceCoordinator implements DeviceCoordinator {
     }
 
     @Override
-    public boolean validateAuthKey(final String authKey) {
+    public boolean validateAuthKey(@NonNull final String authKey) {
         return !(authKey.getBytes().length < 34 || !authKey.startsWith("0x"));
     }
 
     @Override
     @Nullable
     public String getAuthHelp() {
+        return "https://gadgetbridge.org/basics/pairing/#authentication-key";
+    }
+
+    @Override
+    @Nullable
+    public String getSecondaryAuthKeyPref() {
         return null;
+    }
+
+    @Override
+    @StringRes
+    public int getSecondaryAuthKeyHint() {
+        return 0;
     }
 
     @Override

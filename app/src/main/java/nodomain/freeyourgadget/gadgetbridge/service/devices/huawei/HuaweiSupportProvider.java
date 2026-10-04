@@ -93,6 +93,7 @@ import nodomain.freeyourgadget.gadgetbridge.devices.huawei.packets.Notifications
 import nodomain.freeyourgadget.gadgetbridge.devices.huawei.packets.Weather;
 import nodomain.freeyourgadget.gadgetbridge.devices.huawei.ui.HuaweiStressCalibrationFragment;
 import nodomain.freeyourgadget.gadgetbridge.devices.miband.MiBandConst;
+import nodomain.freeyourgadget.gadgetbridge.entities.BaseActivitySummary;
 import nodomain.freeyourgadget.gadgetbridge.entities.HuaweiActivitySample;
 import nodomain.freeyourgadget.gadgetbridge.entities.HuaweiEcgDataSample;
 import nodomain.freeyourgadget.gadgetbridge.entities.HuaweiEcgDataSampleDao;
@@ -138,6 +139,7 @@ import nodomain.freeyourgadget.gadgetbridge.service.devices.huawei.datasync.Huaw
 import nodomain.freeyourgadget.gadgetbridge.service.devices.huawei.datasync.HuaweiDataSyncArterialStiffnessDetection;
 import nodomain.freeyourgadget.gadgetbridge.service.devices.huawei.datasync.HuaweiDataSyncSleepApnea;
 import nodomain.freeyourgadget.gadgetbridge.service.devices.huawei.p2p.HuaweiP2PAppIcon;
+import nodomain.freeyourgadget.gadgetbridge.service.devices.huawei.p2p.HuaweiP2PBatteryService;
 import nodomain.freeyourgadget.gadgetbridge.service.devices.huawei.p2p.HuaweiP2PCalendarService;
 import nodomain.freeyourgadget.gadgetbridge.service.devices.huawei.p2p.HuaweiP2PCannedRepliesService;
 import nodomain.freeyourgadget.gadgetbridge.service.devices.huawei.p2p.HuaweiP2PContactsService;
@@ -189,6 +191,7 @@ import nodomain.freeyourgadget.gadgetbridge.service.devices.huawei.requests.SetT
 import nodomain.freeyourgadget.gadgetbridge.service.devices.huawei.requests.StopFindPhoneRequest;
 import nodomain.freeyourgadget.gadgetbridge.service.devices.huawei.requests.StopNotificationRequest;
 import nodomain.freeyourgadget.gadgetbridge.service.devices.huawei.requests.GetFitnessTotalsRequest;
+import nodomain.freeyourgadget.gadgetbridge.service.devices.huawei.requests.GetHiChainPakeRequest;
 import nodomain.freeyourgadget.gadgetbridge.service.devices.huawei.requests.GetHiChainRequest;
 import nodomain.freeyourgadget.gadgetbridge.service.devices.huawei.requests.GetSleepDataCountRequest;
 import nodomain.freeyourgadget.gadgetbridge.service.devices.huawei.requests.GetStepDataCountRequest;
@@ -206,6 +209,7 @@ import nodomain.freeyourgadget.gadgetbridge.service.devices.huawei.requests.GetB
 import nodomain.freeyourgadget.gadgetbridge.service.devices.huawei.requests.GetConnectStatusRequest;
 import nodomain.freeyourgadget.gadgetbridge.service.devices.huawei.requests.GetDeviceStatusRequest;
 import nodomain.freeyourgadget.gadgetbridge.service.devices.huawei.requests.GetDndLiftWristTypeRequest;
+import nodomain.freeyourgadget.gadgetbridge.service.devices.huawei.requests.GetDualChannelRequest;
 import nodomain.freeyourgadget.gadgetbridge.service.devices.huawei.requests.GetLinkParamsRequest;
 import nodomain.freeyourgadget.gadgetbridge.service.devices.huawei.requests.GetPincodeRequest;
 import nodomain.freeyourgadget.gadgetbridge.service.devices.huawei.requests.GetProductInformationRequest;
@@ -234,7 +238,6 @@ import nodomain.freeyourgadget.gadgetbridge.service.devices.huawei.requests.GetN
 import nodomain.freeyourgadget.gadgetbridge.service.devices.huawei.requests.SetWorkModeRequest;
 import nodomain.freeyourgadget.gadgetbridge.service.devices.huawei.utils.HuaweiGPSTrackConverter;
 import nodomain.freeyourgadget.gadgetbridge.service.devices.huawei.utils.HuaweiRouteTrack;
-import nodomain.freeyourgadget.gadgetbridge.service.serial.GBDeviceProtocol;
 import nodomain.freeyourgadget.gadgetbridge.util.DateTimeUtils;
 import nodomain.freeyourgadget.gadgetbridge.util.GB;
 import nodomain.freeyourgadget.gadgetbridge.util.MediaManager;
@@ -279,6 +282,7 @@ public class HuaweiSupportProvider {
     private final HuaweiPacket.ParamsProvider paramsProvider = new HuaweiPacket.ParamsProvider();
 
     protected ResponseManager responseManager = new ResponseManager(this);
+    protected HuaweiDualChannelHelper dualChannelHelper = new HuaweiDualChannelHelper();
     protected HuaweiUploadManager huaweiUploadManager = new HuaweiUploadManager(this);
 
     protected HuaweiWatchfaceManager huaweiWatchfaceManager = new HuaweiWatchfaceManager(this);
@@ -330,6 +334,21 @@ public class HuaweiSupportProvider {
 
     public HuaweiState getDeviceState() {
         return HuaweiDeviceStateManager.get(getDevice());
+    }
+
+    public HuaweiDualChannelHelper getDualChannelHelper() {
+        return dualChannelHelper;
+    }
+
+    /**
+     * Opens the secondary RFCOMM socket negotiated by the 0x3C command. No-op on BLE or when no
+     * channel was negotiated. Once connected, packets whose (service, command) is flagged by
+     * {@link HuaweiDualChannelHelper} are routed there; until then they use the primary socket.
+     */
+    public void openDualChannel(int channel) {
+        if (isBLE() || channel <= 0)
+            return;
+        brSupport.openAuxChannel(channel);
     }
 
     public HuaweiUploadManager getUploadManager() {
@@ -473,7 +492,9 @@ public class HuaweiSupportProvider {
 
     protected nodomain.freeyourgadget.gadgetbridge.service.btle.TransactionBuilder initializeDevice(nodomain.freeyourgadget.gadgetbridge.service.btle.TransactionBuilder builder) {
         builder.setCallback(leSupport);
-        final BluetoothGattCharacteristic characteristicRead = leSupport.getCharacteristic(HuaweiConstants.UUID_CHARACTERISTIC_HUAWEI_READ);
+        final BluetoothGattCharacteristic characteristicRead = leSupport.getCharacteristic(
+                getCoordinator().isNewHonorProtocol() ? HuaweiConstants.UUID_CHARACTERISTIC_HONOR_READ : HuaweiConstants.UUID_CHARACTERISTIC_HUAWEI_READ
+        );
         if (characteristicRead == null) {
             LOG.warn("Read characteristic is null, will attempt to reconnect");
             builder.setDeviceState(GBDevice.State.WAITING_FOR_RECONNECT);
@@ -590,13 +611,10 @@ public class HuaweiSupportProvider {
                 RequestCallback securityFinalizeReq = new RequestCallback(this) {
                     @Override
                     public void call() {
-                        if (securityNegoReq.authType == 0x0186A0 || isHiChain3(securityNegoReq.authType)) {
-                            LOG.debug("HiChain mode");
-                            initializeDeviceHiChainMode();
-                        } else if (securityNegoReq.authType == 0x01 || securityNegoReq.authType == 0x02) {
-                            LOG.debug("HiChain Lite mode");
-                            // Keep track the gadget is connected
-                            initializeDeviceHiChainLiteMode(linkParamsReq);
+                        if (getCoordinator().supportsHiChainPake()) {
+                            finalizeSecurityNegotiationPake(securityNegoReq);
+                        } else {
+                            finalizeSecurityNegotiationHiChain(securityNegoReq, linkParamsReq);
                         }
                     }
                 };
@@ -609,6 +627,42 @@ public class HuaweiSupportProvider {
         } catch (IOException e) {
             GB.toast(context, "Init deal with HiChain of Huawei device failed", Toast.LENGTH_SHORT, GB.ERROR, e);
             LOG.error("Init deal with HiChain of Huawei device failed", e);
+        }
+    }
+
+    /**
+     * Finalize security negotiation for Honor PAKE devices (e.g. Honor Watch 5), gated by
+     * {@link HuaweiCoordinator#supportsHiChainPake()}. These always run the PAKE/STS stack; the
+     * watch dictates which via the negotiated pairType (tag 0x02 of the 0x33 response): 2 = it
+     * trusts us -> STS fast reconnect; anything else (incl. FIRST_PAIR=1) -> a full PAKE bind. We
+     * request pairType=2 ourselves once we hold a stored peer identity (see
+     * GetSecurityNegotiationRequest); the watch downgrades us to FIRST_PAIR if it has not persisted
+     * our trust, and the (PIN-less, DH-derived) re-bind then connects reliably. authType is
+     * intentionally not consulted here: on reconnect the watch echoes authType=2, which would
+     * otherwise fall through to the HiChain Lite branch of the classic path.
+     */
+    protected void finalizeSecurityNegotiationPake(final GetSecurityNegotiationRequest securityNegoReq) {
+        boolean stsReconnect = (securityNegoReq.honorPairType == 0x02);
+        LOG.debug("HiChain PAKE mode (authType={}, honorPairType={} -> {})",
+                securityNegoReq.authType, securityNegoReq.honorPairType,
+                stsReconnect ? "STS reconnect" : "PAKE bind");
+        initializeDeviceHiChainModePake(securityNegoReq.responseNonce, stsReconnect);
+    }
+
+    /**
+     * Finalize security negotiation for classic Huawei HiChain devices (everything that is not an
+     * Honor PAKE device), dispatching to HiChain / HiChain3 or HiChain Lite based on the negotiated
+     * authType.
+     */
+    protected void finalizeSecurityNegotiationHiChain(final GetSecurityNegotiationRequest securityNegoReq,
+                                                      final Request linkParamsReq) {
+        if (securityNegoReq.authType == 0x0186A0 || isHiChain3(securityNegoReq.authType)) {
+            LOG.debug("HiChain mode");
+            initializeDeviceHiChainMode();
+        } else if (securityNegoReq.authType == 0x01 || securityNegoReq.authType == 0x02) {
+            LOG.debug("HiChain Lite mode");
+            // Keep track the gadget is connected
+            initializeDeviceHiChainLiteMode(linkParamsReq);
         }
     }
 
@@ -661,6 +715,19 @@ public class HuaweiSupportProvider {
         }
     }
 
+    /** Honor PAKE/STS auth path (Honor Watch 5); gated by {@link HuaweiCoordinator#supportsHiChainPake()}. */
+    protected void initializeDeviceHiChainModePake(byte[] securityNonce, boolean stsReconnect) {
+        try {
+            GetHiChainPakeRequest hiChainReq = new GetHiChainPakeRequest(this, stsReconnect);
+            hiChainReq.serverNonce = securityNonce;
+            hiChainReq.setFinalizeReq(configureReq);
+            hiChainReq.doPerform();
+        } catch (IOException e) {
+            GB.toast(context, "HiChain PAKE Mode init of Huawei device failed", Toast.LENGTH_SHORT, GB.ERROR, e);
+            LOG.error("HiChain PAKE Mode init of Huawei device failed", e);
+        }
+    }
+
     protected void initializeDeviceHiChainLiteMode(Request linkParamsReq) {
         try {
             createSecretKey();
@@ -706,11 +773,25 @@ public class HuaweiSupportProvider {
     }
 
     protected void initializeDeviceConfigure() {
+        // The PAKE/STS path authenticates with its own session keys and never populates the packet
+        // secret key. AsynchronousResponse takes that key being non-null as its "auth has finished"
+        // signal and silently drops every unsolicited packet while it is null, which kills all
+        // device-initiated flows - notably the whole 0x28 file upload state machine, so a watchface
+        // install stalls right after the file info request. We are past auth here, so open the
+        // async path. These devices don't encrypt transactions, so the key value itself is unused.
+        if (getCoordinator().supportsHiChainPake() && paramsProvider.getSecretKey() == null)
+            createSecretKey();
+
         if (isBLE()) {
             nodomain.freeyourgadget.gadgetbridge.service.btle.TransactionBuilder leBuilder = createLeTransactionBuilder("Initializing");
             leBuilder.setCallback(leSupport);
-            if (!GBApplication.getDeviceSpecificSharedPrefs(gbDevice.getAddress()).getBoolean("force_new_protocol", false))
-                leBuilder.notify(HuaweiConstants.UUID_CHARACTERISTIC_HUAWEI_READ, true);
+            if (!GBApplication.getDeviceSpecificSharedPrefs(gbDevice.getAddress()).getBoolean("force_new_protocol", false)) {
+                if (getCoordinator().isNewHonorProtocol()) {
+                    leBuilder.notify(HuaweiConstants.UUID_CHARACTERISTIC_HONOR_READ, true);
+                } else {
+                    leBuilder.notify(HuaweiConstants.UUID_CHARACTERISTIC_HUAWEI_READ, true);
+                }
+            }
             leBuilder.setDeviceState(GBDevice.State.INITIALIZING);
         } else {
             nodomain.freeyourgadget.gadgetbridge.service.btbr.TransactionBuilder brBuilder = createBrTransactionBuilder("Initializing");
@@ -853,6 +934,49 @@ public class HuaweiSupportProvider {
         return androidID.getBytes(StandardCharsets.UTF_8);
     }
 
+    /**
+     * Persistent 32-byte Ed25519 identity seed for the HiChain PAKE (Honor Watch 5) bind.
+     * Generated once per device and reused so the peer keeps trusting our long-term key on
+     * reconnect. Stored per-device so a re-pair of the same watch keeps the same identity.
+     */
+    public byte[] getPakeIdentitySeed() {
+        SharedPreferences sharedPrefs = GBApplication.getDeviceSpecificSharedPrefs(deviceMac);
+        String seedHex = sharedPrefs.getString("huawei_pake_ed25519_seed", null);
+        if (seedHex == null || seedHex.isEmpty()) {
+            seedHex = StringUtils.bytesToHex(HuaweiCrypto.generateNonce()); // 16 bytes
+            seedHex += StringUtils.bytesToHex(HuaweiCrypto.generateNonce()); // -> 32 bytes
+            sharedPrefs.edit().putString("huawei_pake_ed25519_seed", seedHex).apply();
+        }
+        return GB.hexStringToByteArray(seedHex);
+    }
+
+    /**
+     * Persists the peer (watch) identity learned during the HiChain PAKE bind exchange: its
+     * authId and its Ed25519 public key. These are needed on reconnect for the STS mutual-auth
+     * (operationCode 2), which proves possession of the identity keys instead of a fresh PIN.
+     */
+    public void savePakePeerIdentity(byte[] peerAuthId, byte[] peerAuthPk) {
+        SharedPreferences sharedPrefs = GBApplication.getDeviceSpecificSharedPrefs(deviceMac);
+        sharedPrefs.edit()
+                .putString("huawei_pake_peer_auth_id", StringUtils.bytesToHex(peerAuthId))
+                .putString("huawei_pake_peer_auth_pk", StringUtils.bytesToHex(peerAuthPk))
+                .apply();
+    }
+
+    /** Watch authId stored at bind, or null if we have never completed a bind with this device. */
+    public byte[] getPakePeerAuthId() {
+        SharedPreferences sharedPrefs = GBApplication.getDeviceSpecificSharedPrefs(deviceMac);
+        String hex = sharedPrefs.getString("huawei_pake_peer_auth_id", null);
+        return (hex == null || hex.isEmpty()) ? null : GB.hexStringToByteArray(hex);
+    }
+
+    /** Watch Ed25519 identity public key stored at bind, or null if none. */
+    public byte[] getPakePeerAuthPk() {
+        SharedPreferences sharedPrefs = GBApplication.getDeviceSpecificSharedPrefs(deviceMac);
+        String hex = sharedPrefs.getString("huawei_pake_peer_auth_pk", null);
+        return (hex == null || hex.isEmpty()) ? null : GB.hexStringToByteArray(hex);
+    }
+
     public Context getContext() {
         return context;
     }
@@ -904,6 +1028,9 @@ public class HuaweiSupportProvider {
 
             // All of the below check that they are supported and otherwise they skip themselves
             final List<Request> initRequestQueue = new ArrayList<>();
+            // Negotiate the dual RFCOMM channel before the rest, so its routing tables are known
+            // early. Skips itself unless the device is BR and advertises dual-socket support.
+            initRequestQueue.add(new GetDualChannelRequest(this));
             initRequestQueue.add(new SendExtendedAccountRequest(this));
             initRequestQueue.add(new GetSettingRelatedRequest(this));
             initRequestQueue.add(new AcceptAgreementsRequest(this));
@@ -1040,6 +1167,11 @@ public class HuaweiSupportProvider {
                             HuaweiP2PFitnessData p2PFitnessData = new HuaweiP2PFitnessData(huaweiP2PManager);
                             p2PFitnessData.register();
                         }
+
+                        if (HuaweiP2PBatteryService.getRegisteredInstance(huaweiP2PManager) == null) {
+                            HuaweiP2PBatteryService batteryService = new HuaweiP2PBatteryService(huaweiP2PManager);
+                            batteryService.register();
+                        }
                     }
                 }
             });
@@ -1153,6 +1285,13 @@ public class HuaweiSupportProvider {
 
     public void onSocketRead(byte[] data) {
         responseManager.handleData(data);
+    }
+
+    public void onSocketRead(byte[] data, int channel) {
+        if (channel != ResponseManager.MAIN_CHANNEL)
+            LOG.debug("Dual channel: received {} bytes on aux socket (channel {}): {}",
+                    data.length, channel, GB.lazyHexdump(data));
+        responseManager.handleData(data, channel);
     }
 
     public void removeInProgressRequests(Request req) {
@@ -1566,7 +1705,12 @@ public class HuaweiSupportProvider {
             getSleepDataCountRequest = new GetSleepDataCountRequest(this, leBuilder, sleepStart, end);
         } else {
             nodomain.freeyourgadget.gadgetbridge.service.btbr.TransactionBuilder brBuilder = createBrTransactionBuilder("FetchRecordedData");
-            brBuilder.setBusyTask(R.string.busy_task_fetch_activity_data);
+            // When the dual channel is active this fetch rides the aux socket. Marking the whole
+            // device busy would block the main channel (notifications/commands) for the entire
+            // background sync — which can be minutes on a first sync — defeating the purpose of the
+            // second socket. So only take the busy flag when everything runs on the primary socket.
+            if (!getDualChannelHelper().isActive())
+                brBuilder.setBusyTask(R.string.busy_task_fetch_activity_data);
             getSleepDataCountRequest = new GetSleepDataCountRequest(this, brBuilder, sleepStart, end);
         }
 
@@ -1699,12 +1843,10 @@ public class HuaweiSupportProvider {
         });
     }
 
-    public void onReset(int flags) {
+    public void onFactoryReset() {
         try {
-            if (flags == GBDeviceProtocol.RESET_FLAGS_FACTORY_RESET) {
-                SendFactoryResetRequest sendFactoryResetReq = new SendFactoryResetRequest(this);
-                sendFactoryResetReq.doPerform();
-            }
+            SendFactoryResetRequest sendFactoryResetReq = new SendFactoryResetRequest(this);
+            sendFactoryResetReq.doPerform();
         } catch (IOException e) {
             GB.toast(context, "Factory resetting Huawei device failed", Toast.LENGTH_SHORT, GB.ERROR, e);
             LOG.error("Factory resetting Huawei device failed", e);
@@ -1794,7 +1936,7 @@ public class HuaweiSupportProvider {
     }
 
     public void onSetCallState(CallSpec callSpec) {
-        if (callSpec.command == CallSpec.CALL_INCOMING || (callSpec.command == CallSpec.CALL_OUTGOING && getDeviceState().supportsOutgoingCall())) {
+        if (callSpec.getCommand() == CallSpec.CALL_INCOMING || (callSpec.getCommand() == CallSpec.CALL_OUTGOING && getDeviceState().supportsOutgoingCall())) {
             SendNotificationRequest sendNotificationReq = new SendNotificationRequest(this);
             try {
                 sendNotificationReq.buildNotificationTLVFromCallSpec(callSpec);
@@ -1803,8 +1945,8 @@ public class HuaweiSupportProvider {
                 LOG.error("Failed to send start call notification", e);
             }
         } else if (
-                callSpec.command == CallSpec.CALL_ACCEPT ||
-                        callSpec.command == CallSpec.CALL_START) {
+                callSpec.getCommand() == CallSpec.CALL_ACCEPT ||
+                        callSpec.getCommand() == CallSpec.CALL_START) {
             byte type = getDeviceState().supportsNotificationsStartCall() ? Notifications.NotificationType.startCall : Notifications.NotificationType.stopNotification;
             StopNotificationRequest stopNotificationRequest = new StopNotificationRequest(this, type);
             try {
@@ -1813,8 +1955,8 @@ public class HuaweiSupportProvider {
                 LOG.error("Failed to send stop call notification", e);
             }
         } else if (
-                callSpec.command == CallSpec.CALL_REJECT ||
-                        callSpec.command == CallSpec.CALL_END
+                callSpec.getCommand() == CallSpec.CALL_REJECT ||
+                        callSpec.getCommand() == CallSpec.CALL_END
         ) {
             StopNotificationRequest stopNotificationRequest = new StopNotificationRequest(this, Notifications.NotificationType.stopNotification);
             try {
@@ -2449,7 +2591,12 @@ public class HuaweiSupportProvider {
             fileInfo.setFileName(huaweiFwHelper.getFileName());
         }
 
-        fileInfo.setUploadData(new HuaweiUploadManager.UploadDataBuffer(huaweiFwHelper.getBytes()));
+        final byte[] fwBytes = huaweiFwHelper.getBytes();
+        if (fwBytes != null) {
+            fileInfo.setUploadData(new HuaweiUploadManager.UploadDataBuffer(fwBytes));
+        } else {
+            fileInfo.setUploadData(new HuaweiUploadManager.UploadDataFile(huaweiFwHelper.getUriHelper()));
+        }
 
         fileInfo.setFileUploadCallback(new HuaweiUploadManager.FileUploadCallback() {
             @Override
@@ -2945,7 +3092,7 @@ public class HuaweiSupportProvider {
 
                         LOG.debug("Parsing PDR file");
                         HuaweiPdrParser.PdrPoint[] points = HuaweiPdrParser.parseHuaweiPdr(fileRequest.getData());
-                        LOG.info("Points: {}", points);
+                        LOG.info("Points: {}", points.length);
                         //TODO: postprocess and combine with Gps data
                     }
 
@@ -3037,10 +3184,13 @@ public class HuaweiSupportProvider {
                             track.addTrackPoint(activityPoint);
                         }
 
-                        AutoGpxExporter.doExport(getContext(), getDevice(), null, track);
-                        AutoFitExporter.doExport(getContext(), getDevice(), null, track);
+                        final BaseActivitySummary summary = new HuaweiWorkoutGbParser(getDevice(), getContext())
+                                .parseWorkout(databaseId);
 
-                        new HuaweiWorkoutGbParser(getDevice(), getContext()).parseWorkout(databaseId);
+                        if (summary != null) {
+                            AutoGpxExporter.doExport(getContext(), getDevice(), summary, track);
+                            AutoFitExporter.doExport(getContext(), getDevice(), summary, track);
+                        }
 
                         LOG.debug("Completed workout GPS parsing and inserting");
                         syncState.stopWorkoutGpsDownload();
@@ -3082,12 +3232,12 @@ public class HuaweiSupportProvider {
     }
 
     public void onSetCannedMessages(final CannedMessagesSpec cannedMessagesSpec) {
-        if (cannedMessagesSpec.type != CannedMessagesSpec.TYPE_GENERIC) {
-            LOG.warn("Got unsupported canned messages type: {}", cannedMessagesSpec.type);
+        if (cannedMessagesSpec.getType() != CannedMessagesSpec.TYPE_GENERIC) {
+            LOG.warn("Got unsupported canned messages type: {}", cannedMessagesSpec.getType());
             return;
         }
 
-        if (cannedMessagesSpec.cannedMessages.length == 0) {
+        if (cannedMessagesSpec.getCannedMessages().length == 0) {
             GB.toast(context, HuaweiSupportProvider.this.getContext().getString(R.string.canned_replies_not_empty), Toast.LENGTH_SHORT, GB.WARN);
             LOG.warn(HuaweiSupportProvider.this.getContext().getString(R.string.canned_replies_not_empty));
         }
@@ -3097,7 +3247,7 @@ public class HuaweiSupportProvider {
             LOG.warn("P2P canned replies service is not registered");
             return;
         }
-        cannedRepliesService.sendReplies(cannedMessagesSpec.cannedMessages);
+        cannedRepliesService.sendReplies(cannedMessagesSpec.getCannedMessages());
     }
 
     public void onFindDevice(boolean start) {
@@ -3114,7 +3264,7 @@ public class HuaweiSupportProvider {
         LOG.info("navigation: {}", navigationInfoSpec);
         HuaweiP2PDirection nav = HuaweiP2PDirection.getRegisteredInstance(huaweiP2PManager);
         if (nav != null) {
-            nav.updateInstruction(navigationInfoSpec.distanceToTurn, HuaweiP2PDirection.actionToIconId(navigationInfoSpec.nextAction), navigationInfoSpec.instruction);
+            nav.updateInstruction(navigationInfoSpec.getDistanceToTurn(), HuaweiP2PDirection.actionToIconId(navigationInfoSpec.getNextAction()), navigationInfoSpec.getInstruction());
         }
     }
 

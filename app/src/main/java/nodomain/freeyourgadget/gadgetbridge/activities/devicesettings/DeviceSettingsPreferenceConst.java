@@ -125,6 +125,26 @@ public class DeviceSettingsPreferenceConst {
 
     public static final String PREF_ACTIVE_NOISE_CANCELLING_TOGGLE = "active_noise_cancelling_toggle";
     public static final String PREF_NOISE_CONTROL_SELECTOR = "noise_control_selector";
+    public static final String PREF_BUSYLIGHT_ON_CALL = "busylight_on_call";
+    public static final String PREF_BUSYLIGHT = "busylight";
+    public static final String PREF_JABRA_ANSWER_CALL_BOOM_ARM = "jabra_answer_call_boom_arm";
+    public static final String PREF_JABRA_MUTE_MIC_BOOM_ARM = "jabra_mute_mic_boom_arm";
+    public static final String PREF_JABRA_AUTO_REJECT_CALL = "jabra_auto_reject_call";
+    public static final String PREF_JABRA_MUTE_REMINDER = "jabra_mute_reminder";
+    public static final String PREF_JABRA_SIDETONE = "jabra_sidetone";
+    public static final String PREF_JABRA_SIDETONE_VOLUME = "jabra_sidetone_volume";
+    public static final String PREF_JABRA_CALL_AUDIO_EQ = "jabra_call_audio_eq";
+    public static final String PREF_JABRA_EQUALIZER = "jabra_equalizer";
+    public static final String PREF_JABRA_EQUALIZER_BAND1 = "jabra_equalizer_band1";
+    public static final String PREF_JABRA_EQUALIZER_BAND2 = "jabra_equalizer_band2";
+    public static final String PREF_JABRA_EQUALIZER_BAND3 = "jabra_equalizer_band3";
+    public static final String PREF_JABRA_EQUALIZER_BAND4 = "jabra_equalizer_band4";
+    public static final String PREF_JABRA_EQUALIZER_BAND5 = "jabra_equalizer_band5";
+    public static final String PREF_JABRA_SLEEP_MODE = "jabra_sleep_mode";
+    public static final String PREF_JABRA_HEADSET_GUIDANCE = "jabra_headset_guidance";
+    public static final String PREF_JABRA_BOOM_ARM_GUIDANCE = "jabra_boom_arm_guidance";
+    public static final String PREF_JABRA_BUTTON_SOUNDS = "jabra_button_sounds";
+    public static final String PREF_JABRA_VOICE_ASSISTANT = "jabra_voice_assistant";
     public static final String PREF_WEAR_SENSOR_TOGGLE = "wear_sensor_toggle";
     public static final String PREF_BANDW_PSERIES_VPT_ENABLED = "bandw_pseries_vpt_enabled";
     public static final String PREF_BANDW_PSERIES_VPT_LEVEL = "bandw_pseries_vpt_level";
@@ -390,6 +410,10 @@ public class DeviceSettingsPreferenceConst {
     public static final String PREF_HUAWEI_FREEBUDS_ANC_MODE = "pref_freebuds_anc_mode";
     public static final String PREF_HUAWEI_FREEBUDS_VOICE_BOOST = "pref_freebuds_voice_boost";
     public static final String PREF_HUAWEI_FREEBUDS_BETTER_AUDIO_QUALITY = "pref_freebuds_better_audio_quality";
+    public static final String PREF_HUAWEI_FREEBUDS_ADAPTIVE_VOLUME = "pref_freebuds_adaptive_volume_mode";
+    public static final String PREF_HUAWEI_FREEBUDS_ADAPTIVE_VOLUME_APPLIED = "pref_freebuds_adaptive_volume_mode_applied";
+    public static final String PREF_HUAWEI_FREEBUDS_EXTRA_MEDIA_VOLUME = "pref_freebuds_extra_media_volume";
+    public static final String PREF_HUAWEI_FREEBUDS_FIND_HEADPHONES = "pref_freebuds_find_headphones";
 
     public static final String PREF_GALAXY_BUDS_AMBIENT_MODE = "pref_galaxy_buds_ambient_mode";
     public static final String PREF_GALAXY_BUDS_AMBIENT_VOICE_FOCUS = "pref_galaxy_buds_ambient_voice_focus";
@@ -526,7 +550,8 @@ public class DeviceSettingsPreferenceConst {
     public static final String PREF_SOUNDCORE_BUTTON_BRIGHTNESS = "pref_soundcore_button_brightness";
     public static final String PREF_SOUNDCORE_AUTO_POWER_OFF = "pref_soundcore_auto_power_off";
     public static final String PREF_SOUNDCORE_3D_SURROUND = "pref_soundcore_3d_surround";
-    public static final String PREF_SOUNDCORE_ENABLE_PAIRING_MODE = "pref_soundcore_enable_pairing_mode";
+    public static final String PREF_SOUNDCORE_DUAL_CONNECTION = "pref_soundcore_dual_connection";
+    public static final String PREF_SOUNDCORE_FIT_TEST = "pref_soundcore_fit_test";
     public static final String PREF_SOUNDCORE_LDAC_MODE = "pref_soundcore_ldac_mode";
     public static final String PREF_SOUNDCORE_GAMING_MODE = "pref_soundcore_gaming_mode";
     public static final String PREF_SOUNDCORE_ADAPTIVE_DIRECTION = "pref_soundcore_adaptive_direction";
@@ -552,6 +577,13 @@ public class DeviceSettingsPreferenceConst {
     public static final String PREF_SOUNDCORE_EQUALIZER_BAND8_VALUE = "pref_soundcore_equalizer_band8_value";
     public static final String PREF_SOUNDCORE_EQUALIZER_BAND9_FREQ = "pref_soundcore_equalizer_band9_freq";
     public static final String PREF_SOUNDCORE_EQUALIZER_BAND9_VALUE = "pref_soundcore_equalizer_band9_value";
+
+    public static final String PREF_HAYLOU_S35_ANC_AUDIO_MODE = "pref_haylou_s35_anc_audio_mode";
+    public static final String PREF_HAYLOU_S35_ANC_GAME_MODE = "pref_haylou_s35_anc_game_mode";
+    public static final String PREF_HAYLOU_S35_ANC_LDAC_MODE = "pref_haylou_s35_anc_ldac_mode";
+    public static final String PREF_HAYLOU_S35_ANC_MULTIPOINT = "pref_haylou_s35_anc_multipoint";
+    public static final String PREF_HAYLOU_S35_ANC_EQ_PRESET = "pref_haylou_s35_anc_eq_preset";
+
     public static final String PREF_SONY_AMBIENT_SOUND_CONTROL_BUTTON_MODE = "pref_sony_ambient_sound_control_button_mode";
     public static final String PREF_SONY_FOCUS_VOICE = "pref_sony_focus_voice";
     public static final String PREF_SONY_AMBIENT_SOUND_LEVEL = "pref_sony_ambient_sound_level";
@@ -601,6 +633,12 @@ public class DeviceSettingsPreferenceConst {
     public static final String PREF_MEDIA_PLAYBACK_MODE = "pref_media_playback_mode";
     public static final String PREF_SHOKZ_EQUALIZER_BLUETOOTH = "pref_shokz_equalizer_bluetooth";
     public static final String PREF_SHOKZ_EQUALIZER_MP3 = "pref_shokz_equalizer_mp3";
+    public static final String PREF_SHOKZ_EQUALIZER_CUSTOM = "pref_shokz_equalizer_custom";
+    public static final String PREF_SHOKZ_EQUALIZER_CUSTOM_BAND_1 = "pref_shokz_equalizer_custom_band_1";
+    public static final String PREF_SHOKZ_EQUALIZER_CUSTOM_BAND_2 = "pref_shokz_equalizer_custom_band_2";
+    public static final String PREF_SHOKZ_EQUALIZER_CUSTOM_BAND_3 = "pref_shokz_equalizer_custom_band_3";
+    public static final String PREF_SHOKZ_EQUALIZER_CUSTOM_BAND_4 = "pref_shokz_equalizer_custom_band_4";
+    public static final String PREF_SHOKZ_EQUALIZER_CUSTOM_BAND_5 = "pref_shokz_equalizer_custom_band_5";
     public static final String PREF_SHOKZ_CONTROLS_LONG_PRESS_MULTI_FUNCTION = "shokz_controls_long_press_multi_function";
     public static final String PREF_SHOKZ_CONTROLS_SIMULTANEOUS_VOLUME_UP_DOWN = "shokz_controls_simultaneous_volume_up_down";
 
@@ -633,7 +671,24 @@ public class DeviceSettingsPreferenceConst {
     public static final String PREF_MIJIA_LYWSD_COMFORT_HUMIDITY_LOWER = "pref_mijia_lywsd_comfort_humidity_lower";
     public static final String PREF_MIJIA_LYWSD_COMFORT_HUMIDITY_UPPER = "pref_mijia_lywsd_comfort_humidity_upper";
 
-    public static final String PREF_QC35_NOISE_CANCELLING_LEVEL = "qc35_noise_cancelling_level";
+    public static final String PREF_BOSE_CNC_LEVEL = "bose_cnc_level";
+    public static final String PREF_BOSE_ANR_LEVEL = "bose_anr_level";
+
+    public static final String PREF_BOSE_VOICE_PROMPTS = "bose_voice_prompts";
+    public static final String PREF_BOSE_VOICE_PROMPTS_LANGUAGE = "bose_voice_prompts_language";
+    public static final String PREF_BOSE_VOICE_PROMPTS_SUPPORTED = "bose_voice_prompts_supported";
+    public static final String PREF_BOSE_VOICE_PROMPTS_TOGGLABLE = "bose_voice_prompts_togglable";
+    public static final String PREF_BOSE_MULTIPOINT_SUPPORTED = "bose_multipoint_supported";
+    public static final String PREF_BOSE_MULTIPOINT_DISABLE_SUPPORTED = "bose_multipoint_disable_supported";
+    public static final String PREF_BOSE_AUTO_OFF = "bose_auto_off";
+    public static final String PREF_BOSE_SHORTCUT = "bose_shortcut";
+    public static final String PREF_BOSE_SHORTCUT_SUPPORTED = "bose_shortcut_supported";
+    public static final String PREF_BOSE_SHORTCUT_UNAVAILABLE = "bose_shortcut_unavailable";
+    public static final String PREF_BOSE_MEDIA_PLAY = "bose_media_play";
+    public static final String PREF_BOSE_MEDIA_PAUSE = "bose_media_pause";
+    public static final String PREF_BOSE_MEDIA_NEXT = "bose_media_next";
+    public static final String PREF_BOSE_MEDIA_PREVIOUS = "bose_media_previous";
+    public static final String PREF_BOSE_MEDIA_SUPPORTED = "bose_media_supported";
 
     public static final String PREF_DUAL_DEVICE_SUPPORT = "dual_device_support";
 
@@ -657,6 +712,7 @@ public class DeviceSettingsPreferenceConst {
 
     public static final String PREF_SOUNDS = "sounds";
     public static final String PREF_AUTH_KEY = "authkey";
+    public static final String PREF_XIAOMI_DEVICE_ID = "xiaomi_device_id";
     public static final String PREF_USER_FITNESS_GOAL = "fitness_goal";
     public static final String PREF_USER_FITNESS_GOAL_NOTIFICATION = "fitness_goal_notification";
     public static final String PREF_USER_FITNESS_GOAL_SECONDARY = "fitness_goal_secondary";
@@ -762,4 +818,41 @@ public class DeviceSettingsPreferenceConst {
     public static final String PREF_ATC_BLE_OEPL_MODEL = "pref_atc_ble_oepl_model";
     public static final String PREF_ATC_BLE_OEPL_BLE_ADV_INTERVAL = "pref_atc_ble_oepl_ble_adv_interval";
     public static final String PREF_ATC_BLE_OEPL_OEPL_PROTOCOL_ENABLE = "pref_atc_ble_oepl_oepl_protocol_enable";
+
+    public static final String PREF_XIAOMI_SCOOTER_MOTOR_LOCKED = "xiaomi_scooter_motor_locked";
+    public static final String PREF_XIAOMI_SCOOTER_RIDE_MODE = "xiaomi_scooter_ride_mode";
+    public static final String PREF_XIAOMI_SCOOTER_SPEED_UNIT = "xiaomi_scooter_speed_unit";
+    public static final String PREF_XIAOMI_SCOOTER_TAILLIGHT_ALWAYS_ON = "xiaomi_scooter_taillight_always_on";
+    public static final String PREF_XIAOMI_SCOOTER_AUTO_LIGHTS = "xiaomi_scooter_auto_lights";
+    public static final String PREF_XIAOMI_SCOOTER_AMBIENT_LIGHT = "xiaomi_scooter_ambient_light";
+    public static final String PREF_XIAOMI_SCOOTER_SMART_ENERGY_RECOVERY = "xiaomi_scooter_smart_energy_recovery";
+    public static final String PREF_XIAOMI_SCOOTER_SLOPE_PARKING = "xiaomi_scooter_slope_parking";
+    public static final String PREF_XIAOMI_SCOOTER_TCS_ANTI_SLIP = "xiaomi_scooter_tcs_anti_slip";
+    public static final String PREF_XIAOMI_SCOOTER_ENERGY_RECOVERY_INTENSITY = "xiaomi_scooter_energy_recovery_intensity";
+    public static final String PREF_XIAOMI_SCOOTER_VOLTAGE = "xiaomi_scooter_voltage";
+    public static final String PREF_XIAOMI_SCOOTER_CURRENT = "xiaomi_scooter_current";
+    public static final String PREF_XIAOMI_SCOOTER_POWER = "xiaomi_scooter_power";
+    public static final String PREF_XIAOMI_SCOOTER_BATTERY_TEMP = "xiaomi_scooter_battery_temp";
+    public static final String PREF_XIAOMI_SCOOTER_SCOOTER_TEMP = "xiaomi_scooter_scooter_temp";
+    public static final String PREF_XIAOMI_SCOOTER_BATTERY_CYCLES = "xiaomi_scooter_battery_cycles";
+    public static final String PREF_XIAOMI_SCOOTER_BATTERY_MFG_DATE = "xiaomi_scooter_battery_mfg_date";
+    public static final String PREF_XIAOMI_SCOOTER_BATTERY_SERIAL = "xiaomi_scooter_battery_serial";
+    public static final String PREF_XIAOMI_SCOOTER_BMS_FW_VERSION = "xiaomi_scooter_bms_fw_version";
+    public static final String PREF_XIAOMI_SCOOTER_KEEP_BLUETOOTH_ON = "xiaomi_scooter_keep_bluetooth_on";
+    public static final String PREF_XIAOMI_SCOOTER_TIRE_PRESSURE_ENABLED = "xiaomi_scooter_tire_pressure_enabled";
+    public static final String PREF_XIAOMI_SCOOTER_TIRE_PRESSURE_INTERVAL_DAYS = "xiaomi_scooter_tire_pressure_interval_days";
+    public static final String PREF_XIAOMI_SCOOTER_TIRE_PRESSURE_REMAINING_DAYS = "xiaomi_scooter_tire_pressure_remaining_days";
+    public static final String PREF_XIAOMI_SCOOTER_TIRE_PRESSURE_RESET = "xiaomi_scooter_tire_pressure_reset";
+
+    // Roidmi F8 Cordless Vacuum Cleaner
+    public static final String PREF_ROIDMI_F8_BATTERY_TEMPERATURE = "pref_roidmi_f8_battery_temperature";
+    public static final String PREF_ROIDMI_F8_STANDARD_GEAR = "pref_roidmi_f8_standard_gear";
+    public static final String PREF_ROIDMI_F8_DUST_REMINDER = "pref_roidmi_f8_dust_reminder";
+    public static final String PREF_ROIDMI_F8_RESET_FILTER  = "pref_roidmi_f8_reset_filter";
+    /** Read-only info: estimated time since the filter counter was reset. */
+    public static final String PREF_ROIDMI_F8_FILTER_USED_TIME = "pref_roidmi_f8_filter_used_time";
+    public static final String PREF_ROIDMI_F8_STANDARD_CLEANING_TIME = "pref_roidmi_f8_standard_cleaning_time";
+    public static final String PREF_ROIDMI_F8_HIGH_CLEANING_TIME = "pref_roidmi_f8_high_cleaning_time";
+    /** Read-only info: cumulative cleaning time in minutes (standard + high). */
+    public static final String PREF_ROIDMI_F8_CLEANING_TIME = "pref_roidmi_f8_cleaning_time";
 }
