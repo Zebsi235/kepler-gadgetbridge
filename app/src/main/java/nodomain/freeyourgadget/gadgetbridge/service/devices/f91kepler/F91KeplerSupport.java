@@ -73,7 +73,7 @@ import nodomain.freeyourgadget.gadgetbridge.service.btle.profiles.deviceinfo.Dev
  *   <li>{@link #onSetCallState} → incoming-call popup</li>
  *   <li>battery → standard Battery Service (read + notify)</li>
  *   <li>{@link #onFindDevice} → flash the "FIND" alert on the watch,
- *       {@link #onReset} → reboot</li>
+ *       {@link #onReboot} / {@link #onFactoryReset} → reboot / clear bonds</li>
  *   <li>{@link #onSendConfiguration} → 12/24h time mode, DST flag, mode order,
  *       display brightness, sleep window, image upload, and on firmware 3.1 the
  *       UiOptions switches and counter names</li>
