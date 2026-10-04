@@ -21,6 +21,8 @@ import android.content.pm.PackageManager;
 import android.graphics.drawable.Drawable;
 import android.widget.Toast;
 
+import androidx.core.content.res.ResourcesCompat;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -43,7 +45,7 @@ public class NotificationRequestHandler implements IncomingMessageHandler {
     private static final Logger logger = LoggerFactory.getLogger(NotificationRequestHandler.class);
 
     private final WithingsSteelHRDeviceSupport support;
-    private Map<String, byte[]> appIconCache = new HashMap<>();
+    private final Map<String, byte[]> appIconCache = new HashMap<>();
 
     public NotificationRequestHandler(WithingsSteelHRDeviceSupport support) {
         this.support = support;
@@ -73,12 +75,12 @@ public class NotificationRequestHandler implements IncomingMessageHandler {
         if (imageData == null) {
             NotificationSpec notificationSpec = NotificationProvider.getInstance(support).getNotificationSpecForSourceAppId(sourceAppId);
             if (notificationSpec != null) {
-                int iconId = notificationSpec.iconId;
+                int iconId = notificationSpec.getIconId();
                 try {
                     Drawable icon = null;
-                    if (notificationSpec.iconId != 0) {
-                        Context sourcePackageContext = support.getContext().createPackageContext(sourceAppId, 0);
-                        icon = sourcePackageContext.getResources().getDrawable(notificationSpec.iconId);
+                    if (notificationSpec.getIconId() != 0) {
+                        Context sourcePackageContext = support.getContext().createPackageContext(notificationSpec.getIconPackageId(), 0);
+                        icon = ResourcesCompat.getDrawable(sourcePackageContext.getResources(), notificationSpec.getIconId(), null);
                     }
                     if (icon == null) {
                         PackageManager pm = support.getContext().getPackageManager();

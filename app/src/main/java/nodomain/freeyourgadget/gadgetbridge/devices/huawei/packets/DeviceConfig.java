@@ -21,6 +21,7 @@ import androidx.annotation.NonNull;
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Calendar;
 import java.util.List;
 import java.util.TreeMap;
@@ -837,7 +838,7 @@ public class DeviceConfig {
                         case 0xf:
                             break;
                         case 0x11:
-                            this.tlv.put(b, 1600008300); // Force AppVersion to 16.0.8.300
+                            this.tlv.put(b, 1600103320); // Force AppVersion to 16.1.3.320
                             break;
                         case 0x15:
                             this.tlv.put(b); // Force buildOSPlatformVersion to ""
@@ -1283,6 +1284,125 @@ public class DeviceConfig {
                 }
             }
 
+            public static class PakeResponseData {
+                public byte[] challenge;
+                public byte[] salt;
+                public byte[] epk;
+
+                public PakeResponseData(JSONObject payload) throws JSONException {
+                    this.challenge = GB.hexStringToByteArray(payload.getString("challenge"));
+                    this.salt = GB.hexStringToByteArray(payload.getString("salt"));
+                    this.epk = GB.hexStringToByteArray(payload.getString("epk"));
+                }
+
+                @NonNull
+                @Override
+                public String toString() {
+                    return "PakeResponseData{" +
+                            "challenge=" + StringUtils.bytesToHex(challenge) +
+                            ", salt=" + StringUtils.bytesToHex(salt) +
+                            ", epk=" + StringUtils.bytesToHex(epk) +
+                            '}';
+                }
+            }
+
+            public static class PakeConfirmData {
+                public byte[] kcfData;
+
+                public PakeConfirmData(JSONObject payload) throws JSONException {
+                    this.kcfData = GB.hexStringToByteArray(payload.getString("kcfData"));
+                }
+
+                @NonNull
+                @Override
+                public String toString() {
+                    return "PakeConfirmData{" +
+                            "kcfData=" + StringUtils.bytesToHex(kcfData) +
+                            '}';
+                }
+            }
+
+            public static class PakeExchangeData {
+                public byte[] exAuthInfo;
+
+                public PakeExchangeData(JSONObject payload) throws JSONException {
+                    this.exAuthInfo = GB.hexStringToByteArray(payload.getString("exAuthInfo"));
+                }
+
+                @NonNull
+                @Override
+                public String toString() {
+                    return "PakeExchangeData{" +
+                            "exAuthInfo=" + StringUtils.bytesToHex(exAuthInfo) +
+                            '}';
+                }
+            }
+
+            /**
+             * Reconnect AUTH_START_RESPONSE (message 32785). This is PSK-SPEKE: the payload is a
+             * PAKE response (challenge/salt/epk) plus the server {@code nonce} used to derive the
+             * SPEKE PIN. There is no server signature. See GetHiChainPakeRequest STS handling.
+             */
+            public static class StsStartResponseData {
+                public byte[] challenge;
+                public byte[] epk;
+                public byte[] salt;
+                public byte[] nonce;
+                public byte[] peerAuthId; // optional
+
+                public StsStartResponseData(JSONObject payload) throws JSONException {
+                    this.challenge = GB.hexStringToByteArray(payload.getString("challenge"));
+                    this.epk = GB.hexStringToByteArray(payload.getString("epk"));
+                    this.salt = GB.hexStringToByteArray(payload.getString("salt"));
+                    this.nonce = GB.hexStringToByteArray(payload.getString("nonce"));
+                    if (payload.has("peerAuthId"))
+                        this.peerAuthId = GB.hexStringToByteArray(payload.getString("peerAuthId"));
+                }
+
+                @NonNull
+                @Override
+                public String toString() {
+                    return "StsStartResponseData{challenge=" + StringUtils.bytesToHex(challenge)
+                            + ", epk=" + StringUtils.bytesToHex(epk)
+                            + ", salt=" + StringUtils.bytesToHex(salt)
+                            + ", nonce=" + StringUtils.bytesToHex(nonce) + '}';
+                }
+            }
+
+            /** Reconnect AUTH_ACK_RESPONSE (message 32786): the PAKE server-confirm proof. */
+            public static class StsAckResponseData {
+                public byte[] kcfData;
+
+                public StsAckResponseData(JSONObject payload) throws JSONException {
+                    this.kcfData = GB.hexStringToByteArray(payload.getString("kcfData"));
+                }
+
+                @NonNull
+                @Override
+                public String toString() {
+                    return "StsAckResponseData{kcfData=" + StringUtils.bytesToHex(kcfData) + '}';
+                }
+            }
+
+            public static class X25519KeyExchangeData {
+                public byte opCode;
+                public byte[] publicKey;
+
+                public X25519KeyExchangeData(HuaweiTLV tlv) throws HuaweiPacket.MissingTagException {
+                    this.opCode = tlv.getByte(0x01);
+                    this.publicKey = tlv.getBytes(0x02);
+                }
+
+                @NonNull
+                @Override
+                public String toString() {
+                    return "X25519KeyExchangeData{" +
+                            "opCode=" + opCode +
+                            ", publicKey=" + StringUtils.bytesToHex(publicKey) +
+                            '}';
+                }
+            }
+
             // TODO: enum?
             // 0 is json?
             // 2 is raw string?
@@ -1298,7 +1418,17 @@ public class DeviceConfig {
             public Step2Data step2Data;
             public Step3Data step3Data;
             public Step4Data step4Data;
+            public PakeResponseData pakeResponseData;
+            public PakeConfirmData pakeConfirmData;
+            public PakeExchangeData pakeExchangeData;
+            public StsStartResponseData stsStartData;
+            public StsAckResponseData stsAckData;
+            public X25519KeyExchangeData x25519KeyExchangeData;
             public int errorCode = 0;
+
+            // STS reconnect step markers (kept distinct from the PAKE bind steps 0x00-0x04)
+            public static final byte STEP_STS_START = 0x11; // parsed msg 32785
+            public static final byte STEP_STS_ACK = 0x13;   // parsed msg 32786
 
             public Response(ParamsProvider paramsProvider) {
                 super(paramsProvider);
@@ -1309,33 +1439,108 @@ public class DeviceConfig {
 
             @Override
             public void parseTlv() throws ParseException {
-                this.type = this.tlv.getByte(0x04);
-
-                if (this.type == 0x00) {
-                    try {
-                        this.value = new JSONObject(this.tlv.getString(0x01));
-                        this.jsonPayload = value.getJSONObject("payload");
-
-                        // Ugly, but should work
-                        if (jsonPayload.has("isoSalt")) {
-                            this.step = 0x01;
-                            this.step1Data = new Step1Data(jsonPayload);
-                        } else if (jsonPayload.has("returnCodeMac")) {
-                            this.step = 0x02;
-                            this.step2Data = new Step2Data(jsonPayload);
-                        } else if (jsonPayload.has("encAuthToken")) {
-                            this.step = 0x03;
-                            this.step3Data = new Step3Data(jsonPayload);
-                        }
-                        if (jsonPayload.has("errorCode")) {
-                            this.errorCode = jsonPayload.getInt("errorCode");
-                        }
-                    } catch (JSONException e) {
-                        throw new JsonException("", e);
+                // Huawei HiChain framing carries an explicit type tag (0x04); the JSON
+                // payload lives in tag 0x01. Kept for devices that still use it. This framing is
+                // only produced by classic Huawei HiChain devices (i.e. !supportsHiChainPake),
+                // so its JSON goes through the classic step router.
+                if (this.tlv.contains(0x04)) {
+                    this.type = this.tlv.getByte(0x04);
+                    if (this.type == 0x00) {
+                        parseHiChainJsonPayload(this.tlv.getString(0x01));
+                    } else {
+                        this.step = 0x04;
+                        this.step4Data = new Step4Data(this.tlv);
                     }
-                } else {
+                    return;
+                }
+
+                // Honor MBB HiChain framing (packHiChainData): tag 0x01 = dataType, tag 0x02 = payload.
+                //   dataType 1 = X25519 pubkey exchange, 2 = PAKE JSON passthrough, 3 = device identity.
+                // This framing is only produced by Honor PAKE devices (supportsHiChainPake), so its
+                // JSON goes through the PAKE/STS step router.
+                byte dataType = this.tlv.getByte(0x01);
+                if (dataType == 0x01) {
+                    this.step = 0x00;
+                    this.x25519KeyExchangeData = new X25519KeyExchangeData(this.tlv);
+                } else if (dataType == 0x02) {
+                    parsePakeJsonPayload(this.tlv.getString(0x02));
+                } else if (dataType == 0x03) {
+                    // device identity string in tag 0x02 (e.g. "serial;mac;name"); not consumed yet.
                     this.step = 0x04;
-                    this.step4Data = new Step4Data(this.tlv);
+                }
+            }
+
+            /**
+             * Classic Huawei HiChain (device_auth) step routing: isoSalt / returnCodeMac /
+             * encAuthToken. Used for non-PAKE devices; reached only from the tag-0x04 framing above.
+             */
+            private void parseHiChainJsonPayload(String json) throws ParseException {
+                final JSONObject payload = parseJsonEnvelope(json);
+                try {
+                    if (payload.has("isoSalt")) {
+                        this.step = 0x01;
+                        this.step1Data = new Step1Data(payload);
+                    } else if (payload.has("returnCodeMac")) {
+                        this.step = 0x02;
+                        this.step2Data = new Step2Data(payload);
+                    } else if (payload.has("encAuthToken")) {
+                        this.step = 0x03;
+                        this.step3Data = new Step3Data(payload);
+                    }
+                } catch (JSONException e) {
+                    throw new JsonException("", e);
+                }
+            }
+
+            /**
+             * Honor PAKE / STS-reconnect step routing: PAKE bind response/confirm/exchange plus the
+             * STS messages 32785/32786. Used for PAKE devices (Honor Watch 5); reached only from the
+             * Honor MBB dataType-0x02 framing above.
+             *
+             * Reconnect (STS) responses are routed by their message number, not by field sniffing:
+             * AUTH_START_RESPONSE (32785) carries challenge/salt/epk just like a PAKE bind response
+             * (32769) and would otherwise be mis-tagged as a bind step.
+             */
+            private void parsePakeJsonPayload(String json) throws ParseException {
+                final JSONObject payload = parseJsonEnvelope(json);
+                try {
+                    final int message = value.optInt("message", -1);
+                    if (message == 32785) {
+                        this.step = STEP_STS_START;
+                        this.stsStartData = new StsStartResponseData(payload);
+                    } else if (message == 32786) {
+                        this.step = STEP_STS_ACK;
+                        this.stsAckData = new StsAckResponseData(payload);
+                    } else if (payload.has("challenge") && payload.has("salt") && payload.has("epk")) {
+                        this.step = 0x01;
+                        this.pakeResponseData = new PakeResponseData(payload);
+                    } else if (payload.has("kcfData")) {
+                        this.step = 0x02;
+                        this.pakeConfirmData = new PakeConfirmData(payload);
+                    } else if (payload.has("exAuthInfo")) {
+                        this.step = 0x03;
+                        this.pakeExchangeData = new PakeExchangeData(payload);
+                    }
+                } catch (JSONException e) {
+                    throw new JsonException("", e);
+                }
+            }
+
+            /**
+             * Parse the {@code {message, payload, errorCode}} JSON envelope common to both auth
+             * stacks, populating {@link #value}/{@link #jsonPayload}/{@link #errorCode}, and return
+             * the inner payload object for step-specific routing.
+             */
+            private JSONObject parseJsonEnvelope(String json) throws ParseException {
+                try {
+                    this.value = new JSONObject(json);
+                    this.jsonPayload = value.getJSONObject("payload");
+                    if (jsonPayload.has("errorCode")) {
+                        this.errorCode = jsonPayload.getInt("errorCode");
+                    }
+                    return this.jsonPayload;
+                } catch (JSONException e) {
+                    throw new JsonException("", e);
                 }
             }
         }
@@ -1671,11 +1876,42 @@ public class DeviceConfig {
                 this.complete = true;
                 this.isEncrypted = false;
             }
+
+            /**
+             * Honor MBB auth-type request (mirrors the official app's {@code packAuthTypeRequest}):
+             * tag 0x01 = authType, tag 0x02 = pairType (1 = FIRST_PAIR, 2 = RECONNECT), tag 0x03 =
+             * our own authId so the watch can look us up in its trust store. Used only by PAKE
+             * devices (Honor Watch 5); the generic constructor above is unchanged for every other
+             * Huawei device. The wire layout was confirmed from the pairing capture (frame 897).
+             */
+            public Request(
+                    HuaweiPacket.ParamsProvider paramsProvider,
+                    byte authType,
+                    int honorPairType,
+                    byte[] selfAuthId) {
+                super(paramsProvider);
+
+                this.serviceId = DeviceConfig.id;
+                this.commandId = id;
+
+                this.tlv = new HuaweiTLV()
+                        .put(0x01, authType)
+                        .put(0x02, (byte) honorPairType)
+                        .put(0x03, selfAuthId);
+
+                this.complete = true;
+                this.isEncrypted = false;
+            }
             // TODO: implement parsing this request for the log parser support
         }
 
         public static class Response extends HuaweiPacket {
             public int authType;
+            // Negotiated pairType (tag 0x02): 1 = FIRST_PAIR (watch wants a fresh bind),
+            // 2 = RECONNECT (watch trusts us, do STS). Honor watches report this to dictate the
+            // auth path; -1 means the watch omitted it. Observed from the pairing capture.
+            public int honorPairType = -1;
+            public byte[] responseNonce;
 
             public Response(ParamsProvider paramsProvider) {
                 super(paramsProvider);
@@ -1694,12 +1930,18 @@ public class DeviceConfig {
                         pw = 4;
                 }
                 if (this.tlv.contains(0x02)) {
+                    // Tag 0x02 is overloaded: on Honor watches it is the pairType (1 = FIRST_PAIR,
+                    // 2 = RECONNECT), on classic Huawei devices it is the negotiated authType. Both
+                    // fields capture it; each device family reads only the one meaningful to it.
+                    this.honorPairType = (int)this.tlv.getByte(0x02);
                     this.authType = (int)this.tlv.getByte(0x02);
                     if (pw != -0x1)
                         this.authType ^= pw;
                 }
                 if (this.tlv.contains(0x7F))
                     this.authType = (int)this.tlv.getByte(0x7F);
+                if (this.tlv.contains(0x03))
+                    this.responseNonce = this.tlv.getBytes(0x03);
             }
         }
     }
@@ -1749,10 +1991,86 @@ public class DeviceConfig {
 
             @Override
             public void parseTlv() throws ParseException {
-               this.expandCapabilities = this.tlv.getBytes(0x01);
+                if (this.tlv.contains(0x01)) {
+                    this.expandCapabilities = this.tlv.getBytes(0x01);
+                }
             }
         }
 
+    }
+
+    // Negotiates a second RFCOMM socket ("dual channel") and the routing tables that decide
+    // which services/commands are sent over it. Gated on expand-capability bit 56 (dual socket)
+    // and bit 142 (extend socket). See DUAL_CHANNEL_NOTES for the reverse-engineered format.
+    public static class DualChannel {
+        public static final int id = 0x3C;
+
+        // Services that must never be routed to the extra channel (vendor DeviceDualChannelHelper.e).
+        public static final byte[] alwaysMainChannelServices = new byte[]{0x28, 0x2C};
+
+        // One entry per service that has per-command or per-package routing to the extra channel.
+        public static class ChannelEntry {
+            public byte service;
+            public byte[] commands = new byte[0];      // command ids routed to the extra channel
+            public List<String> packages = new ArrayList<>(); // P2P destination package names (services 0x34/0x37)
+        }
+
+        public static class Request extends HuaweiPacket {
+            public Request(ParamsProvider paramsProvider, boolean supportsExtend) {
+                super(paramsProvider);
+
+                this.serviceId = DeviceConfig.id;
+                this.commandId = id;
+
+                // All-empty tags: ask the watch to fill them in. Extend format adds tags 3 and 4.
+                this.tlv = new HuaweiTLV()
+                    .put(0x01)
+                    .put(0x02);
+                if (supportsExtend) {
+                    this.tlv.put(0x03).put(0x04);
+                }
+
+                this.complete = true;
+            }
+        }
+
+        public static class Response extends HuaweiPacket {
+            public int channel = 0;                 // tag 1: RFCOMM channel of the extra socket
+            public byte[] dualServices = new byte[0];   // tag 2: services routed wholesale to extra channel
+            public byte[] fileTypes = new byte[0];      // tag 3: file types (extend only)
+            public List<ChannelEntry> entries = new ArrayList<>(); // tag 0x84 -> 0x85 entries (extend only)
+
+            public Response(ParamsProvider paramsProvider) {
+                super(paramsProvider);
+                this.serviceId = DeviceConfig.id;
+                this.commandId = id;
+            }
+
+            @Override
+            public void parseTlv() throws ParseException {
+                if (this.tlv.contains(0x01))
+                    this.channel = this.tlv.getAsInteger(0x01);
+                if (this.tlv.contains(0x02))
+                    this.dualServices = this.tlv.getBytes(0x02);
+                if (this.tlv.contains(0x03))
+                    this.fileTypes = this.tlv.getBytes(0x03);
+                if (this.tlv.contains(0x84)) {
+                    HuaweiTLV container = this.tlv.getObject(0x84);
+                    for (HuaweiTLV entryTlv : container.getObjects(0x85)) {
+                        ChannelEntry entry = new ChannelEntry();
+                        if (entryTlv.contains(0x06))
+                            entry.service = entryTlv.getByte(0x06);
+                        if (entryTlv.contains(0x07))
+                            entry.commands = entryTlv.getBytes(0x07);
+                        if (entryTlv.contains(0x08)) {
+                            String names = new String(entryTlv.getBytes(0x08), StandardCharsets.UTF_8);
+                            entry.packages = Arrays.asList(names.split("#"));
+                        }
+                        this.entries.add(entry);
+                    }
+                }
+            }
+        }
     }
 
     public static class PermissionCheck {
@@ -1857,7 +2175,8 @@ public class DeviceConfig {
                 this.commandId = id;
 
                 // Bits like ext capabilities
-                byte[] capabilities = {(byte) 0xFD, (byte) 0xF7, (byte)0x73, (byte)0x7A};
+                //byte[] capabilities = {(byte) 0xFD, (byte) 0xF7, (byte)0x73, (byte)0x7A};
+                byte[] capabilities = {(byte) 0xFD, (byte) 0xF7, 0x33, (byte) 0xFA, 0x29, 0x37};
                 this.tlv = new HuaweiTLV()
                         .put(0x01, capabilities);
 

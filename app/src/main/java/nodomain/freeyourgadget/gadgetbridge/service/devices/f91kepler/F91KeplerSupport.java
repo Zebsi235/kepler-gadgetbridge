@@ -30,11 +30,13 @@ import java.util.ArrayList;
 import java.util.Calendar;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Locale;
 import java.util.TimeZone;
 
 import nodomain.freeyourgadget.gadgetbridge.GBApplication;
 import nodomain.freeyourgadget.gadgetbridge.R;
 import nodomain.freeyourgadget.gadgetbridge.activities.devicesettings.DeviceSettingsPreferenceConst;
+import nodomain.freeyourgadget.gadgetbridge.database.DBHelper;
 import nodomain.freeyourgadget.gadgetbridge.deviceevents.GBDeviceEventBatteryInfo;
 import nodomain.freeyourgadget.gadgetbridge.deviceevents.GBDeviceEventFindPhone;
 import nodomain.freeyourgadget.gadgetbridge.deviceevents.GBDeviceEventMusicControl;
@@ -52,7 +54,6 @@ import nodomain.freeyourgadget.gadgetbridge.model.WeatherSpec;
 import nodomain.freeyourgadget.gadgetbridge.model.weather.Weather;
 import nodomain.freeyourgadget.gadgetbridge.util.AlarmUtils;
 import nodomain.freeyourgadget.gadgetbridge.util.GB;
-import nodomain.freeyourgadget.gadgetbridge.service.serial.GBDeviceProtocol;
 import nodomain.freeyourgadget.gadgetbridge.service.btle.AbstractBTLESingleDeviceSupport;
 import nodomain.freeyourgadget.gadgetbridge.service.btle.GattService;
 import nodomain.freeyourgadget.gadgetbridge.service.btle.TransactionBuilder;
@@ -72,9 +73,12 @@ import nodomain.freeyourgadget.gadgetbridge.service.btle.profiles.deviceinfo.Dev
  *   <li>{@link #onSetCallState} → incoming-call popup</li>
  *   <li>battery → standard Battery Service (read + notify)</li>
  *   <li>{@link #onFindDevice} → flash the "FIND" alert on the watch,
- *       {@link #onReset} → reboot</li>
+ *       {@link #onReboot} / {@link #onFactoryReset} → reboot / clear bonds</li>
  *   <li>{@link #onSendConfiguration} → 12/24h time mode, DST flag, mode order,
- *       display brightness, sleep window, image upload</li>
+ *       display brightness, sleep window, image upload, and on firmware 3.1 the
+ *       UiOptions switches and counter names</li>
+ *   <li>firmware 3.1: {@link #onSetAlarms} → five Record ALARM slots;
+ *       {@link #onSendWeather} → also the 7-day forecast and sunrise/sunset</li>
  * </ul>
  */
 public class F91KeplerSupport extends AbstractBTLESingleDeviceSupport {
@@ -100,6 +104,12 @@ public class F91KeplerSupport extends AbstractBTLESingleDeviceSupport {
      *  image is not re-uploaded to (and re-toasted about) on every reconnect.
      *  Cleared when the user sends an image again. */
     private volatile boolean imageGaveUp;
+
+    /** Firmware version read over DIS on THIS connection (null until then).
+     *  Every 3.1 write is gated on it, not on the cached device version: a
+     *  watch reflashed to older firmware since the last connect must never be
+     *  sent a characteristic it no longer has. */
+    private volatile String connectedFw;
 
     private final List<RecentNotif> recent = new ArrayList<>();
     private static final class RecentNotif {
@@ -151,6 +161,9 @@ public class F91KeplerSupport extends AbstractBTLESingleDeviceSupport {
 
     @Override
     protected TransactionBuilder initializeDevice(final TransactionBuilder builder) {
+        // A new connection: forget the previous one's firmware version, so the
+        // 3.1 gate (has31) is closed until THIS watch has reported its version.
+        connectedFw = null;
         builder.setDeviceState(GBDevice.State.INITIALIZING);
         if (GBApplication.getPrefs().syncTime()) {
             addSetTime(builder);
@@ -309,6 +322,7 @@ public class F91KeplerSupport extends AbstractBTLESingleDeviceSupport {
         if (fw != null) {
             versionCmd.fwVersion = fw;
         }
+        connectedFw = fw;
         handleGBDeviceEvent(versionCmd);
         restorePhoneOwnedConfig(fw);
     }
@@ -345,6 +359,22 @@ public class F91KeplerSupport extends AbstractBTLESingleDeviceSupport {
         if (any) {
             builder.queue();
         }
+        if (F91KeplerFirmware.has31(fw)) {
+            // Its own transaction: a refused 3.1 write must not cancel the
+            // restores above. All of it is phone-owned and cheap to repeat --
+            // the watch skips the flash write for an unchanged value.
+            final TransactionBuilder b31 = createTransactionBuilder("restore 3.1 config");
+            addUiOptions(b31);
+            addCounterNames(b31);
+            addAlarmSlots(b31, DBHelper.getAlarms(getDevice()));
+            addForecastAndSun(b31);
+            b31.queue();
+        }
+    }
+
+    /** True when this connection's firmware is known to have the 3.1 surface. */
+    private boolean has31() {
+        return F91KeplerFirmware.has31(connectedFw);
     }
 
     // --- Time ---------------------------------------------------------------
@@ -405,12 +435,12 @@ public class F91KeplerSupport extends AbstractBTLESingleDeviceSupport {
 
         if (isNotificationPopupEnabled()) {
             final String sender = StringUtils.firstNonBlank(
-                    notificationSpec.sender, notificationSpec.title, notificationSpec.sourceName);
+                    notificationSpec.getSender(), notificationSpec.getTitle(), notificationSpec.getSourceName());
             if (StringUtils.isNotBlank(sender)) {
                 // Split-tile popup: send the app label (sourceName) + sender so the
                 // watch can show "<app> / <sender> / TEXT". The serializer keeps the
                 // whole payload within the characteristic's byte budget.
-                final String app = StringUtils.firstNonBlank(notificationSpec.sourceName, "");
+                final String app = StringUtils.firstNonBlank(notificationSpec.getSourceName(), "");
                 builder.write(F91KeplerConstants.UUID_CHAR_INCOMING_TEXT,
                               F91KeplerProtocol.incomingTextPopup(app, sender));
             }
@@ -432,8 +462,8 @@ public class F91KeplerSupport extends AbstractBTLESingleDeviceSupport {
     // --- Notification history (Notifications mode) --------------------------
 
     private void addRecent(final NotificationSpec spec) {
-        final String app = StringUtils.firstNonBlank(spec.sourceName, "");
-        final String sender = StringUtils.firstNonBlank(spec.sender, spec.title, "notification");
+        final String app = StringUtils.firstNonBlank(spec.getSourceName(), "");
+        final String sender = StringUtils.firstNonBlank(spec.getSender(), spec.getTitle(), "notification");
         removeRecent(spec.getId());                    // de-dupe by id
         recent.add(0, new RecentNotif(spec.getId(), app, sender));   // newest first
         while (recent.size() > F91_RECENT_MAX) {
@@ -467,7 +497,7 @@ public class F91KeplerSupport extends AbstractBTLESingleDeviceSupport {
     }
 
     private static F91KeplerNotificationTracker.Category categorize(final NotificationSpec spec) {
-        final NotificationType type = spec.type;
+        final NotificationType type = spec.getType();
         if (type == null) {
             return F91KeplerNotificationTracker.Category.TEXT;
         }
@@ -516,11 +546,11 @@ public class F91KeplerSupport extends AbstractBTLESingleDeviceSupport {
 
     @Override
     public void onSetCallState(final CallSpec callSpec) {
-        if (callSpec.command != CallSpec.CALL_INCOMING) {
+        if (callSpec.getCommand() != CallSpec.CALL_INCOMING) {
             // The watch auto-clears the popup after ~5s; nothing to do on accept/end.
             return;
         }
-        final String name = StringUtils.firstNonBlank(callSpec.name, callSpec.number);
+        final String name = StringUtils.firstNonBlank(callSpec.getName(), callSpec.getNumber());
         final TransactionBuilder builder = createTransactionBuilder("incoming call");
         builder.write(F91KeplerConstants.UUID_CHAR_INCOMING_CALL, F91KeplerProtocol.contactName(name));
         builder.queue();
@@ -532,6 +562,9 @@ public class F91KeplerSupport extends AbstractBTLESingleDeviceSupport {
     public void onSendWeather() {
         final TransactionBuilder builder = createTransactionBuilder("send weather");
         addWeather(builder);
+        if (has31()) {
+            addForecastAndSun(builder);
+        }
         builder.queue();
     }
 
@@ -548,9 +581,7 @@ public class F91KeplerSupport extends AbstractBTLESingleDeviceSupport {
         // GB stores temperatures in Kelvin; the watch shows a bare integer in the
         // user's unit (no C/F letter on the face), so convert here per the
         // measurement-system preference.
-        final double kelvin = weatherSpec.getCurrentTemp();
-        final int celsius = (int) Math.round(kelvin - 273.15);
-        final int temp = useFahrenheit() ? (int) Math.round(celsius * 9.0 / 5.0 + 32.0) : celsius;
+        final int temp = F91KeplerProtocol.tempInUnit(weatherSpec.getCurrentTemp(), useFahrenheit());
         final int cond = F91KeplerProtocol.owmToCondition(weatherSpec.getCurrentConditionCode());
 
         builder.write(F91KeplerConstants.UUID_CHAR_WEATHER_TEMP, F91KeplerProtocol.weatherTemperature(temp));
@@ -565,6 +596,12 @@ public class F91KeplerSupport extends AbstractBTLESingleDeviceSupport {
 
     @Override
     public void onSetAlarms(final ArrayList<? extends Alarm> alarms) {
+        if (has31()) {
+            final TransactionBuilder builder = createTransactionBuilder("set alarm slots");
+            addAlarmSlots(builder, alarms);
+            builder.queue();
+            return;
+        }
         // The firmware Alarm Service holds a single one-shot alarm: CHAR5
         // AlarmTime (absolute UTC epoch, 0 = disabled) + CHAR6 AlarmEnabled.
         // Pick the soonest enabled, in-use alarm's next occurrence; if none,
@@ -598,6 +635,98 @@ public class F91KeplerSupport extends AbstractBTLESingleDeviceSupport {
         builder.queue();
     }
 
+    /**
+     * Firmware 3.1: the five Record ALARM slots, by Gadgetbridge alarm position.
+     * Every slot is written -- an absent or unused alarm as disabled -- so a slot
+     * removed on the phone cannot keep ringing on the watch. The legacy one-shot
+     * alarm (B2F5/B2F6) is switched off in the same breath: an alarm set by an
+     * older Gadgetbridge would otherwise ring alongside the slots.
+     */
+    private void addAlarmSlots(final TransactionBuilder builder, final List<? extends Alarm> alarms) {
+        final Alarm[] bySlot = new Alarm[F91KeplerConstants.ALARM_SLOTS_31];
+        for (final Alarm a : alarms) {
+            if (a != null && a.getPosition() >= 0 && a.getPosition() < bySlot.length) {
+                bySlot[a.getPosition()] = a;
+            }
+        }
+        for (int i = 0; i < bySlot.length; i++) {
+            final Alarm a = bySlot[i];
+            final boolean on = a != null && a.getEnabled() && !a.getUnused();
+            final byte[] slot = a == null
+                    ? F91KeplerProtocol.alarmSlot(false, 0, 0, 0)
+                    : F91KeplerProtocol.alarmSlot(on, a.getHour(), a.getMinute(), a.getRepetition());
+            builder.write(F91KeplerConstants.UUID_CHAR_RECORD,
+                          F91KeplerProtocol.record(F91KeplerConstants.REC_ALARM, i, slot));
+        }
+        builder.write(F91KeplerConstants.UUID_CHAR_ALARM_ENABLED, F91KeplerProtocol.alarmEnabled(false));
+        builder.write(F91KeplerConstants.UUID_CHAR_ALARM_TIME, F91KeplerProtocol.alarmTime(0L));
+    }
+
+    // --- Firmware 3.1: options, counters, forecast, sun --------------------
+
+    /** UiOptions (F2F3) from the four 3.1 preferences. */
+    private void addUiOptions(final TransactionBuilder builder) {
+        final SharedPreferences prefs =
+                GBApplication.getDeviceSpecificSharedPrefs(getDevice().getAddress());
+        final int bits = F91KeplerProtocol.uiOptionBits(
+                prefs.getBoolean(F91KeplerConstants.PREF_WEEKDAY, false),
+                prefs.getString(F91KeplerConstants.PREF_WEEKDAY_LANG, "auto"),
+                Locale.getDefault(),
+                prefs.getBoolean(F91KeplerConstants.PREF_QUIET_TEXT, false),
+                prefs.getBoolean(F91KeplerConstants.PREF_HOURLY_CHIME, false));
+        builder.write(F91KeplerConstants.UUID_CHAR_UI_OPTIONS, F91KeplerProtocol.uiOptions(bits));
+    }
+
+    /** All three counter names; the counts stay the watch's (see counterName). */
+    private void addCounterNames(final TransactionBuilder builder) {
+        for (int i = 0; i < F91KeplerConstants.COUNTERS; i++) {
+            addCounterName(builder, i);
+        }
+    }
+
+    private void addCounterName(final TransactionBuilder builder, final int index) {
+        final String name = GBApplication.getDeviceSpecificSharedPrefs(getDevice().getAddress())
+                .getString(F91KeplerConstants.PREF_COUNTER_NAME_PREFIX + index, "");
+        builder.write(F91KeplerConstants.UUID_CHAR_RECORD,
+                      F91KeplerProtocol.record(F91KeplerConstants.REC_COUNTER, index,
+                                               F91KeplerProtocol.counterName(name)));
+    }
+
+    /**
+     * The 7-day forecast and today's sunrise/sunset (Record FORECAST, SUN). Both
+     * are RAM-only on the watch, so they ride along with every weather push and
+     * every 3.1 connect. Day 0 is today (GB keeps today apart from its forecast
+     * list, which starts tomorrow). Days GB has no forecast for are not sent: the
+     * watch shows "--" for them. No-op without weather.
+     */
+    private void addForecastAndSun(final TransactionBuilder builder) {
+        final WeatherSpec w = Weather.getWeatherSpec();
+        if (w == null) {
+            return;
+        }
+        final boolean f = useFahrenheit();
+        builder.write(F91KeplerConstants.UUID_CHAR_RECORD, F91KeplerProtocol.record(
+                F91KeplerConstants.REC_FORECAST, 0, F91KeplerProtocol.forecastDay(
+                        F91KeplerProtocol.owmToCondition(w.getCurrentConditionCode()),
+                        F91KeplerProtocol.tempInUnit(w.getTodayMaxTemp(), f),
+                        F91KeplerProtocol.tempInUnit(w.getTodayMinTemp(), f))));
+        final List<WeatherSpec.Daily> days = w.getForecasts();
+        for (int d = 1; d < F91KeplerConstants.FORECAST_DAYS && d - 1 < days.size(); d++) {
+            final WeatherSpec.Daily day = days.get(d - 1);
+            builder.write(F91KeplerConstants.UUID_CHAR_RECORD, F91KeplerProtocol.record(
+                    F91KeplerConstants.REC_FORECAST, d, F91KeplerProtocol.forecastDay(
+                            F91KeplerProtocol.owmToCondition(day.getConditionCode()),
+                            F91KeplerProtocol.tempInUnit(day.getMaxTemp(), f),
+                            F91KeplerProtocol.tempInUnit(day.getMinTemp(), f))));
+        }
+        final TimeZone tz = TimeZone.getDefault();
+        final Calendar today = Calendar.getInstance(tz);
+        builder.write(F91KeplerConstants.UUID_CHAR_RECORD, F91KeplerProtocol.record(
+                F91KeplerConstants.REC_SUN, 0, F91KeplerProtocol.sunTimes(
+                        F91KeplerProtocol.sunMinute(w.getSunRise(), today, tz),
+                        F91KeplerProtocol.sunMinute(w.getSunSet(), today, tz))));
+    }
+
     // --- Device control -----------------------------------------------------
 
     @Override
@@ -612,16 +741,21 @@ public class F91KeplerSupport extends AbstractBTLESingleDeviceSupport {
     }
 
     @Override
-    public void onReset(final int flags) {
-        // Debug screen: "Reboot" -> 0x01 deferred reset; "Factory reset" -> 0x16,
-        // which erases every bond on the watch and reboots. After 0x16 the phone
-        // still holds its side of the bond and must forget the watch in Android's
-        // Bluetooth settings before pairing again -- that is why the ordinary UI
-        // never offers it.
-        final boolean factory = (flags & GBDeviceProtocol.RESET_FLAGS_FACTORY_RESET) != 0;
-        final TransactionBuilder builder = createTransactionBuilder(factory ? "factory reset" : "reset");
-        builder.write(F91KeplerConstants.UUID_CHAR_DEVICE_COMMAND,
-                      factory ? F91KeplerConstants.CMD_CLEAR_BONDS : F91KeplerConstants.CMD_RESET);
+    public void onReboot() {
+        // Debug screen "Reboot": 0x01, a deferred reset.
+        final TransactionBuilder builder = createTransactionBuilder("reset");
+        builder.write(F91KeplerConstants.UUID_CHAR_DEVICE_COMMAND, F91KeplerConstants.CMD_RESET);
+        builder.queue();
+    }
+
+    @Override
+    public void onFactoryReset() {
+        // Debug screen "Factory reset": 0x16 erases every bond on the watch and
+        // reboots. After it the phone still holds its side of the bond and must
+        // forget the watch in Android's Bluetooth settings before pairing again
+        // -- that is why the ordinary UI never offers it.
+        final TransactionBuilder builder = createTransactionBuilder("factory reset");
+        builder.write(F91KeplerConstants.UUID_CHAR_DEVICE_COMMAND, F91KeplerConstants.CMD_CLEAR_BONDS);
         builder.queue();
     }
 
@@ -718,10 +852,38 @@ public class F91KeplerSupport extends AbstractBTLESingleDeviceSupport {
             case F91KeplerConstants.PREF_MODE_POS_FLASHLIGHT:
             case F91KeplerConstants.PREF_MODE_POS_FINDPHONE:
             case F91KeplerConstants.PREF_MODE_POS_BLE:
-            case F91KeplerConstants.PREF_MODE_POS_IMAGE: {
+            case F91KeplerConstants.PREF_MODE_POS_IMAGE:
+            case F91KeplerConstants.PREF_MODE_POS_WEATHER:
+            case F91KeplerConstants.PREF_MODE_POS_COUNTER0:
+            case F91KeplerConstants.PREF_MODE_POS_COUNTER1:
+            case F91KeplerConstants.PREF_MODE_POS_COUNTER2: {
                 final TransactionBuilder builder = createTransactionBuilder("set mode order");
                 addModeOrder(builder);
                 builder.queue();
+                warnIfModesDropped();
+                break;
+            }
+            case F91KeplerConstants.PREF_WEEKDAY:
+            case F91KeplerConstants.PREF_WEEKDAY_LANG:
+            case F91KeplerConstants.PREF_QUIET_TEXT:
+            case F91KeplerConstants.PREF_HOURLY_CHIME: {
+                // Away or pre-3.1: nothing to do now -- the next 3.1 connect
+                // re-pushes every option (restorePhoneOwnedConfig).
+                if (has31()) {
+                    final TransactionBuilder builder = createTransactionBuilder("set ui options");
+                    addUiOptions(builder);
+                    builder.queue();
+                }
+                break;
+            }
+            case F91KeplerConstants.PREF_COUNTER_NAME_PREFIX + "0":
+            case F91KeplerConstants.PREF_COUNTER_NAME_PREFIX + "1":
+            case F91KeplerConstants.PREF_COUNTER_NAME_PREFIX + "2": {
+                if (has31()) {
+                    final TransactionBuilder builder = createTransactionBuilder("set counter name");
+                    addCounterName(builder, config.charAt(config.length() - 1) - '0');
+                    builder.queue();
+                }
                 break;
             }
             case F91KeplerConstants.PREF_BRIGHTNESS: {
@@ -776,19 +938,73 @@ public class F91KeplerSupport extends AbstractBTLESingleDeviceSupport {
      * Info, Flashlight, Find Phone, Bluetooth, Image.
      */
     private void addModeOrder(final TransactionBuilder builder) {
+        final ModeSet m = modeSet();
+        builder.write(F91KeplerConstants.UUID_CHAR_MODE_ORDER, F91KeplerProtocol.modeOrder(m.ids, m.pos));
+    }
+
+    /** Tell the user when the cycle is over-full and some modes were left out. */
+    private void warnIfModesDropped() {
+        final ModeSet m = modeSet();
+        final int n = F91KeplerProtocol.modeOrderDropped(m.ids, m.pos).size();
+        if (n > 0) {
+            GB.toast(getContext(), getContext().getString(R.string.f91_modes_dropped, n),
+                     Toast.LENGTH_LONG, GB.WARN);
+        }
+    }
+
+    private static final class ModeSet {
+        final byte[] ids;
+        final int[] pos;
+        ModeSet(final byte[] ids, final int[] pos) {
+            this.ids = ids; this.pos = pos;
+        }
+    }
+
+    /**
+     * The optional screens this connection's firmware has, with their
+     * configured positions, in canonical id order. The 3.1 screens (ids 10..13,
+     * off by default) are included only when the watch is 3.1 -- an older watch
+     * refuses the whole order over one unknown id.
+     */
+    private ModeSet modeSet() {
         final SharedPreferences prefs =
                 GBApplication.getDeviceSpecificSharedPrefs(getDevice().getAddress());
-        final byte[] order = F91KeplerProtocol.modeOrder(
-                modePos(prefs, F91KeplerConstants.PREF_MODE_POS_NOTIF, 1),
-                modePos(prefs, F91KeplerConstants.PREF_MODE_POS_TIMER, 2),
-                modePos(prefs, F91KeplerConstants.PREF_MODE_POS_MUSIC, 3),
-                modePos(prefs, F91KeplerConstants.PREF_MODE_POS_STOPWATCH, 4),
-                modePos(prefs, F91KeplerConstants.PREF_MODE_POS_INFO, 5),
-                modePos(prefs, F91KeplerConstants.PREF_MODE_POS_FLASHLIGHT, 6),
-                modePos(prefs, F91KeplerConstants.PREF_MODE_POS_FINDPHONE, 7),
-                modePos(prefs, F91KeplerConstants.PREF_MODE_POS_BLE, 8),
-                modePos(prefs, F91KeplerConstants.PREF_MODE_POS_IMAGE, 9));
-        builder.write(F91KeplerConstants.UUID_CHAR_MODE_ORDER, order);
+        final List<Byte> ids = new ArrayList<>();
+        final List<Integer> pos = new ArrayList<>();
+        final Object[][] base = {
+                {F91KeplerConstants.MODE_NOTIF, F91KeplerConstants.PREF_MODE_POS_NOTIF, 1},
+                {F91KeplerConstants.MODE_TIMER, F91KeplerConstants.PREF_MODE_POS_TIMER, 2},
+                {F91KeplerConstants.MODE_MUSIC, F91KeplerConstants.PREF_MODE_POS_MUSIC, 3},
+                {F91KeplerConstants.MODE_STOPWATCH, F91KeplerConstants.PREF_MODE_POS_STOPWATCH, 4},
+                {F91KeplerConstants.MODE_INFO, F91KeplerConstants.PREF_MODE_POS_INFO, 5},
+                {F91KeplerConstants.MODE_FLASHLIGHT, F91KeplerConstants.PREF_MODE_POS_FLASHLIGHT, 6},
+                {F91KeplerConstants.MODE_FINDPHONE, F91KeplerConstants.PREF_MODE_POS_FINDPHONE, 7},
+                {F91KeplerConstants.MODE_BLE, F91KeplerConstants.PREF_MODE_POS_BLE, 8},
+                {F91KeplerConstants.MODE_IMAGE, F91KeplerConstants.PREF_MODE_POS_IMAGE, 9},
+        };
+        final Object[][] v31 = {
+                {F91KeplerConstants.MODE_WEATHER, F91KeplerConstants.PREF_MODE_POS_WEATHER, 0},
+                {F91KeplerConstants.MODE_COUNTER0, F91KeplerConstants.PREF_MODE_POS_COUNTER0, 0},
+                {F91KeplerConstants.MODE_COUNTER1, F91KeplerConstants.PREF_MODE_POS_COUNTER1, 0},
+                {F91KeplerConstants.MODE_COUNTER2, F91KeplerConstants.PREF_MODE_POS_COUNTER2, 0},
+        };
+        for (final Object[] e : base) {
+            ids.add((Byte) e[0]);
+            pos.add(modePos(prefs, (String) e[1], (Integer) e[2]));
+        }
+        if (has31()) {
+            for (final Object[] e : v31) {
+                ids.add((Byte) e[0]);
+                pos.add(modePos(prefs, (String) e[1], (Integer) e[2]));
+            }
+        }
+        final byte[] idArr = new byte[ids.size()];
+        final int[] posArr = new int[pos.size()];
+        for (int i = 0; i < idArr.length; i++) {
+            idArr[i] = ids.get(i);
+            posArr[i] = pos.get(i);
+        }
+        return new ModeSet(idArr, posArr);
     }
 
     /**

@@ -12,6 +12,8 @@ import nodomain.freeyourgadget.gadgetbridge.activities.AbstractGBActivity
 import nodomain.freeyourgadget.gadgetbridge.databinding.ActivityWorkoutDetailsBinding
 import nodomain.freeyourgadget.gadgetbridge.impl.GBDevice
 import nodomain.freeyourgadget.gadgetbridge.model.ActivityKind
+import nodomain.freeyourgadget.gadgetbridge.util.kotlin.getParcelableCompat
+import nodomain.freeyourgadget.gadgetbridge.util.kotlin.getSerializableCompat
 
 class WorkoutDetailsActivity : AbstractGBActivity() {
     private val viewModel: WorkoutDetailsViewModel by viewModels()
@@ -38,9 +40,10 @@ class WorkoutDetailsActivity : AbstractGBActivity() {
 
                 val summary = viewModel.workouts.value?.get(position)
                 summary?.activityKind?.let {
-                    val activityKindName = ActivityKind.fromCode(it).getLabel(this@WorkoutDetailsActivity)
+                    val title = summary.name?.takeIf { name -> name.isNotBlank() }
+                        ?: ActivityKind.fromCode(it).getLabel(this@WorkoutDetailsActivity)
                     // Action bar title
-                    supportActionBar?.title = activityKindName
+                    supportActionBar?.title = title
                 }
             }
         })
@@ -49,7 +52,7 @@ class WorkoutDetailsActivity : AbstractGBActivity() {
     private fun setupViewModel() {
         val bundle = intent.extras ?: return
 
-        val gbDevice = bundle.getParcelable<GBDevice>(GBDevice.EXTRA_DEVICE)
+        val gbDevice = bundle.getParcelableCompat<GBDevice>(GBDevice.EXTRA_DEVICE)
         val singleWorkoutId = bundle.getLong(EXTRA_WORKOUT_ID, -1L)
 
         if (singleWorkoutId != -1L) {
@@ -66,8 +69,7 @@ class WorkoutDetailsActivity : AbstractGBActivity() {
             val deviceFilter = bundle.getLong("deviceFilter", 0)
             val nameContainsFilter = bundle.getString("nameContainsFilter")
 
-            @Suppress("UNCHECKED_CAST")
-            val itemsFilter = bundle.getSerializable("itemsFilter") as? List<Long>
+            val itemsFilter: List<Long>? = bundle.getSerializableCompat<ArrayList<Long>>("itemsFilter")
 
             lifecycleScope.launch {
                 viewModel.loadFilteredWorkouts(

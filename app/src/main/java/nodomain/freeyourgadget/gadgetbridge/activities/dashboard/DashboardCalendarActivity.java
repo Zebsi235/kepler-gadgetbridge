@@ -46,6 +46,7 @@ import java.text.SimpleDateFormat;
 import java.util.Calendar;
 import java.util.GregorianCalendar;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
@@ -54,8 +55,10 @@ import java.util.concurrent.ConcurrentHashMap;
 import nodomain.freeyourgadget.gadgetbridge.GBApplication;
 import nodomain.freeyourgadget.gadgetbridge.R;
 import nodomain.freeyourgadget.gadgetbridge.activities.AbstractGBActivity;
-import nodomain.freeyourgadget.gadgetbridge.activities.DashboardFragment;
-import nodomain.freeyourgadget.gadgetbridge.util.DashboardUtils;
+import nodomain.freeyourgadget.gadgetbridge.database.DBHandler;
+import nodomain.freeyourgadget.gadgetbridge.impl.GBDevice;
+import nodomain.freeyourgadget.gadgetbridge.model.ActivityUser;
+import nodomain.freeyourgadget.gadgetbridge.model.DailyTotals;
 import nodomain.freeyourgadget.gadgetbridge.util.DateTimeUtils;
 import nodomain.freeyourgadget.gadgetbridge.util.Prefs;
 
@@ -217,6 +220,27 @@ public class DashboardCalendarActivity extends AbstractGBActivity {
         calendarGrid.addView(text);
     }
 
+    /**
+     * The step-goal completion factor (clamped to [0, 1]) across the given devices, for one day.
+     */
+    private static float getStepsGoalFactorForDay(final boolean showAllDevices, final Set<String> showDeviceList, final Calendar day) {
+        final List<GBDevice> devices = GBApplication.app().getDeviceManager().getDevices();
+        int totalSteps = 0;
+        try (DBHandler dbHandler = GBApplication.acquireDbReadOnly()) {
+            for (final GBDevice dev : devices) {
+                if ((showAllDevices || showDeviceList.contains(dev.getAddress())) && dev.getDeviceCoordinator().supportsStepCounter(dev)) {
+                    totalSteps += (int) DailyTotals.getDailyTotalsForDevice(dev, day, dbHandler).getSteps();
+                }
+            }
+        } catch (final Exception e) {
+            LOG.warn("Could not calculate total amount of steps: ", e);
+        }
+        final float stepsGoal = new ActivityUser().getStepsGoal();
+        float goalFactor = totalSteps / stepsGoal;
+        if (goalFactor > 1) goalFactor = 1;
+        return goalFactor;
+    }
+
     private class FillDataAsyncTask extends AsyncTask<Void, Void, Void> {
         int amount_0_25 = 0;
         int amount_25_50 = 0;
@@ -228,12 +252,7 @@ public class DashboardCalendarActivity extends AbstractGBActivity {
         protected Void doInBackground(Void... params) {
             for (Calendar day : dayCells.keySet()) {
                 // Determine day color by the amount of the steps goal reached
-                DashboardFragment.DashboardData dashboardData = new DashboardFragment.DashboardData();
-                dashboardData.showAllDevices = showAllDevices;
-                dashboardData.showDeviceList = showDeviceList;
-                dashboardData.timeTo = (int) (day.getTimeInMillis() / 1000);
-                dashboardData.timeFrom = DateTimeUtils.shiftDays(dashboardData.timeTo, -1);
-                float goalFactor = DashboardUtils.getStepsGoalFactor(dashboardData);
+                final float goalFactor = getStepsGoalFactorForDay(showAllDevices, showDeviceList, day);
                 @ColorInt int dayColor;
                 if (goalFactor >= 1) {
                     dayColor = color_100;

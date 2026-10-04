@@ -31,7 +31,7 @@ import nodomain.freeyourgadget.gadgetbridge.service.devices.f91kepler.F91KeplerS
 
 /**
  * Coordinator for the F91 Kepler watch — a custom Casio F-91W internal
- * replacement (CC2640R2F, firmware v3.0.0) that advertises as "F91 Kepler" and
+ * replacement (CC2640R2F, firmware v3.1.0) that advertises as "F91 Kepler" and
  * exposes nine custom GATT services -- Notification, Image, Clock, Device
  * Control, Music, Find Phone, Alert, Weather and UI Config -- plus the standard
  * Battery and Device Information services. The sensitive characteristics
@@ -86,9 +86,14 @@ public class F91KeplerCoordinator extends AbstractBLEDeviceCoordinator {
 
     @Override
     public int getAlarmSlotCount(final GBDevice device) {
-        // The firmware Alarm Service holds a single one-shot alarm
-        // (CHAR5 AlarmTime + CHAR6 AlarmEnabled). See F91KeplerSupport#onSetAlarms.
-        return 1;
+        // Firmware 3.1: five recurring slots (Record ALARM, weekday repeat,
+        // fixed 9-minute snooze on the watch). Older firmware holds a single
+        // one-shot alarm (CHAR5 AlarmTime + CHAR6 AlarmEnabled), and so does a
+        // watch whose version has not been read yet -- the slots appear once
+        // the watch has reported 3.1 (F91KeplerFirmware#has31). See
+        // F91KeplerSupport#onSetAlarms.
+        return F91KeplerFirmware.has31(device.getFirmwareVersion())
+                ? F91KeplerConstants.ALARM_SLOTS_31 : 1;
     }
 
     @Override
@@ -97,7 +102,13 @@ public class F91KeplerCoordinator extends AbstractBLEDeviceCoordinator {
         // group lives in its own XML so it can be left out; a write to a
         // characteristic the firmware does not have is silently dropped by
         // TransactionBuilder, which showed the user a setting that never took.
-        // Unknown version (never connected) -> everything, see F91KeplerFirmware.
+        //
+        // The 2.x groups are left out only when the version is known to be
+        // older (every shipped watch has them; unknown -> shown). The 3.1 groups
+        // are always loaded but start HIDDEN: F91KeplerSettingsCustomizer shows
+        // them only once the watch has reported 3.1, and reveals them live when
+        // the version arrives while the screen is open. Loading them here is
+        // what makes that live reveal possible. See F91KeplerFirmware.
         final String fw = device.getFirmwareVersion();
         final List<Integer> xml = new ArrayList<>();
         xml.add(R.xml.devicesettings_timeformat);
@@ -108,12 +119,17 @@ public class F91KeplerCoordinator extends AbstractBLEDeviceCoordinator {
             xml.add(R.xml.devicesettings_f91kepler_brightness);
         }
         xml.add(R.xml.devicesettings_f91kepler);
+        // After devicesettings_f91kepler: its quiet switch depends on the popup
+        // switch defined there. Hidden until the watch reports 3.1.
+        xml.add(R.xml.devicesettings_f91kepler_31_face);
         if (!F91KeplerFirmware.knownBelow(fw, F91KeplerFirmware.MIN_RADIO_SCHEDULE)) {
             xml.add(R.xml.devicesettings_f91kepler_sleep);
         }
         if (!F91KeplerFirmware.knownBelow(fw, F91KeplerFirmware.MIN_MODE_ORDER_10)) {
             xml.add(R.xml.devicesettings_f91kepler_modes);
         }
+        // Hidden until the watch reports 3.1, like the face options above.
+        xml.add(R.xml.devicesettings_f91kepler_31_screens);
         if (!F91KeplerFirmware.knownBelow(fw, F91KeplerFirmware.MIN_IMAGE)) {
             xml.add(R.xml.devicesettings_f91kepler_image);
         }
@@ -127,7 +143,8 @@ public class F91KeplerCoordinator extends AbstractBLEDeviceCoordinator {
     @Override
     public DeviceSpecificSettingsCustomizer getDeviceSpecificSettingsCustomizer(
             @NonNull final GBDevice device) {
-        // Only job: make the "Upload image" entry open F91KeplerImageActivity.
+        // Opens the image screen, forwards watch-side changes (SEND_KEYS) and
+        // shows the firmware 3.1 groups only on a watch known to run 3.1.
         return new F91KeplerSettingsCustomizer();
     }
 

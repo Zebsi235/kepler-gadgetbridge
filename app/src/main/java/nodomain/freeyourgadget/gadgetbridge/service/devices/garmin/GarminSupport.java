@@ -46,11 +46,10 @@ import java.io.File;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
-import java.time.Instant;
 import java.time.LocalTime;
-import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.Date;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.LinkedList;
@@ -61,6 +60,10 @@ import java.util.Optional;
 import java.util.Queue;
 import java.util.Set;
 import java.util.UUID;
+import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
 import nodomain.freeyourgadget.gadgetbridge.GBApplication;
@@ -70,6 +73,7 @@ import nodomain.freeyourgadget.gadgetbridge.database.DBHandler;
 import nodomain.freeyourgadget.gadgetbridge.deviceevents.GBDeviceEvent;
 import nodomain.freeyourgadget.gadgetbridge.deviceevents.GBDeviceEventAppInfo;
 import nodomain.freeyourgadget.gadgetbridge.devices.PendingFileProvider;
+import nodomain.freeyourgadget.gadgetbridge.devices.SleepAsAndroidFeature;
 import nodomain.freeyourgadget.gadgetbridge.devices.garmin.GarminCoordinator;
 import nodomain.freeyourgadget.gadgetbridge.devices.garmin.GarminFitFileInstallHandler;
 import nodomain.freeyourgadget.gadgetbridge.devices.garmin.GarminGpxRouteInstallHandler;
@@ -78,6 +82,7 @@ import nodomain.freeyourgadget.gadgetbridge.devices.garmin.GarminPrgFileInstallH
 import nodomain.freeyourgadget.gadgetbridge.devices.garmin.GarminCapability;
 import nodomain.freeyourgadget.gadgetbridge.entities.DaoSession;
 import nodomain.freeyourgadget.gadgetbridge.externalevents.gps.GBLocationService;
+import nodomain.freeyourgadget.gadgetbridge.externalevents.sleepasandroid.SleepAsAndroidAction;
 import nodomain.freeyourgadget.gadgetbridge.impl.GBDevice;
 import nodomain.freeyourgadget.gadgetbridge.impl.GBDeviceApp;
 import nodomain.freeyourgadget.gadgetbridge.model.Alarm;
@@ -94,8 +99,13 @@ import nodomain.freeyourgadget.gadgetbridge.proto.garmin.GdiDeviceStatus;
 import nodomain.freeyourgadget.gadgetbridge.proto.garmin.GdiFileSyncService;
 import nodomain.freeyourgadget.gadgetbridge.proto.garmin.GdiFindMyWatch;
 import nodomain.freeyourgadget.gadgetbridge.proto.garmin.GdiInstalledAppsService;
-import nodomain.freeyourgadget.gadgetbridge.proto.garmin.GdiSettingsService;
-import nodomain.freeyourgadget.gadgetbridge.proto.garmin.GdiSmartProto;
+import nodomain.freeyourgadget.gadgetbridge.proto.garmin.GdiSettingsService.GdiSettingsService;
+import nodomain.freeyourgadget.gadgetbridge.proto.garmin.GdiSettingsService.InitRequest;
+import nodomain.freeyourgadget.gadgetbridge.proto.garmin.GdiSettingsService.ScreenDefinitionRequest;
+import nodomain.freeyourgadget.gadgetbridge.proto.garmin.GdiSettingsService.ScreenStateRequest;
+import nodomain.freeyourgadget.gadgetbridge.proto.garmin.GdiSettingsService.SettingsService;
+import nodomain.freeyourgadget.gadgetbridge.proto.garmin.GdiSmartProto.Smart;
+import nodomain.freeyourgadget.gadgetbridge.service.SleepAsAndroidSender;
 import nodomain.freeyourgadget.gadgetbridge.service.btle.AbstractBTLESingleDeviceSupport;
 import nodomain.freeyourgadget.gadgetbridge.service.btle.TransactionBuilder;
 import nodomain.freeyourgadget.gadgetbridge.service.devices.garmin.communicator.ICommunicator;
@@ -115,14 +125,15 @@ import nodomain.freeyourgadget.gadgetbridge.service.devices.garmin.fit.FitImport
 import nodomain.freeyourgadget.gadgetbridge.service.devices.garmin.fit.FitLocalMessageBuilder;
 import nodomain.freeyourgadget.gadgetbridge.service.devices.garmin.fit.GpxRouteFileConverter;
 import nodomain.freeyourgadget.gadgetbridge.service.devices.garmin.fit.RecordData;
-import nodomain.freeyourgadget.gadgetbridge.service.devices.garmin.fit.fieldDefinitions.FieldDefinitionAlarmLabel;
-import nodomain.freeyourgadget.gadgetbridge.service.devices.garmin.fit.fieldDefinitions.FieldDefinitionWeatherAqi;
-import nodomain.freeyourgadget.gadgetbridge.service.devices.garmin.fit.fieldDefinitions.FieldDefinitionWeatherCondition;
-import nodomain.freeyourgadget.gadgetbridge.service.devices.garmin.fit.fieldDefinitions.FieldDefinitionWeatherReport;
+import nodomain.freeyourgadget.gadgetbridge.service.devices.garmin.fit.enums.AlarmLabel;
+import nodomain.freeyourgadget.gadgetbridge.service.devices.garmin.fit.enums.AlarmMode;
+import nodomain.freeyourgadget.gadgetbridge.service.devices.garmin.fit.enums.Tone;
+import nodomain.freeyourgadget.gadgetbridge.service.devices.garmin.fit.enums.WeatherReport;
 import nodomain.freeyourgadget.gadgetbridge.service.devices.garmin.fit.messages.FitAlarmSettings;
 import nodomain.freeyourgadget.gadgetbridge.service.devices.garmin.fit.messages.FitDeviceSettings;
 import nodomain.freeyourgadget.gadgetbridge.service.devices.garmin.fit.messages.FitFileId;
 import nodomain.freeyourgadget.gadgetbridge.service.devices.garmin.fit.messages.FitWeather;
+import nodomain.freeyourgadget.gadgetbridge.service.devices.garmin.messages.CurrentTimeRequestMessage;
 import nodomain.freeyourgadget.gadgetbridge.service.devices.garmin.messages.DownloadRequestMessage;
 import nodomain.freeyourgadget.gadgetbridge.service.devices.garmin.messages.GFDIMessage;
 import nodomain.freeyourgadget.gadgetbridge.service.devices.garmin.messages.MusicControlEntityUpdateMessage;
@@ -130,10 +141,12 @@ import nodomain.freeyourgadget.gadgetbridge.service.devices.garmin.messages.SetD
 import nodomain.freeyourgadget.gadgetbridge.service.devices.garmin.messages.SetFileFlagsMessage;
 import nodomain.freeyourgadget.gadgetbridge.service.devices.garmin.messages.SupportedFileTypesMessage;
 import nodomain.freeyourgadget.gadgetbridge.service.devices.garmin.messages.SystemEventMessage;
+import nodomain.freeyourgadget.gadgetbridge.service.devices.garmin.messages.status.GenericStatusMessage;
 import nodomain.freeyourgadget.gadgetbridge.service.devices.garmin.messages.status.NotificationSubscriptionStatusMessage;
 import nodomain.freeyourgadget.gadgetbridge.util.ArrayUtils;
 import nodomain.freeyourgadget.gadgetbridge.util.CompressionUtils;
 import nodomain.freeyourgadget.gadgetbridge.util.FileUtils;
+import nodomain.freeyourgadget.gadgetbridge.util.FormatUtils;
 import nodomain.freeyourgadget.gadgetbridge.util.GB;
 import nodomain.freeyourgadget.gadgetbridge.util.MediaManager;
 import nodomain.freeyourgadget.gadgetbridge.util.Prefs;
@@ -144,6 +157,7 @@ import static nodomain.freeyourgadget.gadgetbridge.GBApplication.ACTION_APP_IS_I
 import static nodomain.freeyourgadget.gadgetbridge.GBApplication.ACTION_APP_IS_IN_FOREGROUND;
 import static nodomain.freeyourgadget.gadgetbridge.activities.devicesettings.DeviceSettingsPreferenceConst.PREF_ALLOW_HIGH_MTU;
 import static nodomain.freeyourgadget.gadgetbridge.activities.devicesettings.DeviceSettingsPreferenceConst.PREF_SEND_APP_NOTIFICATIONS;
+import static nodomain.freeyourgadget.gadgetbridge.activities.devicesettings.DeviceSettingsPreferenceConst.PREF_TIME_SYNC;
 
 
 public class GarminSupport extends AbstractBTLESingleDeviceSupport implements ICommunicator.Callback {
@@ -159,6 +173,11 @@ public class GarminSupport extends AbstractBTLESingleDeviceSupport implements IC
     private MediaManager mediaManager;
     private boolean mFirstConnect = false;
     private boolean isBusyFetching;
+
+    private int maxPacketSize = 400;
+
+    private SleepAsAndroidSender sleepAsAndroidSender;
+    private ScheduledExecutorService saaAlarmScheduler;
 
     private GBProgressNotification transferNotification;
 
@@ -190,7 +209,7 @@ public class GarminSupport extends AbstractBTLESingleDeviceSupport implements IC
         protocolBufferHandler = new ProtocolBufferHandler(this);
         fileTransferHandler = new FileTransferHandler(this);
         filesToDownload = new LinkedList<>();
-        messageHandlers = new ArrayList<>();
+        messageHandlers = new CopyOnWriteArrayList<>();
         notificationsHandler = new NotificationsHandler();
         messageHandlers.add(fileTransferHandler);
         messageHandlers.add(protocolBufferHandler);
@@ -208,6 +227,14 @@ public class GarminSupport extends AbstractBTLESingleDeviceSupport implements IC
         this.mediaManager = new MediaManager(context);
         this.protocolBufferHandler.setContext(gbDevice, btAdapter, context);
         this.transferNotification = new GBProgressNotification(context, GB.NOTIFICATION_CHANNEL_ID_TRANSFER);
+        if (gbDevice.getDeviceCoordinator().supportsSleepAsAndroid(gbDevice)) {
+            this.sleepAsAndroidSender = new SleepAsAndroidSender(gbDevice);
+        }
+    }
+
+    @Override
+    public SleepAsAndroidSender getSleepAsAndroidSender() {
+        return sleepAsAndroidSender;
     }
 
     @Override
@@ -218,6 +245,10 @@ public class GarminSupport extends AbstractBTLESingleDeviceSupport implements IC
             // mid-sync leaves the progress notification pinned indefinitely.
             transferNotification.finish();
             isBusyFetching = false;
+            if (sleepAsAndroidSender != null) {
+                sleepAsAndroidSender.stopTracking();
+            }
+            stopSleepAsAndroidSchedulers();
             if (communicator != null) {
                 communicator.dispose();
             }
@@ -244,7 +275,7 @@ public class GarminSupport extends AbstractBTLESingleDeviceSupport implements IC
             if (directoryEntry.getFiletype() == FileType.FILETYPE.DIRECTORY) {
                 LOG.debug("Got directory entry, syncing with new protocol");
                 sendProtobufRequest("request file list",
-                        GdiSmartProto.Smart.newBuilder().setFileSyncService(
+                        Smart.newBuilder().setFileSyncService(
                                 protocolBufferHandler.getFileSyncServiceHandler().requestFileList()
                         ).build());
                 return;
@@ -357,7 +388,13 @@ public class GarminSupport extends AbstractBTLESingleDeviceSupport implements IC
             return; //message cannot be handled
         }
 
-        LOG.debug("INCOMING message: {}/{}: {}", parsedMessage, parsedMessage.getGarminMessage(), GB.hexdump(message));
+        if (parsedMessage instanceof CurrentTimeRequestMessage && !getDevicePrefs().getBoolean(PREF_TIME_SYNC, true)) {
+            LOG.warn("Replying UNSUPPORTED to current time request - time sync is disabled");
+            sendOutgoingMessage("send status", new GenericStatusMessage(parsedMessage.getGarminMessage(), GFDIMessage.Status.UNSUPPORTED));
+            return;
+        }
+
+        LOG.debug("INCOMING message: {}/{}: {}", parsedMessage, parsedMessage.getGarminMessage(), GB.lazyHexdump(message));
         /*
         the handler elaborates the followup message but might change the status message since it does
         check the integrity of the incoming message payload. Hence we let the handlers elaborate the
@@ -420,11 +457,11 @@ public class GarminSupport extends AbstractBTLESingleDeviceSupport implements IC
                 final String language = Locale.getDefault().getLanguage();
                 final String country = Locale.getDefault().getCountry();
                 final String localeString = language + "_" + country.toUpperCase();
-                sendProtobufRequest("init realtime settings", GdiSmartProto.Smart.newBuilder()
+                sendProtobufRequest("init realtime settings", Smart.newBuilder()
                         .setSettingsService(
-                                GdiSettingsService.SettingsService.newBuilder()
+                                SettingsService.newBuilder()
                                         .setInitRequest(
-                                                GdiSettingsService.InitRequest.newBuilder()
+                                                InitRequest.newBuilder()
                                                         .setLanguage(localeString.length() == 5 ? localeString : "en_US")
                                                         .setRegion("us") // FIXME choose region
                                         )
@@ -460,6 +497,7 @@ public class GarminSupport extends AbstractBTLESingleDeviceSupport implements IC
             ));
         } else if (deviceEvent instanceof MaxPacketSizeDeviceEvent maxPacketSizeDeviceEvent) {
             LOG.debug("Got new max packet size of {}", maxPacketSizeDeviceEvent.getMaxPacketSize());
+            maxPacketSize = maxPacketSizeDeviceEvent.getMaxPacketSize();
             fileTransferHandler.setMaxPacketSize(maxPacketSizeDeviceEvent.getMaxPacketSize());
         } else if (deviceEvent instanceof SupportedFileTypesDeviceEvent) {
             this.supportedFileTypeList.clear();
@@ -513,7 +551,7 @@ public class GarminSupport extends AbstractBTLESingleDeviceSupport implements IC
 
             currentlyDownloading = null;
         } else if (deviceEvent instanceof IncomingFitDefinitionDeviceEvent) {
-            final FitLocalMessageHandler fitLocalMessageHandler = new FitLocalMessageHandler(this, ((IncomingFitDefinitionDeviceEvent) deviceEvent).getRecordDefinitions());
+            final FitLocalMessageHandler fitLocalMessageHandler = new FitLocalMessageHandler(this, ((IncomingFitDefinitionDeviceEvent) deviceEvent).getRecordDefinitions(), maxPacketSize);
             messageHandlers.add(fitLocalMessageHandler);
         } else {
             super.evaluateGBDeviceEvent(deviceEvent);
@@ -556,7 +594,7 @@ public class GarminSupport extends AbstractBTLESingleDeviceSupport implements IC
     }
 
     public boolean mlrEnabled() {
-        return getDevicePrefs().getBoolean("garmin_mlr", false);
+        return getDevicePrefs().getBoolean("garmin_mlr", true);
     }
 
     @Override
@@ -572,7 +610,7 @@ public class GarminSupport extends AbstractBTLESingleDeviceSupport implements IC
     @Override
     public void onAppInfoReq() {
         sendProtobufRequest("request apps",
-                GdiSmartProto.Smart.newBuilder().setInstalledAppsService(
+                Smart.newBuilder().setInstalledAppsService(
                         GdiInstalledAppsService.InstalledAppsService.newBuilder().setGetInstalledAppsRequest(
                                 GdiInstalledAppsService.InstalledAppsService.GetInstalledAppsRequest.newBuilder()
                                         .setAppType(GdiInstalledAppsService.InstalledAppsService.AppType.ALL)
@@ -602,7 +640,7 @@ public class GarminSupport extends AbstractBTLESingleDeviceSupport implements IC
         }
 
         sendProtobufRequest("delete app",
-                GdiSmartProto.Smart.newBuilder().setInstalledAppsService(
+                Smart.newBuilder().setInstalledAppsService(
                         GdiInstalledAppsService.InstalledAppsService.newBuilder().setDeleteAppRequest(
                                 GdiInstalledAppsService.InstalledAppsService.DeleteAppRequest.newBuilder()
                                         .setStoreAppId(app.getStoreAppId())
@@ -632,7 +670,7 @@ public class GarminSupport extends AbstractBTLESingleDeviceSupport implements IC
             final boolean isSystemApp = !installedApp.hasFileName();
             final GBDeviceApp.Type type = switch (installedApp.getType()) {
                 case WATCH_FACE -> isSystemApp ? GBDeviceApp.Type.WATCHFACE_SYSTEM : GBDeviceApp.Type.WATCHFACE;
-                case DATA_FIELD, ACTIVITY -> isSystemApp ? GBDeviceApp.Type.UNKNOWN /* otherwise too many appear */: GBDeviceApp.Type.APP_ACTIVITYTRACKER;
+                case DATA_FIELD, ACTIVITY -> isSystemApp ? GBDeviceApp.Type.UNKNOWN /* otherwise too many appear */ : GBDeviceApp.Type.APP_ACTIVITYTRACKER;
                 case AUDIO_CONTENT_PROVIDER -> isSystemApp ? GBDeviceApp.Type.APP_SYSTEM : GBDeviceApp.Type.APP_GENERIC;
                 case WATCH_APP -> isSystemApp ? GBDeviceApp.Type.APP_SYSTEM : GBDeviceApp.Type.APP_GENERIC;
                 default -> GBDeviceApp.Type.UNKNOWN;
@@ -669,17 +707,19 @@ public class GarminSupport extends AbstractBTLESingleDeviceSupport implements IC
         sendWeatherConditions(weatherSpec);
     }
 
-    /** Wrap and send a watch-bound Smart RPC. */
-    void sendProtobufRequest(final String taskName, final GdiSmartProto.Smart payload) {
+    /**
+     * Wrap and send a watch-bound Smart RPC.
+     */
+    void sendProtobufRequest(final String taskName, final Smart payload) {
         sendOutgoingMessage(taskName, protocolBufferHandler.prepareProtobufRequest(payload));
     }
 
-    private void sendOutgoingMessage(final String taskName, final GFDIMessage message) {
+    void sendOutgoingMessage(final String taskName, final GFDIMessage message) {
         if (message == null)
             return;
         byte[] out = message.getOutgoingMessage();
         if (out != null && LOG.isDebugEnabled())
-            LOG.debug("OUTGOING message {}: {}", message, GB.hexdump(out));
+            LOG.debug("OUTGOING message {}: {}", message, GB.lazyHexdump(out));
         if (communicator == null) {
             LOG.error("outgoing communicator is null");
             return;
@@ -691,8 +731,8 @@ public class GarminSupport extends AbstractBTLESingleDeviceSupport implements IC
         if (message == null)
             return;
         byte[] ack = message.getAckBytestream();
-        if (ack != null  && LOG.isDebugEnabled())
-            LOG.debug("OUTGOING ACK {}: {}", message, GB.hexdump(ack));
+        if (ack != null && LOG.isDebugEnabled())
+            LOG.debug("OUTGOING ACK {}: {}", message, GB.lazyHexdump(ack));
         if (communicator == null) {
             LOG.error("ack communicator is null");
             return;
@@ -703,12 +743,13 @@ public class GarminSupport extends AbstractBTLESingleDeviceSupport implements IC
     private void sendWeatherConditions(WeatherSpec weather) {
         if (!getCoordinator().supports(getDevice(), GarminCapability.WEATHER_CONDITIONS)) {
             // Device does not support sending weather as fit
+            LOG.debug("Not sending weather to device, it does not support WEATHER_CONDITIONS. Weather will be sent via HTTP once the watch requests it.");
             return;
         }
 
         final FitLocalMessageBuilder weatherLocalMessage = encodeWeather(weather);
 
-        final FitLocalMessageHandler weatherHandler = new FitLocalMessageHandler(this, weatherLocalMessage);
+        final FitLocalMessageHandler weatherHandler = new FitLocalMessageHandler(this, weatherLocalMessage, maxPacketSize);
         messageHandlers.add(weatherHandler);
 
         sendOutgoingMessage("send " + weatherLocalMessage.getDefinitions().size() + " weather definitions", weatherHandler.init());
@@ -724,25 +765,22 @@ public class GarminSupport extends AbstractBTLESingleDeviceSupport implements IC
         final FitLocalMessageBuilder weatherLocalMessage = new FitLocalMessageBuilder();
 
         final FitWeather.Builder today = new FitWeather.Builder();
-        today.setWeatherReport(FieldDefinitionWeatherReport.Type.current);
+        today.setWeatherReport(WeatherReport.current);
         today.setTimestamp((long) weather.getTimestamp());
         today.setObservedAtTime((long) weather.getTimestamp());
-        today.setTemperature(weather.getCurrentTemp());
-        today.setLowTemperature(weather.getTodayMinTemp());
-        today.setHighTemperature(weather.getTodayMaxTemp());
-        today.setCondition(FieldDefinitionWeatherCondition.openWeatherCodeToFitWeatherStatus(weather.getCurrentConditionCode()));
-        today.setWindDirection(weather.getWindDirection());
-        today.setPrecipitationProbability(weather.getPrecipProbability());
-        today.setWindSpeed(weather.getWindSpeed());
-        today.setTemperatureFeelsLike(weather.getFeelsLikeTemp());
-        today.setRelativeHumidity(weather.getCurrentHumidity());
+        today.weatherTemperature(weather.getCurrentTemp());
+        today.weatherLowTemperature(weather.getTodayMinTemp());
+        today.weatherHighTemperature(weather.getTodayMaxTemp());
+        today.weatherCondition(weather.getCurrentConditionCode());
+        today.weatherWindDirection(weather.getWindDirection());
+        today.weatherPrecipitationProbability(weather.getPrecipProbability());
+        today.weatherWindSpeed(weather.getWindSpeed());
+        today.weatherTemperatureFeelsLike(weather.getFeelsLikeTemp());
+        today.weatherRelativeHumidity(weather.getCurrentHumidity());
         today.setObservedLocationLat((double) weather.getLatitude());
         today.setObservedLocationLong((double) weather.getLongitude());
-        today.setAirQuality(null); //ensure the definition is added
-        if (null != weather.getAirQuality()) {
-            today.setAirQuality(FieldDefinitionWeatherAqi.aqiAbsoluteValueToEnum(weather.getAirQuality().getAqi()));
-        }
-        today.setDewPoint(weather.getDewPoint());
+        today.weatherAirQuality(weather.getAirQuality());
+        today.weatherDewPoint(weather.getDewPoint());
         today.setLocation(weather.getLocation());
         weatherLocalMessage.addRecordData(today.build(weatherLocalMessage.getNextAvailableLocalMessageType()));
 
@@ -751,55 +789,64 @@ public class GarminSupport extends AbstractBTLESingleDeviceSupport implements IC
             if (hour < weather.getHourly().size()) {
                 WeatherSpec.Hourly hourly = weather.getHourly().get(hour);
                 final FitWeather.Builder weatherHourlyForecast = new FitWeather.Builder();
-                weatherHourlyForecast.setWeatherReport(FieldDefinitionWeatherReport.Type.hourly_forecast);
+                weatherHourlyForecast.setWeatherReport(WeatherReport.hourly_forecast);
                 weatherHourlyForecast.setTimestamp((long) hourly.getTimestamp());
-                weatherHourlyForecast.setTemperature(hourly.getTemp());
-                weatherHourlyForecast.setCondition(FieldDefinitionWeatherCondition.openWeatherCodeToFitWeatherStatus(hourly.getConditionCode()));
-                weatherHourlyForecast.setWindDirection(hourly.getWindDirection());
-                weatherHourlyForecast.setWindSpeed(hourly.getWindSpeed());
-                weatherHourlyForecast.setPrecipitationProbability(hourly.getPrecipProbability());
-                weatherHourlyForecast.setTemperatureFeelsLike(hourly.getTemp()); //TODO: switch to actual feels like field once Hourly contains this information
-                weatherHourlyForecast.setRelativeHumidity(hourly.getHumidity());
-                weatherHourlyForecast.setDewPoint(null); // null to ensure the definition is added TODO: add once Hourly contains this information
-                weatherHourlyForecast.setUvIndex(hourly.getUvIndex());
-                weatherHourlyForecast.setAirQuality(null); // null to ensure the definition is added TODO: add once Hourly contains this information
+                weatherHourlyForecast.weatherTemperature(hourly.getTemp());
+                weatherHourlyForecast.weatherCondition(hourly.getConditionCode());
+                weatherHourlyForecast.weatherWindDirection(hourly.getWindDirection());
+                weatherHourlyForecast.weatherWindSpeed(hourly.getWindSpeed());
+                weatherHourlyForecast.weatherPrecipitationProbability(hourly.getPrecipProbability());
+                weatherHourlyForecast.weatherTemperatureFeelsLike(hourly.getTemp()); //TODO: switch to actual feels like field once Hourly contains this information
+                weatherHourlyForecast.weatherRelativeHumidity(hourly.getHumidity());
+                weatherHourlyForecast.weatherDewPoint(hourly.getDewPoint());
+                weatherHourlyForecast.weatherUvIndex(hourly.getUvIndex());
+                weatherHourlyForecast.weatherAirQuality(null); // null to ensure the definition is added TODO: add once Hourly contains this information
+                weatherHourlyForecast.weatherAtmosphericPressure(hourly.getPressure());
+                // TODO: FIT encoding unclear for hourly.getCloudCover()
                 weatherLocalMessage.addRecordData(weatherHourlyForecast.build(hourlyMessageType));
             }
         }
 
+        // Always ensure that todayDailyForecast or weatherDailyForecast have the same fields set,
+        // since they share the same message type in the definition message
         final int dailyMessageType = weatherLocalMessage.getNextAvailableLocalMessageType();
 
         final FitWeather.Builder todayDailyForecast = new FitWeather.Builder();
-        todayDailyForecast.setWeatherReport(FieldDefinitionWeatherReport.Type.daily_forecast);
+        todayDailyForecast.setWeatherReport(WeatherReport.daily_forecast);
         todayDailyForecast.setTimestamp((long) weather.getTimestamp());
-        todayDailyForecast.setLowTemperature(weather.getTodayMinTemp());
-        todayDailyForecast.setHighTemperature(weather.getTodayMaxTemp());
-        todayDailyForecast.setCondition(FieldDefinitionWeatherCondition.openWeatherCodeToFitWeatherStatus(weather.getCurrentConditionCode()));
-        todayDailyForecast.setPrecipitationProbability(weather.getPrecipProbability());
-        todayDailyForecast.setDayOfWeek(Instant.ofEpochSecond(weather.getTimestamp()).atZone(ZoneId.systemDefault()).getDayOfWeek());
-        todayDailyForecast.setAirQuality(null); //ensure the definition is added
-        if (null != weather.getAirQuality()) {
-            todayDailyForecast.setAirQuality(FieldDefinitionWeatherAqi.aqiAbsoluteValueToEnum(weather.getAirQuality().getAqi()));
-        }
+        todayDailyForecast.weatherLowTemperature(weather.getTodayMinTemp());
+        todayDailyForecast.weatherHighTemperature(weather.getTodayMaxTemp());
+        todayDailyForecast.weatherCondition(weather.getCurrentConditionCode());
+        todayDailyForecast.weatherPrecipitationProbability(weather.getPrecipProbability());
+        todayDailyForecast.weatherDayOfWeek(weather.getTimestamp());
+        todayDailyForecast.weatherAirQuality(weather.getAirQuality());
+        todayDailyForecast.weatherRelativeHumidity(weather.getCurrentHumidity());
+        todayDailyForecast.weatherWindSpeed(weather.getWindSpeed());
+        todayDailyForecast.weatherWindDirection(weather.getWindDirection());
+        todayDailyForecast.weatherUvIndex(weather.getUvIndex());
+        todayDailyForecast.weatherAtmosphericPressure(weather.getPressure());
+        // TODO: FIT encoding unclear for weather.getCloudCover()
         weatherLocalMessage.addRecordData(todayDailyForecast.build(dailyMessageType));
-
 
         for (int day = 0; day < 4; day++) {
             if (day < weather.getForecasts().size()) {
                 WeatherSpec.Daily daily = weather.getForecasts().get(day);
                 int ts = weather.getTimestamp() + (day + 1) * 24 * 60 * 60;
                 final FitWeather.Builder weatherDailyForecast = new FitWeather.Builder();
-                weatherDailyForecast.setWeatherReport(FieldDefinitionWeatherReport.Type.daily_forecast);
+                weatherDailyForecast.setWeatherReport(WeatherReport.daily_forecast);
                 weatherDailyForecast.setTimestamp((long) weather.getTimestamp());
-                weatherDailyForecast.setLowTemperature(daily.getMinTemp());
-                weatherDailyForecast.setHighTemperature(daily.getMaxTemp());
-                weatherDailyForecast.setCondition(FieldDefinitionWeatherCondition.openWeatherCodeToFitWeatherStatus(daily.getConditionCode()));
-                weatherDailyForecast.setPrecipitationProbability(daily.getPrecipProbability());
-                weatherDailyForecast.setDayOfWeek(Instant.ofEpochSecond(ts).atZone(ZoneId.systemDefault()).getDayOfWeek());
-                weatherDailyForecast.setAirQuality(null); //ensure the definition is added
-                if (null != daily.getAirQuality()) {
-                    weatherDailyForecast.setAirQuality(FieldDefinitionWeatherAqi.aqiAbsoluteValueToEnum(daily.getAirQuality().getAqi()));
-                }
+                weatherDailyForecast.weatherLowTemperature(daily.getMinTemp());
+                weatherDailyForecast.weatherHighTemperature(daily.getMaxTemp());
+                weatherDailyForecast.weatherCondition(daily.getConditionCode());
+                weatherDailyForecast.weatherPrecipitationProbability(daily.getPrecipProbability());
+                weatherDailyForecast.weatherDayOfWeek(ts);
+                weatherDailyForecast.weatherAirQuality(daily.getAirQuality());
+                weatherDailyForecast.weatherRelativeHumidity(daily.getHumidity());
+                weatherDailyForecast.weatherWindSpeed(daily.getWindSpeed());
+                weatherDailyForecast.weatherWindDirection(daily.getWindDirection());
+                weatherDailyForecast.weatherUvIndex(daily.getUvIndex());
+                weatherDailyForecast.weatherAtmosphericPressure(daily.getPressure());
+                // TODO: FIT encoding unclear for daily.getCloudCover()
                 weatherLocalMessage.addRecordData(weatherDailyForecast.build(dailyMessageType));
             }
         }
@@ -816,7 +863,7 @@ public class GarminSupport extends AbstractBTLESingleDeviceSupport implements IC
         sendOutgoingMessage("request supported file types", new SupportedFileTypesMessage());
         sendDeviceSettings();
 
-        if (GBApplication.getPrefs().syncTime()) {
+        if (GBApplication.getPrefs().syncTime() && getDevicePrefs().getBoolean(PREF_TIME_SYNC, true)) {
             onSetTime();
         }
         //following is needed for vivomove style
@@ -842,7 +889,7 @@ public class GarminSupport extends AbstractBTLESingleDeviceSupport implements IC
     public void onSendConfiguration(final String config) {
         if (config.startsWith("protobuf:")) {
             try {
-                final GdiSmartProto.Smart smart = GdiSmartProto.Smart.parseFrom(GB.hexStringToByteArray(config.replaceFirst("protobuf:", "")));
+                final Smart smart = Smart.parseFrom(GB.hexStringToByteArray(config.replaceFirst("protobuf:", "")));
                 sendProtobufRequest("send config", smart);
             } catch (final Exception e) {
                 LOG.error("Failed to send {} as protobuf", config, e);
@@ -884,7 +931,12 @@ public class GarminSupport extends AbstractBTLESingleDeviceSupport implements IC
                 transferNotification.start(
                         R.string.busy_task_fetch_activity_data,
                         0,
-                        filesToDownload.stream().mapToLong(FileToDownload::getSize).sum()
+                        filesToDownload.stream().mapToLong(FileToDownload::getSize).sum(),
+                        (progress, total) -> getContext().getString(
+                                R.string.busy_task_progress_str,
+                                FormatUtils.formatBytes(progress),
+                                FormatUtils.formatBytes(total)
+                        )
                 );
                 getDevice().setBusyTask(R.string.busy_task_fetch_activity_data, getContext());
                 getDevice().sendDeviceUpdateIntent(getContext());
@@ -916,7 +968,7 @@ public class GarminSupport extends AbstractBTLESingleDeviceSupport implements IC
                     LOG.debug("Will download file: {}/{}", currentlyDownloading.getSyncFile().getId().getId1(), currentlyDownloading.getSyncFile().getId().getId2());
 
                     sendProtobufRequest("request file",
-                            GdiSmartProto.Smart.newBuilder().setFileSyncService(
+                            Smart.newBuilder().setFileSyncService(
                                     protocolBufferHandler.getFileSyncServiceHandler().requestFile(currentlyDownloading.getSyncFile())
                             ).build());
                 } else {
@@ -931,7 +983,7 @@ public class GarminSupport extends AbstractBTLESingleDeviceSupport implements IC
             LOG.debug("No more files to download, will process pending files");
 
             final List<File> filesToProcess;
-            try (DBHandler handler = GBApplication.acquireDB()) {
+            try (DBHandler handler = GBApplication.acquireDbReadOnly()) {
                 final DaoSession session = handler.getDaoSession();
 
                 final PendingFileProvider pendingFileProvider = new PendingFileProvider(gbDevice, session);
@@ -952,10 +1004,6 @@ public class GarminSupport extends AbstractBTLESingleDeviceSupport implements IC
             if (filesToProcess.isEmpty()) {
                 LOG.debug("No pending files to process");
                 finishFileSync();
-
-                // FIXME: This should probably only happen after exploresync also finishes
-                sendOutgoingMessage("set sync complete", new SystemEventMessage(SystemEventMessage.GarminSystemEventType.SYNC_COMPLETE, 0));
-
                 return;
             }
 
@@ -988,18 +1036,23 @@ public class GarminSupport extends AbstractBTLESingleDeviceSupport implements IC
      */
     @VisibleForTesting
     void finishFileSync() {
+        // FIXME: This should probably only happen after exploresync also finishes
+        sendOutgoingMessage("set sync complete", new SystemEventMessage(SystemEventMessage.GarminSystemEventType.SYNC_COMPLETE, 0));
+
         getDevice().unsetBusyTask();
         GB.signalActivityDataFinish(getDevice());
         transferNotification.finish();
         getDevice().sendDeviceUpdateIntent(getContext());
 
         if (getCoordinator().supports(getDevice(), GarminCapability.EXPLORE_SYNC)) {
-            protocolBufferHandler.getExploreSyncHandler().startSession();
+            if (getDevicePrefs().getBoolean("garmin_exploresync", false)) {
+                protocolBufferHandler.getExploreSyncHandler().startSession();
+            }
         }
     }
 
     private void enableBatteryLevelUpdate() {
-        sendProtobufRequest("enable battery updates", GdiSmartProto.Smart.newBuilder()
+        sendProtobufRequest("enable battery updates", Smart.newBuilder()
                 .setDeviceStatusService(
                         GdiDeviceStatus.DeviceStatusService.newBuilder()
                                 .setRemoteDeviceBatteryStatusRequest(
@@ -1036,7 +1089,124 @@ public class GarminSupport extends AbstractBTLESingleDeviceSupport implements IC
             );
         }
         sendProtobufRequest("find device",
-                GdiSmartProto.Smart.newBuilder().setFindMyWatchService(a).build());
+                Smart.newBuilder().setFindMyWatchService(a).build());
+    }
+
+    @Override
+    public void onSleepAsAndroidAction(final String action, final Bundle extras) {
+        if (sleepAsAndroidSender == null) {
+            LOG.warn("SaA sender not initialized, dropping {}", action);
+            return;
+        }
+        if (!gbDevice.isInitialized()) {
+            LOG.warn("Device not initialized, dropping SaA action {}", action);
+            return;
+        }
+        try {
+            sleepAsAndroidSender.validateAction(action);
+        } catch (final UnsupportedOperationException e) {
+            return;
+        }
+
+        switch (action) {
+            case SleepAsAndroidAction.CHECK_CONNECTED:
+                sleepAsAndroidSender.confirmConnected();
+                break;
+            case SleepAsAndroidAction.START_TRACKING:
+                toggleSleepAsAndroidRealtimeData(true);
+                sleepAsAndroidSender.startTracking();
+                break;
+            case SleepAsAndroidAction.STOP_TRACKING:
+                toggleSleepAsAndroidRealtimeData(false);
+                sleepAsAndroidSender.stopTracking();
+                break;
+            case SleepAsAndroidAction.SET_PAUSE: {
+                final long pauseTimestamp = extras.getLong("TIMESTAMP");
+                final long delay = pauseTimestamp > 0 ? pauseTimestamp - System.currentTimeMillis() : 0;
+                sleepAsAndroidSender.pauseTracking(delay);
+                break;
+            }
+            case SleepAsAndroidAction.SET_SUSPENDED: {
+                final boolean suspended = extras.getBoolean("SUSPENDED", false);
+                sleepAsAndroidSender.pauseTracking(suspended);
+                break;
+            }
+            case SleepAsAndroidAction.SET_BATCH_SIZE:
+                sleepAsAndroidSender.setBatchSize(extras.getLong("SIZE", 12L));
+                break;
+            case SleepAsAndroidAction.HINT:
+                LOG.debug("Ignoring SaA hint for repeat = {}", extras.getInt("REPEAT", 1));
+                break;
+            case SleepAsAndroidAction.SHOW_NOTIFICATION: {
+                final NotificationSpec spec = new NotificationSpec();
+                spec.setTitle(extras.getString("TITLE"));
+                spec.setBody(extras.getString("TEXT"));
+                onNotification(spec);
+                break;
+            }
+            case SleepAsAndroidAction.UPDATE_ALARM:
+                // Most Garmin devices do not support alarms, so we do not schedule anything on the
+                // watch - the alarm is triggered by START_ALARM, using find device to vibrate.
+                LOG.debug("Ignoring SaA alarm update for {}", new Date(extras.getLong("TIMESTAMP")));
+                break;
+            case SleepAsAndroidAction.START_ALARM:
+                scheduleSleepAsAndroidAlarmVibration(extras.getInt("DELAY", 60000));
+                break;
+            case SleepAsAndroidAction.STOP_ALARM:
+                cancelSleepAsAndroidAlarmVibration();
+                break;
+            default:
+                LOG.warn("Received unsupported SaA action: {}", action);
+                break;
+        }
+    }
+
+    /**
+     * Enables or disables the realtime data streams that Sleep as Android consumes, for the
+     * features that are supported and enabled.
+     */
+    private void toggleSleepAsAndroidRealtimeData(final boolean enable) {
+        if (sleepAsAndroidSender.hasFeature(SleepAsAndroidFeature.ACCELEROMETER)
+                && sleepAsAndroidSender.isFeatureEnabled(SleepAsAndroidFeature.ACCELEROMETER)) {
+            communicator.onEnableRealtimeAccelerometer(enable);
+        }
+        if (sleepAsAndroidSender.hasFeature(SleepAsAndroidFeature.HEART_RATE)
+                && sleepAsAndroidSender.isFeatureEnabled(SleepAsAndroidFeature.HEART_RATE)) {
+            communicator.onEnableRealtimeHeartRateMeasurement(enable);
+        }
+        if (sleepAsAndroidSender.hasFeature(SleepAsAndroidFeature.SPO2)
+                && sleepAsAndroidSender.isFeatureEnabled(SleepAsAndroidFeature.SPO2)) {
+            communicator.onEnableRealtimeSpo2(enable);
+        }
+        if (sleepAsAndroidSender.hasFeature(SleepAsAndroidFeature.RR_INTERVALS)
+                && sleepAsAndroidSender.isFeatureEnabled(SleepAsAndroidFeature.RR_INTERVALS)) {
+            communicator.onEnableRealtimeRrIntervals(enable);
+        }
+    }
+
+    private void scheduleSleepAsAndroidAlarmVibration(final int delayMs) {
+        cancelSleepAsAndroidAlarmVibration();
+        if (delayMs == -1) {
+            return;
+        }
+        saaAlarmScheduler = Executors.newSingleThreadScheduledExecutor();
+        saaAlarmScheduler.schedule(
+                () -> onFindDevice(true),
+                Math.max(0, delayMs),
+                TimeUnit.MILLISECONDS
+        );
+    }
+
+    private void cancelSleepAsAndroidAlarmVibration() {
+        stopSleepAsAndroidSchedulers();
+        onFindDevice(false);
+    }
+
+    private void stopSleepAsAndroidSchedulers() {
+        if (saaAlarmScheduler != null) {
+            saaAlarmScheduler.shutdownNow();
+            saaAlarmScheduler = null;
+        }
     }
 
     @Override
@@ -1057,7 +1227,7 @@ public class GarminSupport extends AbstractBTLESingleDeviceSupport implements IC
                 .build());
 
         final List<Number> deviceSettingsTimes = new ArrayList<>();
-        final List<Number> deviceSettingsUnk5 = new ArrayList<>();
+        final List<Number> deviceSettingsMode = new ArrayList<>();
         final List<Number> deviceSettingsEnabled = new ArrayList<>();
         final List<Number> deviceSettingsRepeat = new ArrayList<>();
 
@@ -1067,24 +1237,24 @@ public class GarminSupport extends AbstractBTLESingleDeviceSupport implements IC
                 continue;
             }
 
-            final int soundCode = switch (Alarm.ALARM_SOUND.values()[alarm.getSoundCode()]) {
-                case OFF -> 0;
-                case TONE -> 1;
-                case VIBRATION -> 2;
-                case UNSET, TONE_AND_VIBRATION -> 3;
+            final Tone soundCode = switch (Alarm.ALARM_SOUND.values()[alarm.getSoundCode()]) {
+                case OFF -> Tone.OFF;
+                case TONE -> Tone.SOUND;
+                case VIBRATION -> Tone.VIBRATION;
+                case UNSET, TONE_AND_VIBRATION -> Tone.SOUND_AND_VIBRATION;
             };
-            final FieldDefinitionAlarmLabel.Label label;
+            final AlarmLabel label;
 
             final String alarmTitle = alarm.getTitle();
             if (StringUtils.isBlank(alarmTitle)) {
-                label = FieldDefinitionAlarmLabel.Label.NONE;
+                label = AlarmLabel.NONE;
             } else {
-                FieldDefinitionAlarmLabel.Label alarmLabel;
+                AlarmLabel alarmLabel;
                 try {
-                    alarmLabel = FieldDefinitionAlarmLabel.Label.valueOf(alarmTitle);
+                    alarmLabel = AlarmLabel.valueOf(alarmTitle);
                 } catch (final Exception e) {
                     LOG.error("Invalid alarm label {}", alarmTitle, e);
-                    alarmLabel = FieldDefinitionAlarmLabel.Label.NONE;
+                    alarmLabel = AlarmLabel.NONE;
                 }
                 label = alarmLabel;
             }
@@ -1094,9 +1264,9 @@ public class GarminSupport extends AbstractBTLESingleDeviceSupport implements IC
             final FitAlarmSettings.Builder alarmBuilder = new FitAlarmSettings.Builder()
                     .setTime(LocalTime.of(alarm.getHour(), alarm.getMinute()))
                     .setRepeat(repetitionCode)
-                    .setEnabled(alarm.getEnabled() ? 1 : 0)
+                    .setEnabled(alarm.getEnabled())
                     .setSound(soundCode)
-                    .setBacklight(alarm.getBacklight() ? 1 : 0)
+                    .setBacklight(alarm.getBacklight())
                     .setTimeCreated((long) currentTime)
                     .setSnooze(0)
                     .setLabel(label)
@@ -1105,7 +1275,7 @@ public class GarminSupport extends AbstractBTLESingleDeviceSupport implements IC
             dataRecords.add(alarmBuilder.build());
 
             deviceSettingsTimes.add(alarm.getHour() * 60 + alarm.getMinute());
-            deviceSettingsUnk5.add(5);
+            deviceSettingsMode.add(AlarmMode.Custom.num);
             deviceSettingsEnabled.add(alarm.getEnabled() ? 1 : 0);
             deviceSettingsRepeat.add(repetitionCode);
 
@@ -1115,7 +1285,7 @@ public class GarminSupport extends AbstractBTLESingleDeviceSupport implements IC
         if (numberEnabledAlarms > 0) {
             final FitDeviceSettings.Builder deviceSettingsBuilder = new FitDeviceSettings.Builder()
                     .setAlarmsTime(deviceSettingsTimes.toArray(new Number[0]))
-                    .setAlarmsUnk5(deviceSettingsUnk5.toArray(new Number[0]))
+                    .setAlarmsMode(deviceSettingsMode.toArray(new Number[0]))
                     .setAlarmsEnabled(deviceSettingsEnabled.toArray(new Number[0]))
                     .setAlarmsRepeat(deviceSettingsRepeat.toArray(new Number[0]));
 
@@ -1147,17 +1317,17 @@ public class GarminSupport extends AbstractBTLESingleDeviceSupport implements IC
 
         Map<MusicControlEntityUpdateMessage.MusicEntity, String> attributes = new HashMap<>();
 
-        attributes.put(MusicControlEntityUpdateMessage.TRACK.ARTIST, musicSpec.artist);
-        attributes.put(MusicControlEntityUpdateMessage.TRACK.ALBUM, musicSpec.album);
-        attributes.put(MusicControlEntityUpdateMessage.TRACK.TITLE, musicSpec.track);
-        attributes.put(MusicControlEntityUpdateMessage.TRACK.DURATION, String.valueOf(musicSpec.duration));
+        attributes.put(MusicControlEntityUpdateMessage.TRACK.ARTIST, musicSpec.getArtist());
+        attributes.put(MusicControlEntityUpdateMessage.TRACK.ALBUM, musicSpec.getAlbum());
+        attributes.put(MusicControlEntityUpdateMessage.TRACK.TITLE, musicSpec.getTrack());
+        attributes.put(MusicControlEntityUpdateMessage.TRACK.DURATION, String.valueOf(musicSpec.getDuration()));
 
         sendOutgoingMessage("set music info", new MusicControlEntityUpdateMessage(attributes));
 
         // Update the music state spec as well
         final MusicStateSpec bufferMusicStateSpec = mediaManager.getBufferMusicStateSpec();
         if (bufferMusicStateSpec != null) {
-            sendMusicState(bufferMusicStateSpec, bufferMusicStateSpec.position);
+            sendMusicState(bufferMusicStateSpec, bufferMusicStateSpec.getPosition());
         }
     }
 
@@ -1169,15 +1339,15 @@ public class GarminSupport extends AbstractBTLESingleDeviceSupport implements IC
 
         LOG.debug("onSetMusicState: {}", stateSpec.toString());
 
-        sendMusicState(stateSpec, stateSpec.position);
+        sendMusicState(stateSpec, stateSpec.getPosition());
     }
 
     private void sendMusicState(final MusicStateSpec stateSpec, final int progress) {
         final int playing;
         final float playRate;
-        if (stateSpec.state == MusicStateSpec.STATE_PLAYING) {
+        if (stateSpec.getState() == MusicStateSpec.STATE_PLAYING) {
             playing = 1;
-            playRate = stateSpec.playRate > 0 ? stateSpec.playRate / 100f : 1.0f;
+            playRate = stateSpec.getPlayRate() > 0 ? stateSpec.getPlayRate() / 100f : 1.0f;
         } else {
             playing = 0;
             playRate = 0;
@@ -1270,7 +1440,7 @@ public class GarminSupport extends AbstractBTLESingleDeviceSupport implements IC
                 );
 
         sendProtobufRequest("set gps location",
-                GdiSmartProto.Smart.newBuilder().setCoreService(
+                Smart.newBuilder().setCoreService(
                         GdiCore.CoreService.newBuilder().setLocationUpdatedNotification(locationUpdatedNotification)
                 ).build());
     }
@@ -1329,10 +1499,10 @@ public class GarminSupport extends AbstractBTLESingleDeviceSupport implements IC
             final String localeString = language + "_" + country.toUpperCase();
 
             sendProtobufRequest("get settings screen " + screenId,
-                    GdiSmartProto.Smart.newBuilder()
-                            .setSettingsService(GdiSettingsService.SettingsService.newBuilder()
+                    Smart.newBuilder()
+                            .setSettingsService(SettingsService.newBuilder()
                                     .setDefinitionRequest(
-                                            GdiSettingsService.ScreenDefinitionRequest.newBuilder()
+                                            ScreenDefinitionRequest.newBuilder()
                                                     .setScreenId(screenId)
                                                     .setUnk2(0)
                                                     .setLanguage(localeString.length() == 5 ? localeString : "en_US")
@@ -1340,10 +1510,10 @@ public class GarminSupport extends AbstractBTLESingleDeviceSupport implements IC
                             ).build());
 
             sendProtobufRequest("get settings state " + screenId,
-                    GdiSmartProto.Smart.newBuilder()
-                            .setSettingsService(GdiSettingsService.SettingsService.newBuilder()
+                    Smart.newBuilder()
+                            .setSettingsService(SettingsService.newBuilder()
                                     .setStateRequest(
-                                            GdiSettingsService.ScreenStateRequest.newBuilder()
+                                            ScreenStateRequest.newBuilder()
                                                     .setScreenId(screenId)
                                     )
                             ).build());
@@ -1368,10 +1538,14 @@ public class GarminSupport extends AbstractBTLESingleDeviceSupport implements IC
         final GarminGpxRouteInstallHandler garminGpxRouteInstallHandler = new GarminGpxRouteInstallHandler(uri, getContext());
         if (garminGpxRouteInstallHandler.isValid()) {
             final String trackName = options.getString(GarminGpxRouteInstallHandler.EXTRA_TRACK_NAME);
+            final boolean includeNavigation = options.getBoolean(GarminGpxRouteInstallHandler.EXTRA_NAVIGATION_ENABLED);
+            final boolean includeStraightNavigation = options.getBoolean(GarminGpxRouteInstallHandler.EXTRA_STRAIGHT_NAVIGATION_ENABLED);
             final GpxRouteFileConverter gpxRouteFileConverter = new GpxRouteFileConverter(
                     garminGpxRouteInstallHandler.getGpxFile(),
-                    trackName, null
+                    trackName, includeNavigation, includeStraightNavigation, null
             );
+
+
             final FitFile convertedFile = gpxRouteFileConverter.getConvertedFile();
             final FileType.FILETYPE fileType = convertedFile.getFileType();
             communicator.sendMessage(
@@ -1455,44 +1629,108 @@ public class GarminSupport extends AbstractBTLESingleDeviceSupport implements IC
                     }
                     return;
                 }
-                LOG.debug("Inflated to {} bytes", inflated.length);
 
-                final File file;
-                try {
-                    final File cacheDir = getContext().getExternalCacheDir();
-                    final File inflateDir = new File(cacheDir, "garmin-inflated");
-                    //noinspection ResultOfMethodCallIgnored
-                    inflateDir.mkdirs();
-                    file = File.createTempFile("activity-files-import", ".fit", inflateDir);
-                    file.deleteOnExit();
-                    FileUtils.copyStreamToFile(new ByteArrayInputStream(inflated), file);
-                } catch (final IOException e) {
-                    LOG.error("Failed to create temp file for activity file", e);
-                    if (currentlyDownloading != null && currentlyDownloading.getSyncFile() != null) {
-                        currentlyDownloading = null;
-                    }
-                    return;
+                LOG.debug("Inflated {} bytes", inflated.length);
+
+                final GdiFileSyncService.File gdiFile = (currentlyDownloading != null) ? currentlyDownloading.getSyncFile() : null;
+                String typeName;
+                FileType.FILETYPE filetype;
+                if(gdiFile != null && gdiFile.hasType() && gdiFile.getType().hasName()) {
+                    typeName = gdiFile.getType().getName();
+                    filetype = FileType.FILETYPE.findByTypeName(typeName);
+                } else {
+                    typeName = null;
+                    filetype = null;
                 }
 
-                LOG.debug("Dumped inflated bytes to {}", file.getAbsolutePath());
-
-                try {
-                    final FitImporter fitImporter = new FitImporter(getContext(), gbDevice);
-                    fitImporter.importFile(file, false);
-                } catch (final Exception e) {
-                    LOG.error("Failed to parse file as fit", e);
-                    if (currentlyDownloading != null && currentlyDownloading.getSyncFile() != null) {
-                        currentlyDownloading = null;
-                    }
-                    return;
+                String fileExtension = FileUtils.guessFileExtension(inflated);
+                final boolean assumeFit;
+                if (filetype != null) {
+                    assumeFit = filetype.isFitFile();
+                } else if (fileExtension != null) {
+                    assumeFit = "fit".equals(fileExtension);
+                } else {
+                    assumeFit = false;
+                }
+                if (fileExtension == null){
+                    fileExtension = "bin";
+                }
+                if (typeName == null) {
+                    typeName = fileExtension.toUpperCase(Locale.ROOT);
                 }
 
-                if (!getKeepActivityDataOnDevice()) { // delete file from watch upon successful download
+                LOG.debug("Identified file as typeName={} fileExtension={} assumeFit={}", typeName, fileExtension, assumeFit);
+
+                if(assumeFit) {
+                    final File file;
+                    try {
+                        final File cacheDir = getContext().getExternalCacheDir();
+                        final File inflateDir = new File(cacheDir, "garmin-inflated");
+                        //noinspection ResultOfMethodCallIgnored
+                        inflateDir.mkdirs();
+                        file = File.createTempFile("activity-files-import", ".fit", inflateDir);
+                        file.deleteOnExit();
+                        FileUtils.copyStreamToFile(new ByteArrayInputStream(inflated), file);
+                    } catch (final IOException e) {
+                        LOG.error("Failed to create temp file for activity file", e);
+                        if (currentlyDownloading != null && currentlyDownloading.getSyncFile() != null) {
+                            currentlyDownloading = null;
+                        }
+                        return;
+                    }
+
+                    LOG.debug("Dumped inflated bytes to {}", file.getAbsolutePath());
+
+                    try {
+                        final FitImporter fitImporter = new FitImporter(getContext(), gbDevice);
+                        fitImporter.importFile(file, false);
+                    } catch (final Exception e) {
+                        LOG.error("Failed to parse file as fit", e);
+                        if (currentlyDownloading != null && currentlyDownloading.getSyncFile() != null) {
+                            currentlyDownloading = null;
+                        }
+                        return;
+                    }
+                } else {
+                    try {
+                        Date fileDate = null;
+                        if(gdiFile != null && gdiFile.hasTimestamp()) {
+                            int ts = gdiFile.getTimestamp();
+                            if(ts != 0){
+                                fileDate = new Date(GarminTimeUtils.garminTimestampToJavaMillis(ts));
+                            }
+                        }
+                        String suffix = "";
+                        if(gdiFile != null && gdiFile.hasId()) {
+                            suffix = new UUID(gdiFile.getId().getId1(), gdiFile.getId().getId2()).toString();
+                        }
+                        String fileName =  GarminUtils.buildExportPath(typeName, fileDate, suffix, fileExtension);
+                        File deviceDir = getWritableExportDirectory();
+                        File outputFile = new File(deviceDir, fileName);
+                        LOG.info("Saving {} bytes to {}", inflated.length, outputFile.getAbsolutePath());
+                        final File parentFile = outputFile.getParentFile();
+                        parentFile.mkdirs();
+                        // overwrite the file even if it exists - meta data of non-FIT files not always available
+                        // potentially resulting in the same name for a newer file
+                        FileUtils.writeToFile(inflated, outputFile);
+                        if (fileDate != null) {
+                            outputFile.setLastModified(fileDate.getTime());
+                        }
+                    } catch (final IOException e) {
+                        LOG.error("Failed to save file", e);
+                        if (currentlyDownloading != null && currentlyDownloading.getSyncFile() != null) {
+                            currentlyDownloading = null;
+                        }
+                        return;
+                    }
+                }
+
+                if (gdiFile != null && !getKeepActivityDataOnDevice()) { // delete file from watch upon successful download
                     final GdiFileSyncService.FileSyncService syncedCommand = protocolBufferHandler.getFileSyncServiceHandler()
-                            .markSynced(currentlyDownloading.getSyncFile());
+                            .markSynced(gdiFile);
                     if (syncedCommand != null) {
                         sendProtobufRequest("mark file as synced",
-                                GdiSmartProto.Smart.newBuilder().setFileSyncService(syncedCommand).build());
+                                Smart.newBuilder().setFileSyncService(syncedCommand).build());
                     }
                 }
 
@@ -1526,6 +1764,6 @@ public class GarminSupport extends AbstractBTLESingleDeviceSupport implements IC
 
     @Override
     public void onTestNewFunction(@Nullable Bundle options) {
-
+        //communicator.onEnableRealtimeAccelerometer(true);
     }
 }

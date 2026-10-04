@@ -30,11 +30,16 @@ import org.apache.commons.lang3.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.sql.Timestamp;
 import java.util.ArrayList;
+import java.util.Calendar;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.TimeUnit;
 
 import nodomain.freeyourgadget.gadgetbridge.GBApplication;
 import nodomain.freeyourgadget.gadgetbridge.deviceevents.GBDeviceEventUpdatePreferences;
@@ -52,8 +57,10 @@ import nodomain.freeyourgadget.gadgetbridge.model.MusicStateSpec;
 import nodomain.freeyourgadget.gadgetbridge.model.NotificationSpec;
 import nodomain.freeyourgadget.gadgetbridge.model.Reminder;
 import nodomain.freeyourgadget.gadgetbridge.model.WorldClock;
+import nodomain.freeyourgadget.gadgetbridge.externalevents.sleepasandroid.SleepAsAndroidAction;
 import nodomain.freeyourgadget.gadgetbridge.proto.xiaomi.XiaomiProto;
-import nodomain.freeyourgadget.gadgetbridge.service.AbstractDeviceSupport;
+import nodomain.freeyourgadget.gadgetbridge.service.AbstractBluetoothDeviceSupport;
+import nodomain.freeyourgadget.gadgetbridge.service.SleepAsAndroidSender;
 import nodomain.freeyourgadget.gadgetbridge.service.devices.xiaomi.services.AbstractXiaomiService;
 import nodomain.freeyourgadget.gadgetbridge.service.devices.xiaomi.services.XiaomiCalendarService;
 import nodomain.freeyourgadget.gadgetbridge.service.devices.xiaomi.services.XiaomiDataUploadService;
@@ -66,10 +73,11 @@ import nodomain.freeyourgadget.gadgetbridge.service.devices.xiaomi.services.Xiao
 import nodomain.freeyourgadget.gadgetbridge.service.devices.xiaomi.services.XiaomiSystemService;
 import nodomain.freeyourgadget.gadgetbridge.service.devices.xiaomi.services.XiaomiWatchfaceService;
 import nodomain.freeyourgadget.gadgetbridge.service.devices.xiaomi.services.XiaomiWeatherService;
+import nodomain.freeyourgadget.gadgetbridge.util.AlarmUtils;
 import nodomain.freeyourgadget.gadgetbridge.util.GB;
 import nodomain.freeyourgadget.gadgetbridge.util.Prefs;
 
-public class XiaomiSupport extends AbstractDeviceSupport {
+public class XiaomiSupport extends AbstractBluetoothDeviceSupport {
     private static final Logger LOG = LoggerFactory.getLogger(XiaomiSupport.class);
 
     private final XiaomiAuthService authService = new XiaomiAuthService(this);
@@ -88,6 +96,9 @@ public class XiaomiSupport extends AbstractDeviceSupport {
 
     private String cachedFirmwareVersion = null;
     private XiaomiConnectionSupport connectionSupport = null;
+    private SleepAsAndroidSender sleepAsAndroidSender;
+    private ScheduledExecutorService saaHintScheduler;
+    private ScheduledExecutorService saaAlarmScheduler;
 
     private final Map<Integer, AbstractXiaomiService> mServiceMap = new LinkedHashMap<>() {{
         put(XiaomiAuthService.COMMAND_TYPE, authService);
@@ -127,6 +138,7 @@ public class XiaomiSupport extends AbstractDeviceSupport {
         return switch (connType) {
             case BLE, BOTH -> new XiaomiBleSupport(this);
             case BT_CLASSIC -> new XiaomiSppSupport(this);
+            default -> throw new IllegalArgumentException("Unknown connection type " + connType);
         };
 
     }
@@ -177,6 +189,15 @@ public class XiaomiSupport extends AbstractDeviceSupport {
         if (getConnectionSpecificSupport() != null) {
             getConnectionSpecificSupport().setContext(device, adapter, context);
         }
+
+        if (device.getDeviceCoordinator().supportsSleepAsAndroid(device)) {
+            sleepAsAndroidSender = new SleepAsAndroidSender(device);
+            healthService.setSleepAsAndroidSender(sleepAsAndroidSender);
+        }
+    }
+
+    public SleepAsAndroidSender getSleepAsAndroidSender() {
+        return sleepAsAndroidSender;
     }
 
     public String getCachedFirmwareVersion() {
@@ -195,7 +216,7 @@ public class XiaomiSupport extends AbstractDeviceSupport {
     }
 
     public void handleCommandBytes(final byte[] plainValue) {
-        LOG.debug("Got command: {}", GB.hexdump(plainValue));
+        LOG.debug("Got command: {}", GB.lazyHexdump(plainValue));
 
         final XiaomiProto.Command cmd;
         try {
@@ -448,6 +469,129 @@ public class XiaomiSupport extends AbstractDeviceSupport {
 
     public XiaomiWatchfaceService getWatchfaceService() {
         return this.watchfaceService;
+    }
+
+    @Override
+    public void onSleepAsAndroidAction(final String action, final Bundle extras) {
+        if (sleepAsAndroidSender == null) {
+            LOG.warn("SaA sender not initialized, dropping {}", action);
+            return;
+        }
+        if (!gbDevice.isInitialized()) {
+            LOG.warn("Device not initialized, dropping SaA action {}", action);
+            return;
+        }
+        try {
+            sleepAsAndroidSender.validateAction(action);
+        } catch (UnsupportedOperationException e) {
+            return;
+        }
+        switch (action) {
+            case SleepAsAndroidAction.CHECK_CONNECTED:
+                sleepAsAndroidSender.confirmConnected();
+                break;
+            case SleepAsAndroidAction.START_TRACKING:
+                healthService.startRawSensor();
+                sleepAsAndroidSender.startTracking();
+                break;
+            case SleepAsAndroidAction.STOP_TRACKING:
+                healthService.stopRawSensor();
+                sleepAsAndroidSender.stopTracking();
+                break;
+            case SleepAsAndroidAction.SET_PAUSE: {
+                long pauseTimestamp = extras.getLong("TIMESTAMP");
+                long delay = pauseTimestamp > 0 ? pauseTimestamp - System.currentTimeMillis() : 0;
+                sleepAsAndroidSender.pauseTracking(delay);
+                break;
+            }
+            case SleepAsAndroidAction.SET_SUSPENDED: {
+                boolean suspended = extras.getBoolean("SUSPENDED", false);
+                sleepAsAndroidSender.pauseTracking(suspended);
+                break;
+            }
+            case SleepAsAndroidAction.SET_BATCH_SIZE:
+                sleepAsAndroidSender.setBatchSize(extras.getLong("SIZE", 12L));
+                break;
+            case SleepAsAndroidAction.HINT:
+                triggerSleepAsAndroidHint(extras.getInt("REPEAT", 1));
+                break;
+            case SleepAsAndroidAction.SHOW_NOTIFICATION: {
+                NotificationSpec spec = new NotificationSpec();
+                spec.setTitle(extras.getString("TITLE"));
+                spec.setBody(extras.getString("TEXT"));
+                notificationService.onNotification(spec);
+                break;
+            }
+            case SleepAsAndroidAction.UPDATE_ALARM:
+                setSleepAsAndroidAlarm(extras.getLong("TIMESTAMP"));
+                break;
+            case SleepAsAndroidAction.START_ALARM:
+                scheduleSleepAsAndroidAlarmVibration(extras.getInt("DELAY", 60000));
+                break;
+            case SleepAsAndroidAction.STOP_ALARM:
+                cancelSleepAsAndroidAlarmVibration();
+                break;
+            default:
+                LOG.warn("Received unsupported SaA action: {}", action);
+                break;
+        }
+    }
+
+    private void setSleepAsAndroidAlarm(long alarmTimestamp) {
+        Calendar calendar = Calendar.getInstance();
+        calendar.setTimeInMillis(new Timestamp(alarmTimestamp).getTime());
+        Alarm alarm = AlarmUtils.createSingleShot(SleepAsAndroidSender.getAlarmSlot(), false, false, calendar);
+        ArrayList<Alarm> alarms = new ArrayList<>(1);
+        alarms.add(alarm);
+        GBApplication.deviceService(gbDevice).onSetAlarms(alarms);
+    }
+
+    private void triggerSleepAsAndroidHint(int repeat) {
+        if (repeat <= 0) return;
+        if (saaHintScheduler != null) {
+            saaHintScheduler.shutdownNow();
+        }
+        saaHintScheduler = Executors.newSingleThreadScheduledExecutor();
+        final int repeats = repeat;
+        saaHintScheduler.execute(new Runnable() {
+            @Override
+            public void run() {
+                try {
+                    for (int i = 0; i < repeats; i++) {
+                        systemService.onFindWatch(true);
+                        Thread.sleep(500);
+                        systemService.onFindWatch(false);
+                        if (i + 1 < repeats) Thread.sleep(300);
+                    }
+                } catch (InterruptedException ignored) {
+                    Thread.currentThread().interrupt();
+                }
+            }
+        });
+    }
+
+    private void scheduleSleepAsAndroidAlarmVibration(int delayMs) {
+        cancelSleepAsAndroidAlarmVibration();
+        if (delayMs == -1) return;
+        saaAlarmScheduler = Executors.newSingleThreadScheduledExecutor();
+        saaAlarmScheduler.schedule(new Runnable() {
+            @Override
+            public void run() {
+                triggerSleepAsAndroidHint(3);
+            }
+        }, Math.max(0, delayMs), TimeUnit.MILLISECONDS);
+    }
+
+    private void cancelSleepAsAndroidAlarmVibration() {
+        if (saaAlarmScheduler != null) {
+            saaAlarmScheduler.shutdownNow();
+            saaAlarmScheduler = null;
+        }
+        if (saaHintScheduler != null) {
+            saaHintScheduler.shutdownNow();
+            saaHintScheduler = null;
+        }
+        systemService.onFindWatch(false);
     }
 
     @Override

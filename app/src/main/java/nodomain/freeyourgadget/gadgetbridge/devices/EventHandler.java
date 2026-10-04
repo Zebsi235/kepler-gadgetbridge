@@ -106,7 +106,9 @@ public interface EventHandler {
 
     void onFetchRecordedData(int dataTypes);
 
-    void onReset(int flags);
+    void onReboot();
+
+    void onFactoryReset();
 
     void onHeartRateTest();
 
@@ -156,7 +158,7 @@ public interface EventHandler {
 
     void onPowerOff();
 
-    void onSetGpsLocation(Location location);
+    void onSetGpsLocation(@NonNull Location location);
 
     void onSleepAsAndroidAction(String action, Bundle extras);
 

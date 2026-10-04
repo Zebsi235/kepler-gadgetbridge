@@ -52,15 +52,32 @@
 
         </LinearLayout>
 
-        <!-- Connection button -->
-        <Button
-            android:id="@+id/connection_button"
-            style="@style/Widget.Material3.Button.OutlinedButton"
+        <LinearLayout
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:minWidth="72dp"
-            android:text="@string/connect"
-            android:textSize="12sp" />
+            android:orientation="vertical">
+
+            <Button
+                android:id="@+id/connection_button"
+                style="@style/Widget.Material3.Button.OutlinedButton"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:minWidth="72dp"
+                android:text="@string/connect"
+                android:textSize="12sp" />
+
+            <Button
+                android:id="@+id/forget_button"
+                style="@style/Widget.Material3.Button.OutlinedButton"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="4dp"
+                android:minWidth="72dp"
+                android:text="@string/bluetooth_multipoint_forget"
+                android:textSize="12sp"
+                android:visibility="gone" />
+
+        </LinearLayout>
 
     </LinearLayout>
 

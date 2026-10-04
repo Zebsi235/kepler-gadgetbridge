@@ -34,13 +34,13 @@ public class StringUtils {
 
 
     @NonNull
-    public static String truncate(String s, int maxLength){
+    public static String truncate(String s, int maxLength) {
         if (s == null) {
             return "";
         }
 
         int length = Math.min(s.length(), maxLength);
-        if(length < 0) {
+        if (length < 0) {
             return "";
         }
 
@@ -57,15 +57,50 @@ public class StringUtils {
             return new byte[]{};
         }
 
-        int i = 0;
-        while (++i < s.length()) {
-            final String subString = s.substring(0, i + 1);
-            if (subString.getBytes(StandardCharsets.UTF_8).length > len) {
-                break;
-            }
+        return truncateToBytes(s, len, "").getBytes(StandardCharsets.UTF_8);
+    }
+
+    /**
+     * Truncate a string to a certain maximum number of bytes, assuming UTF-8 encoding, appending
+     * suffix if truncation occurs.
+     */
+    public static String truncateToBytes(final String s, final int maxBytes, final String suffix) {
+        if (StringUtils.isNullOrEmpty(s)) {
+            return s;
         }
 
-        return s.substring(0, i).getBytes(StandardCharsets.UTF_8);
+        if (maxBytes <= 0) {
+            return "";
+        }
+
+        if (s.getBytes(StandardCharsets.UTF_8).length <= maxBytes) {
+            return s;
+        }
+
+        final int suffixLength = suffix.getBytes(StandardCharsets.UTF_8).length;
+
+        if (maxBytes < suffixLength) {
+            // No room left for the suffix, so truncate without it.
+            return s.substring(0, longestPrefixCharCount(s, maxBytes));
+        }
+
+        return s.substring(0, longestPrefixCharCount(s, maxBytes - suffixLength)) + suffix;
+    }
+
+    // Longest prefix of s (in chars) whose UTF-8 encoding fits byteBudget, without splitting a surrogate pair.
+    private static int longestPrefixCharCount(final String s, final int byteBudget) {
+        int i = 0;
+        while (i < s.length()) {
+            int next = i + 1;
+            if (Character.isHighSurrogate(s.charAt(i)) && next < s.length() && Character.isLowSurrogate(s.charAt(next))) {
+                next++;
+            }
+            if (s.substring(0, next).getBytes(StandardCharsets.UTF_8).length > byteBudget) {
+                break;
+            }
+            i = next;
+        }
+        return i;
     }
 
     public static int utf8ByteLength(String string, int length) {
@@ -78,7 +113,7 @@ public class StringUtils {
         return outBuf.position();
     }
 
-    public static String pad(String s, int length){
+    public static String pad(String s, int length) {
         return pad(s, length, ' ');
     }
 
@@ -95,8 +130,9 @@ public class StringUtils {
      * Joins the given elements and adds a separator between each element in the resulting string.
      * There will be no separator at the start or end of the string. There will be no consecutive
      * separators (even in case an element is null or empty).
+     *
      * @param separator the separator string
-     * @param elements the elements to concatenate to a new string
+     * @param elements  the elements to concatenate to a new string
      * @return the joined strings, separated by the separator
      */
     @NonNull
@@ -107,7 +143,7 @@ public class StringUtils {
         }
         boolean hasAdded = false;
         for (String element : elements) {
-            if (element != null && element.length() > 0) {
+            if (element != null && !element.isEmpty()) {
                 if (hasAdded) {
                     builder.append(separator);
                 }
@@ -129,11 +165,13 @@ public class StringUtils {
         return "";
     }
 
-    public static boolean isNullOrEmpty(CharSequence string){
+    public static boolean isNullOrEmpty(final CharSequence string) {
+        //noinspection SizeReplaceableByIsEmpty needs SDK 35
         return string == null || string.length() == 0;
     }
 
-    public static boolean isEmpty(CharSequence string) {
+    public static boolean isEmpty(final CharSequence string) {
+        //noinspection SizeReplaceableByIsEmpty needs SDK 35
         return string != null && string.length() == 0;
     }
 
@@ -144,8 +182,8 @@ public class StringUtils {
         return "";
     }
 
-    public static String terminateNull(String input) {
-        if (input == null || input.length() == 0) {
+    public static String terminateNull(final String input) {
+        if (input == null || input.isEmpty()) {
             return new String(new byte[]{(byte) 0});
         }
         char lastChar = input.charAt(input.length() - 1);
@@ -192,12 +230,12 @@ public class StringUtils {
     }
 
     public static byte[] hexToBytes(String hexString) {
-        if((hexString.length() % 2) == 1) {
+        if ((hexString.length() % 2) == 1) {
             // pad with zero
             hexString = "0" + hexString;
         }
         byte[] bytes = new byte[hexString.length() / 2];
-        for(int i = 0; i < bytes.length; i++) {
+        for (int i = 0; i < bytes.length; i++) {
             String slice = hexString.substring(i * 2, i * 2 + 2);
             bytes[i] = (byte) Integer.parseInt(slice, 16);
         }
@@ -209,13 +247,14 @@ public class StringUtils {
      * Creates a shortened version of an Android package name by using only the first
      * character of every non-last part of the package name.
      * Example: "nodomain.freeyourgadget.gadgetbridge" is shortened to "n.f.gadgetbridge"
+     *
      * @param packageName the original package name
      * @return the shortened package name
      */
     public static String shortenPackageName(String packageName) {
         String[] parts = packageName.split("\\.");
         StringBuilder result = new StringBuilder();
-        for (int index=0; index < parts.length; index++) {
+        for (int index = 0; index < parts.length; index++) {
             if (index == parts.length - 1) {
                 result.append(parts[index]);
                 break;
@@ -244,5 +283,46 @@ public class StringUtils {
         }
 
         return Arrays.copyOfRange(utf16Bytes, 0, limit);
+    }
+
+    public static int naturalCompare(@NonNull final String a, @NonNull final String b) {
+        int i = 0;
+        int j = 0;
+        while (i < a.length() && j < b.length()) {
+            final char ca = a.charAt(i);
+            final char cb = b.charAt(j);
+            if (Character.isDigit(ca) && Character.isDigit(cb)) {
+                int endA = i;
+                while (endA < a.length() && Character.isDigit(a.charAt(endA))) endA++;
+                int endB = j;
+                while (endB < b.length() && Character.isDigit(b.charAt(endB))) endB++;
+
+                final String numA = stripLeadingZeros(a.substring(i, endA));
+                final String numB = stripLeadingZeros(b.substring(j, endB));
+                final int cmp = numA.length() != numB.length()
+                        ? numA.length() - numB.length()
+                        : numA.compareTo(numB);
+                if (cmp != 0) {
+                    return cmp;
+                }
+
+                i = endA;
+                j = endB;
+            } else {
+                final int cmp = Character.compare(Character.toLowerCase(ca), Character.toLowerCase(cb));
+                if (cmp != 0) {
+                    return cmp;
+                }
+                i++;
+                j++;
+            }
+        }
+        return (a.length() - i) - (b.length() - j);
+    }
+
+    private static String stripLeadingZeros(final String s) {
+        int i = 0;
+        while (i < s.length() - 1 && s.charAt(i) == '0') i++;
+        return s.substring(i);
     }
 }

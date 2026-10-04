@@ -21,6 +21,7 @@ import androidx.core.net.toUri
 import com.google.gson.Gson
 import nodomain.freeyourgadget.gadgetbridge.model.ActivityKind
 import nodomain.freeyourgadget.gadgetbridge.util.InternetUtils
+import nodomain.freeyourgadget.gadgetbridge.util.gson.GsonSerialized
 import org.json.JSONArray
 import org.json.JSONObject
 import org.slf4j.LoggerFactory
@@ -32,6 +33,7 @@ enum class EndurainAuthType {
     REFRESH_TOKEN
 }
 
+@GsonSerialized
 data class EndurainLoginResponse(
     val session_id: String? = null,
     val access_token: String? = null,
@@ -44,11 +46,13 @@ data class EndurainLoginResponse(
     val detail: String? = null
 )
 
+@GsonSerialized
 data class EndurainMfaVerifyRequest(
     val username: String,
     val mfa_code: String
 )
 
+@GsonSerialized
 data class EndurainTokenExchangeRequest(
     val code_verifier: String
 )
@@ -308,7 +312,7 @@ class EndurainApiClient(
                     uri = uri,
                     file = file,
                     requestHeaders = headers
-                ) { success, statusCode, responseText ->
+                ) { success, statusCode, responseText, reason ->
                     if (success && responseText != null) {
                         LOG.debug("Response $statusCode from Endurain: $responseText")
                         val jsonArray = JSONArray(responseText)
@@ -316,13 +320,39 @@ class EndurainApiClient(
                         val id = firstObject.getInt("id")
                         callback(id)
                     } else {
-                        LOG.error("Activity upload failed")
+                        LOG.error("Activity upload failed (status {}, reason {})", statusCode, reason)
                         callback(null)
                     }
                 }
             } catch (e: Exception) {
                 LOG.error("Activity upload error", e)
                 callback(null)
+            }
+        }.start()
+    }
+
+    /**
+     * Upload activity photo
+     */
+    fun uploadActivityPhoto(activityId: Int, file: File) {
+        Thread {
+            try {
+                val uri = "$baseUrl/api/v1/activities_media/upload/activity_id/$activityId".toUri()
+                val headers = buildHeaders(EndurainAuthType.AUTH_TOKEN)
+
+                InternetUtils.uploadBinaryFile(
+                    uri = uri,
+                    file = file,
+                    requestHeaders = headers
+                ) { success, statusCode, responseText, reason ->
+                    if (success && responseText != null) {
+                        LOG.debug("Response ($statusCode) from Endurain: $responseText")
+                    } else {
+                        LOG.error("Activity photo upload to Endurain failed. Response ($statusCode, reason {}) received: $responseText", reason)
+                    }
+                }
+            } catch (e: Exception) {
+                LOG.error("Activity photo upload error", e)
             }
         }.start()
     }
@@ -428,6 +458,41 @@ class EndurainApiClient(
         ActivityKind.KAYAKING.ordinal to 42,
         ActivityKind.SAILING.ordinal to 43,
         ActivityKind.INLINE_SKATING.ordinal to 45,
-        ActivityKind.HIIT.ordinal to 46
+        ActivityKind.HIIT.ordinal to 46,
+        ActivityKind.OUTDOOR_RUNNING.ordinal to 1,
+        ActivityKind.STREET_RUNNING.ordinal to 1,
+        ActivityKind.ULTRA_RUN.ordinal to 1,
+        ActivityKind.CROSS_COUNTRY_RUNNING.ordinal to 2,
+        ActivityKind.INDOOR_TRACK_RUNNING.ordinal to 34,
+        ActivityKind.INDOOR_RUNNING.ordinal to 40,
+        ActivityKind.OUTDOOR_CYCLING.ordinal to 4,
+        ActivityKind.BIKE_TOUR.ordinal to 4,
+        ActivityKind.CYCLING_DOWNHILL.ordinal to 6,
+        ActivityKind.CYCLO_CROSS.ordinal to 29,
+        ActivityKind.DYNAMIC_CYCLE.ordinal to 28,
+        ActivityKind.SWIMMING.ordinal to 8,
+        ActivityKind.ARTISTIC_SWIMMING.ordinal to 8,
+        ActivityKind.OUTDOOR_WALKING.ordinal to 11,
+        ActivityKind.RACE_WALKING.ordinal to 11,
+        ActivityKind.AIR_WALKER.ordinal to 41,
+        ActivityKind.MOUNTAIN_HIKE.ordinal to 12,
+        ActivityKind.TRAIL_HIKE.ordinal to 12,
+        ActivityKind.ROWING_MACHINE.ordinal to 13,
+        ActivityKind.SAIL_RACE.ordinal to 43,
+        ActivityKind.SAIL_EXPEDITION.ordinal to 43,
+        ActivityKind.ELLIPTICAL_TRAINER.ordinal to 41,
+        ActivityKind.MMA_HIIT.ordinal to 46,
+        ActivityKind.JUMP_ROPING.ordinal to 47,
+        ActivityKind.BACKCOUNTRY_SKIING.ordinal to 15,
+        ActivityKind.INDOOR_SKIING.ordinal to 15,
+        ActivityKind.CROSS_COUNTRY_SKIING.ordinal to 16,
+        ActivityKind.XC_CLASSIC_SKI.ordinal to 16,
+        ActivityKind.XC_SKATE_SKI.ordinal to 16,
+        ActivityKind.BACKCOUNTRY_SNOWBOARDING.ordinal to 17,
+        ActivityKind.SNOWSHOE.ordinal to 44,
+        ActivityKind.INDOOR_ICE_SKATING.ordinal to 37,
+        ActivityKind.ROLLER_SKATING.ordinal to 45,
+        ActivityKind.PLATFORM_TENNIS.ordinal to 21,
+        ActivityKind.BEACH_SOCCER.ordinal to 38
     )
 }
