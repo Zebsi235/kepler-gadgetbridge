@@ -35,8 +35,15 @@ import nodomain.freeyourgadget.gadgetbridge.util.Prefs;
 /**
  * Opens the image screen from the watch's settings (the click is wired here so
  * the activity is launched with the {@link GBDevice} it belongs to), forwards
- * watch-side setting changes to the support class (SEND_KEYS), and caps the
- * firmware 3.1 counter-name fields at what the watch can show.
+ * watch-side setting changes to the support class (SEND_KEYS), caps the
+ * firmware 3.1 counter-name fields at what the watch can show, and shows the
+ * firmware 3.1 groups only on a watch known to run 3.1.
+ *
+ * <p>The 3.1 groups are in the screen on every firmware (the coordinator loads
+ * them unconditionally) but start hidden; {@link #onDeviceChanged} re-checks
+ * the version on every device update, so a watch that connects while the
+ * screen is open reveals them the moment its DIS firmware string is read --
+ * without reopening the screen. A 3.0 watch never sees them.
  */
 public class F91KeplerSettingsCustomizer implements DeviceSpecificSettingsCustomizer {
 
@@ -74,9 +81,42 @@ public class F91KeplerSettingsCustomizer implements DeviceSpecificSettingsCustom
             F91KeplerConstants.PREF_COUNTER_NAME_PREFIX + "2",
     };
 
+    /**
+     * The preferences that only exist on firmware 3.1 (UiOptions F2F3, Record
+     * F2F4, screen ids 10..13): the quiet-text switch and the two categories
+     * holding everything else from devicesettings_f91kepler_31_face.xml and
+     * _31_screens.xml. Hiding a category hides its children, so these three
+     * keys cover the whole 3.1 surface (F91KeplerSettingsKeysTest checks that).
+     */
+    static final String[] KEYS_31 = {
+            F91KeplerConstants.PREF_QUIET_TEXT,
+            F91KeplerConstants.PREF_CATEGORY_FACE_31,
+            F91KeplerConstants.PREF_CATEGORY_SCREENS_31,
+    };
+
+    @Override
+    public void onDeviceChanged(final DeviceSpecificSettingsHandler handler) {
+        // Fired on every GBDevice update, including the one right after the
+        // firmware version was read on connect (GBDeviceEventVersionInfo).
+        apply31Visibility(handler);
+    }
+
+    /** Show the 3.1 groups iff this device is known to run firmware 3.1+. */
+    private static void apply31Visibility(final DeviceSpecificSettingsHandler handler) {
+        final GBDevice device = handler.getDevice();
+        final boolean show = device != null && F91KeplerFirmware.has31(device.getFirmwareVersion());
+        for (final String key : KEYS_31) {
+            final Preference pref = handler.findPreference(key);
+            if (pref != null) {
+                pref.setVisible(show);
+            }
+        }
+    }
+
     @Override
     public void customizeSettings(final DeviceSpecificSettingsHandler handler, final Prefs prefs,
                                   final String rootKey) {
+        apply31Visibility(handler);
         for (final String key : SEND_KEYS) {
             handler.addPreferenceHandlerFor(key);
         }

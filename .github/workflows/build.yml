@@ -2,6 +2,8 @@ name: Build & Release (Kepler)
 
 # Builds the mainline debug APK on every push/PR so breakage shows up immediately,
 # and publishes a GitHub Release with the signed APK when a v*-kepler tag is pushed.
+# A tag with an "-rc" suffix (v0.94.0-kepler-rc1) is published as a PRE-release:
+# the same signed, installable APK, for checking on a phone before the final tag.
 #
 # The build provisions JDK 21 itself (upstream Gadgetbridge's FitCodeGenerator module
 # requires a Java 21 toolchain), so it does not depend on whatever JDK is installed
@@ -120,3 +122,4 @@ jobs:
           files: ${{ steps.apk.outputs.path }}
           generate_release_notes: true
           fail_on_unmatched_files: true
+          prerelease: ${{ contains(github.ref_name, '-rc') }}

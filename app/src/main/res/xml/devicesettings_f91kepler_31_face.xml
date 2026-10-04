@@ -2,11 +2,12 @@
 <androidx.preference.PreferenceScreen
     xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto">
-    <!-- Firmware 3.1 options (UiOptions F2F3). Only included by
-         F91KeplerCoordinator when the watch's firmware is 3.1.0 or newer (or
-         unknown) (see F91KeplerFirmware.MIN_31). Must come after
-         devicesettings_f91kepler.xml: the quiet switch depends on its popup
-         switch. -->
+    <!-- Firmware 3.1 options (UiOptions F2F3). Always loaded by
+         F91KeplerCoordinator, but shown by F91KeplerSettingsCustomizer only
+         once the watch has reported firmware 3.1.0 or newer (see
+         F91KeplerFirmware.has31); the switch and the category below are the
+         keys it toggles (KEYS_31). Must come after devicesettings_f91kepler.xml:
+         the quiet switch depends on its popup switch. -->
     <SwitchPreferenceCompat
         android:defaultValue="false"
         android:dependency="f91_notification_popup"

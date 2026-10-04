@@ -3,9 +3,11 @@
     xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto">
     <!-- Firmware 3.1 screens: the 7-day forecast and up to three named tally
-         counters (Record F2F4 + ModeOrder ids 10..13). Only included by
-         F91KeplerCoordinator when the watch's firmware is 3.1.0 or newer (or
-         unknown). All off by default, as on the watch. -->
+         counters (Record F2F4 + ModeOrder ids 10..13). Always loaded by
+         F91KeplerCoordinator, but the category is shown by
+         F91KeplerSettingsCustomizer only once the watch has reported firmware
+         3.1.0 or newer (see F91KeplerFirmware.has31). All off by default, as
+         on the watch. -->
     <PreferenceCategory
         android:key="f91_pref_category_screens_31"
         android:title="@string/f91_pref_header_screens_31">

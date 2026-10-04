@@ -162,6 +162,9 @@ public class F91KeplerSupport extends AbstractBTLESingleDeviceSupport {
 
     @Override
     protected TransactionBuilder initializeDevice(final TransactionBuilder builder) {
+        // A new connection: forget the previous one's firmware version, so the
+        // 3.1 gate (has31) is closed until THIS watch has reported its version.
+        connectedFw = null;
         builder.setDeviceState(GBDevice.State.INITIALIZING);
         if (GBApplication.getPrefs().syncTime()) {
             addSetTime(builder);
@@ -357,7 +360,7 @@ public class F91KeplerSupport extends AbstractBTLESingleDeviceSupport {
         if (any) {
             builder.queue();
         }
-        if (F91KeplerFirmware.atLeast(fw, F91KeplerFirmware.MIN_31)) {
+        if (F91KeplerFirmware.has31(fw)) {
             // Its own transaction: a refused 3.1 write must not cancel the
             // restores above. All of it is phone-owned and cheap to repeat --
             // the watch skips the flash write for an unchanged value.
@@ -370,9 +373,9 @@ public class F91KeplerSupport extends AbstractBTLESingleDeviceSupport {
         }
     }
 
-    /** True when this connection's firmware has the 3.1 surface. */
+    /** True when this connection's firmware is known to have the 3.1 surface. */
     private boolean has31() {
-        return F91KeplerFirmware.atLeast(connectedFw, F91KeplerFirmware.MIN_31);
+        return F91KeplerFirmware.has31(connectedFw);
     }
 
     // --- Time ---------------------------------------------------------------

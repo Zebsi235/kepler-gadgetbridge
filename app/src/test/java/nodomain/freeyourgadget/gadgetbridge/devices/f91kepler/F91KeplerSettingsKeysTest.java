@@ -27,6 +27,8 @@ import java.util.Arrays;
 import java.util.HashSet;
 import java.util.Set;
 
+import org.w3c.dom.Node;
+
 import javax.xml.parsers.DocumentBuilderFactory;
 
 /**
@@ -43,6 +45,12 @@ public class F91KeplerSettingsKeysTest {
             "devicesettings_f91kepler_brightness.xml",
             "devicesettings_f91kepler_sleep.xml",
             "devicesettings_f91kepler_modes.xml",
+            "devicesettings_f91kepler_31_face.xml",
+            "devicesettings_f91kepler_31_screens.xml",
+    };
+
+    /** The files whose every preference exists only on firmware 3.1. */
+    private static final String[] XMLS_31 = {
             "devicesettings_f91kepler_31_face.xml",
             "devicesettings_f91kepler_31_screens.xml",
     };
@@ -101,6 +109,54 @@ public class F91KeplerSettingsKeysTest {
         final Set<String> keys = settingKeys();
         for (final String key : F91KeplerSettingsCustomizer.SEND_KEYS) {
             assertTrue(key + " is in SEND_KEYS but in no settings XML", keys.contains(key));
+        }
+    }
+
+    /**
+     * Every preference in the 3.1 XMLs must be hidden on a pre-3.1 watch: either
+     * its own key or an enclosing category's key has to be in KEYS_31, the list
+     * F91KeplerSettingsCustomizer toggles. Otherwise a 3.0 watch would be shown
+     * a 3.1 setting, which is the whole thing the version gate exists to stop.
+     */
+    @Test
+    public void everyThreeOneSettingIsHiddenBelowThreeOne() throws Exception {
+        final Set<String> hidden = new HashSet<>(Arrays.asList(F91KeplerSettingsCustomizer.KEYS_31));
+        final DocumentBuilderFactory f = DocumentBuilderFactory.newInstance();
+        f.setNamespaceAware(false);
+        int checked = 0;
+        for (final String name : XMLS_31) {
+            final NodeList nodes = f.newDocumentBuilder()
+                    .parse(new File(xmlDir(), name)).getElementsByTagName("*");
+            for (int i = 0; i < nodes.getLength(); i++) {
+                final Element e = (Element) nodes.item(i);
+                if (e.getTagName().endsWith("PreferenceScreen")) {
+                    continue;
+                }
+                boolean covered = false;
+                for (Node n = e; n != null && n.getNodeType() == Node.ELEMENT_NODE; n = n.getParentNode()) {
+                    if (hidden.contains(((Element) n).getAttribute("android:key"))) {
+                        covered = true;
+                        break;
+                    }
+                }
+                assertTrue(name + ": <" + e.getTagName() + " key=" + e.getAttribute("android:key")
+                        + "> is not hidden on pre-3.1 firmware -- add it (or its category) to KEYS_31",
+                        covered);
+                checked++;
+            }
+        }
+        assertTrue("no 3.1 preferences found", checked > 0);
+        // And every hidden key must still exist, so the list cannot rot.
+        final Set<String> all = new HashSet<>();
+        for (final String name : XMLS_31) {
+            final NodeList nodes = f.newDocumentBuilder()
+                    .parse(new File(xmlDir(), name)).getElementsByTagName("*");
+            for (int i = 0; i < nodes.getLength(); i++) {
+                all.add(((Element) nodes.item(i)).getAttribute("android:key"));
+            }
+        }
+        for (final String key : F91KeplerSettingsCustomizer.KEYS_31) {
+            assertTrue(key + " is in KEYS_31 but in no 3.1 settings XML", all.contains(key));
         }
     }
 }

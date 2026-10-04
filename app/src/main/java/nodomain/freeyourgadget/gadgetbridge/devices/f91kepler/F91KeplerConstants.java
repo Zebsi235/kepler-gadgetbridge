@@ -248,6 +248,11 @@ public final class F91KeplerConstants {
     public static final String PREF_QUIET_TEXT = "f91_quiet_text";
     /** Counter names (fw 3.1); empty = counter not in use. */
     public static final String PREF_COUNTER_NAME_PREFIX = "f91_counter_name_";
+    /** The two PreferenceCategory keys that hold the rest of the 3.1 settings
+     *  (res/xml/devicesettings_f91kepler_31_face.xml / _31_screens.xml); hidden
+     *  by F91KeplerSettingsCustomizer until the watch reports firmware 3.1. */
+    public static final String PREF_CATEGORY_FACE_31 = "f91_pref_category_face";
+    public static final String PREF_CATEGORY_SCREENS_31 = "f91_pref_category_screens_31";
 
     /** Display brightness step, "0".."4" (issue #211). */
     public static final String PREF_BRIGHTNESS = "f91_brightness";

@@ -25,9 +25,10 @@ import org.junit.Test;
 
 /**
  * The version gate must (1) read the bench image's {@code -bl} suffix without
- * choking, (2) compare numerically so 2.9 &lt; 2.16 &lt; 3.0, and (3) never hide a
- * setting when the version is unknown -- a device that has not connected yet
- * must show everything, not nothing.
+ * choking, (2) compare numerically so 2.9 &lt; 2.16 &lt; 3.0, (3) never hide a
+ * base (2.x-threshold) setting when the version is unknown -- a device that
+ * has not connected yet must show the base set, not nothing -- and (4) offer
+ * the firmware 3.1 surface only once the watch is KNOWN to run 3.1.
  */
 public class F91KeplerFirmwareTest {
 
@@ -83,9 +84,32 @@ public class F91KeplerFirmwareTest {
         assertFalse(F91KeplerFirmware.knownBelow("3.1.0-bl", F91KeplerFirmware.MIN_31));
         assertFalse(F91KeplerFirmware.knownBelow("3.1.1", F91KeplerFirmware.MIN_31));
         assertFalse(F91KeplerFirmware.knownBelow("3.10.0", F91KeplerFirmware.MIN_31));
-        // unknown: shown (settings) but never written to (support uses atLeast)
         assertFalse(F91KeplerFirmware.knownBelow(null, F91KeplerFirmware.MIN_31));
         assertFalse(F91KeplerFirmware.atLeast(null, F91KeplerFirmware.MIN_31));
         assertTrue(F91KeplerFirmware.atLeast("3.1.0-bl", F91KeplerFirmware.MIN_31));
+    }
+
+    /**
+     * has31 is the one answer for "show / write the 3.1 surface?": only a watch
+     * that has reported 3.1+ gets it. The shipped 3.0.3 watches, an unread
+     * device and garbage all get the base set -- the opposite default from the
+     * 2.x thresholds, on purpose (see F91KeplerFirmware).
+     */
+    @Test
+    public void offersTheThreeOneSurfaceOnlyToAKnownThreeOneWatch() {
+        assertTrue(F91KeplerFirmware.has31("3.1.0"));
+        assertTrue(F91KeplerFirmware.has31("3.1.0-bl"));
+        assertTrue(F91KeplerFirmware.has31("3.1.1"));
+        assertTrue(F91KeplerFirmware.has31("3.1.90-bl"));
+        assertTrue(F91KeplerFirmware.has31("3.2.0"));
+        assertTrue(F91KeplerFirmware.has31("4.0.0"));
+        assertFalse(F91KeplerFirmware.has31("3.0.3"));
+        assertFalse(F91KeplerFirmware.has31("3.0.3-bl"));
+        assertFalse(F91KeplerFirmware.has31("3.0.99"));
+        assertFalse(F91KeplerFirmware.has31("2.31.7"));
+        assertFalse(F91KeplerFirmware.has31(null));
+        assertFalse(F91KeplerFirmware.has31(""));
+        assertFalse(F91KeplerFirmware.has31("N/A"));
+        assertFalse(F91KeplerFirmware.has31("unknown"));
     }
 }

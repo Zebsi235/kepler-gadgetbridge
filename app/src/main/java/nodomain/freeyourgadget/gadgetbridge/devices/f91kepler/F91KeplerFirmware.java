@@ -37,9 +37,14 @@ import java.util.regex.Pattern;
  * the device-settings screen, so the user is never offered a control the watch
  * cannot act on.
  *
- * Unknown is treated as capable: {@link #knownBelow} is only true when a version
- * was read AND parsed AND is older -- a device that has never connected shows
- * every setting rather than none.
+ * Two policies, on purpose. The settings every shipped watch has (the 2.x
+ * thresholds: every customer watch runs 3.0.3 or newer) are hidden only when
+ * the version is known to be older ({@link #knownBelow}): a device that has
+ * never connected shows the base set rather than nothing. The firmware 3.1
+ * surface is the other way round ({@link #has31}): it is offered only once the
+ * watch has reported 3.1 or newer, so a 3.0 watch -- or one not read yet --
+ * is never shown a mode or option it cannot act on. The settings screen
+ * reveals it live when the version arrives (F91KeplerSettingsCustomizer).
  */
 public final class F91KeplerFirmware {
     private F91KeplerFirmware() {
@@ -113,5 +118,16 @@ public final class F91KeplerFirmware {
     public static boolean atLeast(@Nullable final String firmware, final int[] min) {
         final int[] v = parse(firmware);
         return v != null && compare(v, min) >= 0;
+    }
+
+    /**
+     * True only when the watch is KNOWN to run firmware 3.1 or newer. This is
+     * the single answer to "show / use the 3.1 surface?" for the settings
+     * screen, the alarm slot count and the support class alike: unknown is
+     * NOT 3.1, so nothing 3.1 is offered or written until the watch has said
+     * so over DIS.
+     */
+    public static boolean has31(@Nullable final String firmware) {
+        return atLeast(firmware, MIN_31);
     }
 }
