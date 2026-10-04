@@ -54,7 +54,6 @@ import nodomain.freeyourgadget.gadgetbridge.model.WeatherSpec;
 import nodomain.freeyourgadget.gadgetbridge.model.weather.Weather;
 import nodomain.freeyourgadget.gadgetbridge.util.AlarmUtils;
 import nodomain.freeyourgadget.gadgetbridge.util.GB;
-import nodomain.freeyourgadget.gadgetbridge.service.serial.GBDeviceProtocol;
 import nodomain.freeyourgadget.gadgetbridge.service.btle.AbstractBTLESingleDeviceSupport;
 import nodomain.freeyourgadget.gadgetbridge.service.btle.GattService;
 import nodomain.freeyourgadget.gadgetbridge.service.btle.TransactionBuilder;
@@ -742,16 +741,21 @@ public class F91KeplerSupport extends AbstractBTLESingleDeviceSupport {
     }
 
     @Override
-    public void onReset(final int flags) {
-        // Debug screen: "Reboot" -> 0x01 deferred reset; "Factory reset" -> 0x16,
-        // which erases every bond on the watch and reboots. After 0x16 the phone
-        // still holds its side of the bond and must forget the watch in Android's
-        // Bluetooth settings before pairing again -- that is why the ordinary UI
-        // never offers it.
-        final boolean factory = (flags & GBDeviceProtocol.RESET_FLAGS_FACTORY_RESET) != 0;
-        final TransactionBuilder builder = createTransactionBuilder(factory ? "factory reset" : "reset");
-        builder.write(F91KeplerConstants.UUID_CHAR_DEVICE_COMMAND,
-                      factory ? F91KeplerConstants.CMD_CLEAR_BONDS : F91KeplerConstants.CMD_RESET);
+    public void onReboot() {
+        // Debug screen "Reboot": 0x01, a deferred reset.
+        final TransactionBuilder builder = createTransactionBuilder("reset");
+        builder.write(F91KeplerConstants.UUID_CHAR_DEVICE_COMMAND, F91KeplerConstants.CMD_RESET);
+        builder.queue();
+    }
+
+    @Override
+    public void onFactoryReset() {
+        // Debug screen "Factory reset": 0x16 erases every bond on the watch and
+        // reboots. After it the phone still holds its side of the bond and must
+        // forget the watch in Android's Bluetooth settings before pairing again
+        // -- that is why the ordinary UI never offers it.
+        final TransactionBuilder builder = createTransactionBuilder("factory reset");
+        builder.write(F91KeplerConstants.UUID_CHAR_DEVICE_COMMAND, F91KeplerConstants.CMD_CLEAR_BONDS);
         builder.queue();
     }
 
