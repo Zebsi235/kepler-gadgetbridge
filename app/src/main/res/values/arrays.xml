@@ -4,7 +4,6 @@
         <!-- empty array -->
     </string-array>
 
-    <!-- F91 Kepler: per-mode display position (Off, or 1..9). -->
     <string-array name="f91_alert_mode">
         <item>Ring</item>
         <item>Vibrate only</item>
@@ -31,29 +30,74 @@
         <item>3</item>
         <item>4</item>
     </string-array>
-    <string-array name="f91_mode_position">
-        <item>@string/f91_mode_position_off</item>
-        <item>1</item>
-        <item>2</item>
-        <item>3</item>
-        <item>4</item>
-        <item>5</item>
-        <item>6</item>
-        <item>7</item>
-        <item>8</item>
-        <item>9</item>
+
+    <!-- F91 Kepler Watch modes list (F91KeplerModes.VALUES, same order). The
+         values are stored, the entries shown; keep both in step with
+         F91KeplerModes. f91_modes_* = the nine 3.0 modes, f91_modes31_* = all
+         thirteen (firmware 3.1). -->
+    <string-array name="f91_modes_entries">
+        <item>@string/f91_pref_title_mode_notif</item>
+        <item>@string/f91_pref_title_mode_timer</item>
+        <item>@string/f91_pref_title_mode_music</item>
+        <item>@string/f91_pref_title_mode_stopwatch</item>
+        <item>@string/f91_pref_title_mode_info</item>
+        <item>@string/f91_pref_title_mode_flashlight</item>
+        <item>@string/f91_pref_title_mode_findphone</item>
+        <item>@string/f91_pref_title_mode_ble</item>
+        <item>@string/f91_pref_title_mode_image</item>
     </string-array>
-    <string-array name="f91_mode_position_values" translatable="false">
-        <item>0</item>
-        <item>1</item>
-        <item>2</item>
-        <item>3</item>
-        <item>4</item>
-        <item>5</item>
-        <item>6</item>
-        <item>7</item>
-        <item>8</item>
-        <item>9</item>
+    <string-array name="f91_modes_values" translatable="false">
+        <item>notif</item>
+        <item>timer</item>
+        <item>music</item>
+        <item>stopwatch</item>
+        <item>info</item>
+        <item>flashlight</item>
+        <item>findphone</item>
+        <item>ble</item>
+        <item>image</item>
+    </string-array>
+    <string-array name="f91_modes31_entries">
+        <item>@string/f91_pref_title_mode_notif</item>
+        <item>@string/f91_pref_title_mode_timer</item>
+        <item>@string/f91_pref_title_mode_music</item>
+        <item>@string/f91_pref_title_mode_stopwatch</item>
+        <item>@string/f91_pref_title_mode_info</item>
+        <item>@string/f91_pref_title_mode_flashlight</item>
+        <item>@string/f91_pref_title_mode_findphone</item>
+        <item>@string/f91_pref_title_mode_ble</item>
+        <item>@string/f91_pref_title_mode_image</item>
+        <item>@string/f91_pref_title_mode_weather</item>
+        <item>@string/f91_pref_title_mode_counter_0</item>
+        <item>@string/f91_pref_title_mode_counter_1</item>
+        <item>@string/f91_pref_title_mode_counter_2</item>
+    </string-array>
+    <string-array name="f91_modes31_values" translatable="false">
+        <item>notif</item>
+        <item>timer</item>
+        <item>music</item>
+        <item>stopwatch</item>
+        <item>info</item>
+        <item>flashlight</item>
+        <item>findphone</item>
+        <item>ble</item>
+        <item>image</item>
+        <item>weather</item>
+        <item>counter0</item>
+        <item>counter1</item>
+        <item>counter2</item>
+    </string-array>
+    <!-- Default cycle: the nine 3.0 modes in id order, as the watch ships. -->
+    <string-array name="f91_modes_default" translatable="false">
+        <item>notif</item>
+        <item>timer</item>
+        <item>music</item>
+        <item>stopwatch</item>
+        <item>info</item>
+        <item>flashlight</item>
+        <item>findphone</item>
+        <item>ble</item>
+        <item>image</item>
     </string-array>
 
     <string-array name="f91_weekday_lang">

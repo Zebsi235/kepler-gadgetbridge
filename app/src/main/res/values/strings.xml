@@ -2293,8 +2293,9 @@
     <string name="f91_pref_title_notification_popup">Show sender as full-screen popup</string>
     <string name="f91_pref_summary_notification_popup">Briefly show the sender name on the watch for each notification, in addition to the bar icon</string>
     <string name="f91_pref_header_modes">Watch modes</string>
-    <string name="f91_pref_summary_modes">Set each mode\'s position when cycling screens with the top button (Off = hidden). The clock face is always first.</string>
-    <string name="f91_mode_position_off">Off</string>
+    <string name="f91_pref_summary_modes">Tick the modes you want and drag them into the order the top button cycles through. The clock face is always first.</string>
+    <string name="f91_pref_summary_modes_31">Tick the modes you want and drag them into the order the top button cycles through. The clock face is always first. A counter appears once it has a name.</string>
+    <string name="f91_pref_title_modes">Watch modes</string>
     <string name="f91_pref_title_mode_notif">Notifications mode</string>
     <string name="f91_pref_title_mode_timer">Timer mode</string>
     <string name="f91_pref_title_mode_music">Music mode</string>
@@ -2315,8 +2316,8 @@
     <string name="f91_weekday_lang_de">German</string>
     <string name="f91_pref_title_hourly_chime">Hourly chime</string>
     <string name="f91_pref_summary_hourly_chime">Flash the screen briefly at the top of every hour, like the F-91W\'s hourly beep. Stays dark during sleep times.</string>
-    <string name="f91_pref_header_screens_31">Forecast and counters</string>
-    <string name="f91_pref_summary_screens_31">Add the 7-day forecast and up to three tally counters to the mode cycle. A counter shows up once it has a name. On the watch, the right-hand button adds one; the left button you do not use to change modes takes one off (hold it to reset). The watch cycles at most 9 modes besides the clock.</string>
+    <string name="f91_pref_header_screens_31">Counters</string>
+    <string name="f91_pref_summary_screens_31">Name up to three tally counters, then add their pages (and the 7-day forecast) to the cycle under Watch modes. On the watch, the right-hand button adds one; the left button you do not use to change modes takes one off (hold it to reset).</string>
     <string name="f91_pref_title_mode_weather">Forecast mode</string>
     <string name="f91_pref_title_counter_name_0">Counter 1 name</string>
     <string name="f91_pref_title_counter_name_1">Counter 2 name</string>
@@ -2324,7 +2325,7 @@
     <string name="f91_pref_title_mode_counter_0">Counter 1 mode</string>
     <string name="f91_pref_title_mode_counter_1">Counter 2 mode</string>
     <string name="f91_pref_title_mode_counter_2">Counter 3 mode</string>
-    <string name="f91_modes_dropped">%d mode(s) left out: the watch cycles at most 9 besides the clock</string>
+    <string name="f91_modes_dropped">%1$d mode(s) left out: this watch cycles at most %2$d besides the clock</string>
     <string name="f91_pref_header_image">Image</string>
     <string name="f91_pref_title_image">Upload image</string>
     <string name="f91_pref_summary_image">Convert a photo for the watch\'s black-and-white screen and show it in Image mode</string>

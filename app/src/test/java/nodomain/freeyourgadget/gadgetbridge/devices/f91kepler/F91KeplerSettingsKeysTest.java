@@ -146,9 +146,11 @@ public class F91KeplerSettingsKeysTest {
             }
         }
         assertTrue("no 3.1 preferences found", checked > 0);
-        // And every hidden key must still exist, so the list cannot rot.
+        // And every hidden key must still exist, so the lists cannot rot. The
+        // thirteen-mode list lives in the modes XML, next to the nine-mode one
+        // it replaces on a 3.1 watch, so look in every Kepler XML.
         final Set<String> all = new HashSet<>();
-        for (final String name : XMLS_31) {
+        for (final String name : XMLS) {
             final NodeList nodes = f.newDocumentBuilder()
                     .parse(new File(xmlDir(), name)).getElementsByTagName("*");
             for (int i = 0; i < nodes.getLength(); i++) {
@@ -156,7 +158,21 @@ public class F91KeplerSettingsKeysTest {
             }
         }
         for (final String key : F91KeplerSettingsCustomizer.KEYS_31) {
-            assertTrue(key + " is in KEYS_31 but in no 3.1 settings XML", all.contains(key));
+            assertTrue(key + " is in KEYS_31 but in no settings XML", all.contains(key));
         }
+        for (final String key : F91KeplerSettingsCustomizer.KEYS_PRE31) {
+            assertTrue(key + " is in KEYS_PRE31 but in no settings XML", all.contains(key));
+            assertTrue(key + " cannot be both shown and hidden on 3.1",
+                    !Arrays.asList(F91KeplerSettingsCustomizer.KEYS_31).contains(key));
+        }
+    }
+
+    /** The two Watch modes lists are shown one at a time, never both, never none. */
+    @Test
+    public void exactlyOneWatchModesListPerFirmware() {
+        final Set<String> on31 = new HashSet<>(Arrays.asList(F91KeplerSettingsCustomizer.KEYS_31));
+        final Set<String> pre31 = new HashSet<>(Arrays.asList(F91KeplerSettingsCustomizer.KEYS_PRE31));
+        assertTrue(on31.contains(F91KeplerModes.PREF_MODES_31));
+        assertTrue(pre31.contains(F91KeplerModes.PREF_MODES));
     }
 }

@@ -67,6 +67,11 @@ public final class F91KeplerFirmware {
      * they shipped together, so there is no per-feature split to get wrong.
      */
     public static final int[] MIN_31 = {3, 1, 0};
+    /**
+     * Every screen in one cycle: ModeOrder takes 1..14 ids (FW91 #261, 3.1.3).
+     * Before it the cycle held Main + 9.
+     */
+    public static final int[] MIN_MODE_ORDER_14 = {3, 1, 3};
 
     private static final Pattern VERSION = Pattern.compile("^\\s*v?(\\d+)\\.(\\d+)\\.(\\d+)");
 

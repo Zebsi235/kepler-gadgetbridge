@@ -21,9 +21,7 @@ import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.nio.charset.StandardCharsets;
 import java.text.Normalizer;
-import java.util.ArrayList;
 import java.util.Calendar;
-import java.util.List;
 import java.util.Locale;
 import java.util.TimeZone;
 
@@ -260,77 +258,6 @@ final class F91KeplerProtocol {
         out.write(appB, 0, appB.length);
         out.write(senB, 0, senB.length);
         return out.toByteArray();
-    }
-
-    /**
-     * ModeOrder characteristic (UI Config, F2F1): Main (always first) followed by
-     * the optional modes, ordered by their configured position (1..9); a position
-     * &lt;= 0 means the mode is off (omitted). Ties are broken by canonical id so
-     * the result is deterministic. Positions are given in canonical order
-     * (Notifications, Timer, Music, Stopwatch, Info, Flashlight, Find Phone,
-     * Bluetooth, Image).
-     */
-    static byte[] modeOrder(final int posNotif, final int posTimer, final int posMusic,
-                            final int posStopwatch, final int posInfo,
-                            final int posFlashlight, final int posFindphone,
-                            final int posBle, final int posImage) {
-        final byte[] ids = { F91KeplerConstants.MODE_NOTIF, F91KeplerConstants.MODE_TIMER,
-                             F91KeplerConstants.MODE_MUSIC, F91KeplerConstants.MODE_STOPWATCH,
-                             F91KeplerConstants.MODE_INFO, F91KeplerConstants.MODE_FLASHLIGHT,
-                             F91KeplerConstants.MODE_FINDPHONE, F91KeplerConstants.MODE_BLE,
-                             F91KeplerConstants.MODE_IMAGE };
-        final int[] pos = { posNotif, posTimer, posMusic, posStopwatch, posInfo,
-                            posFlashlight, posFindphone, posBle, posImage };
-        return modeOrder(ids, pos);
-    }
-
-    /**
-     * ModeOrder for any set of optional screens: {@code ids[i]} at position
-     * {@code pos[i]} (&lt;= 0 = off), given in canonical id order. Main first, then
-     * the enabled screens by position, ties by canonical order -- and at most
-     * {@link F91KeplerConstants#MODES_PER_CYCLE} ids in all. Firmware 3.1 has 14
-     * screens but cycles at most 10 and refuses a longer write (which would also
-     * abort the transaction it rode in), so the screens with the highest
-     * positions are left out; {@link #modeOrderDropped} names them.
-     */
-    static byte[] modeOrder(final byte[] ids, final int[] pos) {
-        final List<Integer> order = rankModes(ids, pos);
-        final int keep = Math.min(order.size(), F91KeplerConstants.MODES_PER_CYCLE - 1);
-        final ByteArrayOutputStream out = new ByteArrayOutputStream();
-        out.write(F91KeplerConstants.MODE_MAIN);
-        for (int k = 0; k < keep; k++) {
-            out.write(ids[order.get(k)]);
-        }
-        return out.toByteArray();
-    }
-
-    /** The screen ids {@link #modeOrder(byte[], int[])} leaves out for want of room. */
-    static List<Byte> modeOrderDropped(final byte[] ids, final int[] pos) {
-        final List<Integer> order = rankModes(ids, pos);
-        final List<Byte> dropped = new ArrayList<>();
-        for (int k = F91KeplerConstants.MODES_PER_CYCLE - 1; k < order.size(); k++) {
-            dropped.add(ids[order.get(k)]);
-        }
-        return dropped;
-    }
-
-    /** Indices of the enabled screens, best position first, ties by index. */
-    private static List<Integer> rankModes(final byte[] ids, final int[] pos) {
-        final boolean[] used = new boolean[ids.length];
-        final List<Integer> order = new ArrayList<>();
-        for (int k = 0; k < ids.length; k++) {
-            int best = -1;
-            for (int i = 0; i < ids.length; i++) {
-                if (used[i] || pos[i] <= 0) continue;
-                if (best == -1 || pos[i] < pos[best]) {
-                    best = i;
-                }
-            }
-            if (best == -1) break;
-            used[best] = true;
-            order.add(best);
-        }
-        return order;
     }
 
     /**

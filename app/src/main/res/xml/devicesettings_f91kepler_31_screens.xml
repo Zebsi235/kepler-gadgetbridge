@@ -2,57 +2,29 @@
 <androidx.preference.PreferenceScreen
     xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto">
-    <!-- Firmware 3.1 screens: the 7-day forecast and up to three named tally
-         counters (Record F2F4 + ModeOrder ids 10..13). Always loaded by
-         F91KeplerCoordinator, but the category is shown by
+    <!-- Firmware 3.1 counters: up to three named tally counters (Record F2F4).
+         Their pages, and the 7-day forecast, are put in the cycle in the
+         Watch modes list (devicesettings_f91kepler_modes.xml). Always loaded
+         by F91KeplerCoordinator, but the category is shown by
          F91KeplerSettingsCustomizer only once the watch has reported firmware
-         3.1.0 or newer (see F91KeplerFirmware.has31). All off by default, as
-         on the watch. -->
+         3.1.0 or newer (see F91KeplerFirmware.has31). -->
     <PreferenceCategory
         android:key="f91_pref_category_screens_31"
         android:title="@string/f91_pref_header_screens_31">
         <Preference
             android:selectable="false"
             android:summary="@string/f91_pref_summary_screens_31" />
-        <ListPreference
-            android:defaultValue="0"
-            android:entries="@array/f91_mode_position"
-            android:entryValues="@array/f91_mode_position_values"
-            android:key="f91_mode_pos_weather"
-            android:title="@string/f91_pref_title_mode_weather"
-            app:useSimpleSummaryProvider="true" />
         <EditTextPreference
             android:key="f91_counter_name_0"
             android:title="@string/f91_pref_title_counter_name_0"
-            app:useSimpleSummaryProvider="true" />
-        <ListPreference
-            android:defaultValue="0"
-            android:entries="@array/f91_mode_position"
-            android:entryValues="@array/f91_mode_position_values"
-            android:key="f91_mode_pos_counter0"
-            android:title="@string/f91_pref_title_mode_counter_0"
             app:useSimpleSummaryProvider="true" />
         <EditTextPreference
             android:key="f91_counter_name_1"
             android:title="@string/f91_pref_title_counter_name_1"
             app:useSimpleSummaryProvider="true" />
-        <ListPreference
-            android:defaultValue="0"
-            android:entries="@array/f91_mode_position"
-            android:entryValues="@array/f91_mode_position_values"
-            android:key="f91_mode_pos_counter1"
-            android:title="@string/f91_pref_title_mode_counter_1"
-            app:useSimpleSummaryProvider="true" />
         <EditTextPreference
             android:key="f91_counter_name_2"
             android:title="@string/f91_pref_title_counter_name_2"
-            app:useSimpleSummaryProvider="true" />
-        <ListPreference
-            android:defaultValue="0"
-            android:entries="@array/f91_mode_position"
-            android:entryValues="@array/f91_mode_position_values"
-            android:key="f91_mode_pos_counter2"
-            android:title="@string/f91_pref_title_mode_counter_2"
             app:useSimpleSummaryProvider="true" />
     </PreferenceCategory>
 </androidx.preference.PreferenceScreen>

@@ -64,13 +64,7 @@ public class F91KeplerSettingsCustomizer implements DeviceSpecificSettingsCustom
      * popup switch) need no entry: the support class reads them when used.
      */
     static final String[] SEND_KEYS = {
-            F91KeplerConstants.PREF_MODE_POS_NOTIF, F91KeplerConstants.PREF_MODE_POS_TIMER,
-            F91KeplerConstants.PREF_MODE_POS_MUSIC, F91KeplerConstants.PREF_MODE_POS_STOPWATCH,
-            F91KeplerConstants.PREF_MODE_POS_INFO, F91KeplerConstants.PREF_MODE_POS_FLASHLIGHT,
-            F91KeplerConstants.PREF_MODE_POS_FINDPHONE, F91KeplerConstants.PREF_MODE_POS_BLE,
-            F91KeplerConstants.PREF_MODE_POS_IMAGE,
-            F91KeplerConstants.PREF_MODE_POS_WEATHER, F91KeplerConstants.PREF_MODE_POS_COUNTER0,
-            F91KeplerConstants.PREF_MODE_POS_COUNTER1, F91KeplerConstants.PREF_MODE_POS_COUNTER2,
+            F91KeplerModes.PREF_MODES, F91KeplerModes.PREF_MODES_31,
             F91KeplerConstants.PREF_BRIGHTNESS,
             F91KeplerConstants.PREF_SLEEP_ENABLED, F91KeplerConstants.PREF_SLEEP_START,
             F91KeplerConstants.PREF_SLEEP_END,
@@ -92,6 +86,13 @@ public class F91KeplerSettingsCustomizer implements DeviceSpecificSettingsCustom
             F91KeplerConstants.PREF_QUIET_TEXT,
             F91KeplerConstants.PREF_CATEGORY_FACE_31,
             F91KeplerConstants.PREF_CATEGORY_SCREENS_31,
+            F91KeplerModes.PREF_MODES_31,
+    };
+
+    /** The opposite: shown only while the watch is NOT known to run 3.1 --
+     *  the nine-mode list, which the thirteen-mode one replaces. */
+    static final String[] KEYS_PRE31 = {
+            F91KeplerModes.PREF_MODES,
     };
 
     @Override
@@ -109,6 +110,12 @@ public class F91KeplerSettingsCustomizer implements DeviceSpecificSettingsCustom
             final Preference pref = handler.findPreference(key);
             if (pref != null) {
                 pref.setVisible(show);
+            }
+        }
+        for (final String key : KEYS_PRE31) {
+            final Preference pref = handler.findPreference(key);
+            if (pref != null) {
+                pref.setVisible(!show);
             }
         }
     }

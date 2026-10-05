@@ -24,7 +24,6 @@ import org.junit.Test;
 
 import java.util.Arrays;
 import java.util.Calendar;
-import java.util.Collections;
 import java.util.Locale;
 import java.util.TimeZone;
 
@@ -205,31 +204,4 @@ public class F91KeplerProtocol31Test {
                 F91KeplerProtocol.sunMinute(later.getTimeInMillis() / 1000L, today, tz));
     }
 
-    // --- ModeOrder with the 3.1 screens -------------------------------------------
-
-    private static final byte[] IDS_31 = {1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13};
-
-    @Test
-    public void modeOrder_newScreensAreOrderedLikeAnyOther() {
-        final int[] pos = {1, 0, 0, 0, 0, 0, 0, 0, 0, 2, 3, 0, 0};
-        assertArrayEquals(b(0, 1, 10, 11), F91KeplerProtocol.modeOrder(IDS_31, pos));
-        assertEquals(Collections.emptyList(), F91KeplerProtocol.modeOrderDropped(IDS_31, pos));
-    }
-
-    @Test
-    public void modeOrder_neverExceedsTheTenScreenCycle() {
-        // every screen on: the watch refuses > 10 ids, so the highest positions go
-        final int[] pos = {1, 2, 3, 4, 5, 6, 7, 8, 9, 9, 9, 9, 9};
-        final byte[] order = F91KeplerProtocol.modeOrder(IDS_31, pos);
-        assertEquals(F91KeplerConstants.MODES_PER_CYCLE, order.length);
-        assertArrayEquals(b(0, 1, 2, 3, 4, 5, 6, 7, 8, 9), order);
-        assertEquals(Arrays.asList((byte) 10, (byte) 11, (byte) 12, (byte) 13),
-                F91KeplerProtocol.modeOrderDropped(IDS_31, pos));
-    }
-
-    @Test
-    public void modeOrder_nineArgFormIsUnchanged() {
-        assertArrayEquals(b(0, 1, 2, 3, 4, 5, 6, 7, 8, 9),
-                F91KeplerProtocol.modeOrder(1, 2, 3, 4, 5, 6, 7, 8, 9));
-    }
 }
