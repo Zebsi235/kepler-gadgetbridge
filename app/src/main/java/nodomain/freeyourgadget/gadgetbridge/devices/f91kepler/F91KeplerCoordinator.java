@@ -22,6 +22,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.regex.Pattern;
 
+import nodomain.freeyourgadget.gadgetbridge.GBApplication;
 import nodomain.freeyourgadget.gadgetbridge.R;
 import nodomain.freeyourgadget.gadgetbridge.activities.devicesettings.DeviceSpecificSettingsCustomizer;
 import nodomain.freeyourgadget.gadgetbridge.devices.AbstractBLEDeviceCoordinator;
@@ -110,6 +111,10 @@ public class F91KeplerCoordinator extends AbstractBLEDeviceCoordinator {
         // the version arrives while the screen is open. Loading them here is
         // what makes that live reveal possible. See F91KeplerFirmware.
         final String fw = device.getFirmwareVersion();
+        // Seed the Watch modes lists BEFORE the screen inflates them: the list
+        // preference persists its default over an absent value, which would
+        // wipe an order set with the old per-mode dropdowns. Idempotent.
+        F91KeplerModes.migrate(GBApplication.getDeviceSpecificSharedPrefs(device.getAddress()));
         final List<Integer> xml = new ArrayList<>();
         xml.add(R.xml.devicesettings_timeformat);
         if (!F91KeplerFirmware.knownBelow(fw, F91KeplerFirmware.MIN_ALERTS)) {

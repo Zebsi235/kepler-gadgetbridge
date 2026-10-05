@@ -219,8 +219,6 @@ public final class F91KeplerConstants {
     public static final byte MODE_COUNTER0 = 11;  // named tally counters 1..3; a page
     public static final byte MODE_COUNTER1 = 12;  // whose counter has no name is
     public static final byte MODE_COUNTER2 = 13;  // skipped by the watch
-    /** Screens per cycle (SCR_MAX_ENABLED): Main + 9 optional. */
-    public static final int MODES_PER_CYCLE = 10;
 
     // Per-mode position preference keys (Watch-modes ordering). Value is "0"=off
     // or "1".."9" = display position; the watch order is Main, then the optional

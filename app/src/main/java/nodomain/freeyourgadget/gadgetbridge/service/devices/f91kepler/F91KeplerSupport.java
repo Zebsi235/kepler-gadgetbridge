@@ -45,6 +45,7 @@ import nodomain.freeyourgadget.gadgetbridge.devices.f91kepler.F91KeplerConstants
 import nodomain.freeyourgadget.gadgetbridge.devices.f91kepler.F91KeplerFirmware;
 import nodomain.freeyourgadget.gadgetbridge.devices.f91kepler.F91KeplerImageCodec;
 import nodomain.freeyourgadget.gadgetbridge.devices.f91kepler.F91KeplerImageStore;
+import nodomain.freeyourgadget.gadgetbridge.devices.f91kepler.F91KeplerModes;
 import nodomain.freeyourgadget.gadgetbridge.impl.GBDevice;
 import nodomain.freeyourgadget.gadgetbridge.model.Alarm;
 import nodomain.freeyourgadget.gadgetbridge.model.CallSpec;
@@ -844,19 +845,8 @@ public class F91KeplerSupport extends AbstractBTLESingleDeviceSupport {
                 builder.queue();
                 break;
             }
-            case F91KeplerConstants.PREF_MODE_POS_NOTIF:
-            case F91KeplerConstants.PREF_MODE_POS_TIMER:
-            case F91KeplerConstants.PREF_MODE_POS_MUSIC:
-            case F91KeplerConstants.PREF_MODE_POS_STOPWATCH:
-            case F91KeplerConstants.PREF_MODE_POS_INFO:
-            case F91KeplerConstants.PREF_MODE_POS_FLASHLIGHT:
-            case F91KeplerConstants.PREF_MODE_POS_FINDPHONE:
-            case F91KeplerConstants.PREF_MODE_POS_BLE:
-            case F91KeplerConstants.PREF_MODE_POS_IMAGE:
-            case F91KeplerConstants.PREF_MODE_POS_WEATHER:
-            case F91KeplerConstants.PREF_MODE_POS_COUNTER0:
-            case F91KeplerConstants.PREF_MODE_POS_COUNTER1:
-            case F91KeplerConstants.PREF_MODE_POS_COUNTER2: {
+            case F91KeplerModes.PREF_MODES:
+            case F91KeplerModes.PREF_MODES_31: {
                 final TransactionBuilder builder = createTransactionBuilder("set mode order");
                 addModeOrder(builder);
                 builder.queue();
@@ -928,83 +918,38 @@ public class F91KeplerSupport extends AbstractBTLESingleDeviceSupport {
     }
 
     /**
-     * Build the ModeOrder from the per-mode position prefs (Main is always first;
-     * each optional mode's position 1..9 sets its slot, "0" = off) and write it
-     * to the UI Config char. The watch validates, applies, and persists it.
-     * Sent on change and re-sent on every connect (restorePhoneOwnedConfig) so a
-     * reflashed or reset watch gets its order back; the firmware ignores an
-     * unchanged order without touching flash.
-     * Defaults give the canonical order Notifications, Timer, Music, Stopwatch,
-     * Info, Flashlight, Find Phone, Bluetooth, Image.
+     * Write the Watch modes list for this connection's firmware to the UI
+     * Config ModeOrder char (Main first, then the ticked modes in list order;
+     * see {@link F91KeplerModes}). The watch validates, applies and persists
+     * it. Sent on change and re-sent on every connect (restorePhoneOwnedConfig)
+     * so a reflashed or reset watch gets its order back; the firmware ignores
+     * an unchanged order without touching flash. The 3.1 screens are sent only
+     * to a 3.1 watch (an older one refuses the whole order over one unknown
+     * id), and never more modes than the firmware cycles.
      */
     private void addModeOrder(final TransactionBuilder builder) {
-        final ModeSet m = modeSet();
-        builder.write(F91KeplerConstants.UUID_CHAR_MODE_ORDER, F91KeplerProtocol.modeOrder(m.ids, m.pos));
+        builder.write(F91KeplerConstants.UUID_CHAR_MODE_ORDER,
+                      F91KeplerModes.wireOrder(currentModes(), has31(), maxModes()));
     }
 
     /** Tell the user when the cycle is over-full and some modes were left out. */
     private void warnIfModesDropped() {
-        final ModeSet m = modeSet();
-        final int n = F91KeplerProtocol.modeOrderDropped(m.ids, m.pos).size();
+        final int n = F91KeplerModes.droppedCount(currentModes(), has31(), maxModes());
         if (n > 0) {
-            GB.toast(getContext(), getContext().getString(R.string.f91_modes_dropped, n),
+            GB.toast(getContext(), getContext().getString(R.string.f91_modes_dropped, n, maxModes()),
                      Toast.LENGTH_LONG, GB.WARN);
         }
     }
 
-    private static final class ModeSet {
-        final byte[] ids;
-        final int[] pos;
-        ModeSet(final byte[] ids, final int[] pos) {
-            this.ids = ids; this.pos = pos;
-        }
-    }
-
-    /**
-     * The optional screens this connection's firmware has, with their
-     * configured positions, in canonical id order. The 3.1 screens (ids 10..13,
-     * off by default) are included only when the watch is 3.1 -- an older watch
-     * refuses the whole order over one unknown id.
-     */
-    private ModeSet modeSet() {
+    private List<String> currentModes() {
         final SharedPreferences prefs =
                 GBApplication.getDeviceSpecificSharedPrefs(getDevice().getAddress());
-        final List<Byte> ids = new ArrayList<>();
-        final List<Integer> pos = new ArrayList<>();
-        final Object[][] base = {
-                {F91KeplerConstants.MODE_NOTIF, F91KeplerConstants.PREF_MODE_POS_NOTIF, 1},
-                {F91KeplerConstants.MODE_TIMER, F91KeplerConstants.PREF_MODE_POS_TIMER, 2},
-                {F91KeplerConstants.MODE_MUSIC, F91KeplerConstants.PREF_MODE_POS_MUSIC, 3},
-                {F91KeplerConstants.MODE_STOPWATCH, F91KeplerConstants.PREF_MODE_POS_STOPWATCH, 4},
-                {F91KeplerConstants.MODE_INFO, F91KeplerConstants.PREF_MODE_POS_INFO, 5},
-                {F91KeplerConstants.MODE_FLASHLIGHT, F91KeplerConstants.PREF_MODE_POS_FLASHLIGHT, 6},
-                {F91KeplerConstants.MODE_FINDPHONE, F91KeplerConstants.PREF_MODE_POS_FINDPHONE, 7},
-                {F91KeplerConstants.MODE_BLE, F91KeplerConstants.PREF_MODE_POS_BLE, 8},
-                {F91KeplerConstants.MODE_IMAGE, F91KeplerConstants.PREF_MODE_POS_IMAGE, 9},
-        };
-        final Object[][] v31 = {
-                {F91KeplerConstants.MODE_WEATHER, F91KeplerConstants.PREF_MODE_POS_WEATHER, 0},
-                {F91KeplerConstants.MODE_COUNTER0, F91KeplerConstants.PREF_MODE_POS_COUNTER0, 0},
-                {F91KeplerConstants.MODE_COUNTER1, F91KeplerConstants.PREF_MODE_POS_COUNTER1, 0},
-                {F91KeplerConstants.MODE_COUNTER2, F91KeplerConstants.PREF_MODE_POS_COUNTER2, 0},
-        };
-        for (final Object[] e : base) {
-            ids.add((Byte) e[0]);
-            pos.add(modePos(prefs, (String) e[1], (Integer) e[2]));
-        }
-        if (has31()) {
-            for (final Object[] e : v31) {
-                ids.add((Byte) e[0]);
-                pos.add(modePos(prefs, (String) e[1], (Integer) e[2]));
-            }
-        }
-        final byte[] idArr = new byte[ids.size()];
-        final int[] posArr = new int[pos.size()];
-        for (int i = 0; i < idArr.length; i++) {
-            idArr[i] = ids.get(i);
-            posArr[i] = pos.get(i);
-        }
-        return new ModeSet(idArr, posArr);
+        F91KeplerModes.migrate(prefs);   // a watch that connects before the screen was ever opened
+        return F91KeplerModes.order(prefs, has31());
+    }
+
+    private int maxModes() {
+        return F91KeplerModes.maxOptional(connectedFw);
     }
 
     /**
