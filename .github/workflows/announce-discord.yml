@@ -1,0 +1,49 @@
+name: Announce on Discord
+
+# Manual only: nothing reaches the Kepler Discord unless someone runs this
+# from the Actions tab (Run workflow) and picks the release to announce.
+# Tags and releases never post by themselves.
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Release tag to announce, e.g. v0.92.2-kepler-3"
+        required: true
+      message:
+        description: "Optional extra line for watch owners (plain text)"
+        required: false
+        default: ""
+      ping:
+        description: "Ping the Release pings role"
+        type: boolean
+        default: true
+
+permissions:
+  contents: read
+
+jobs:
+  announce:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Post to #announcements
+        env:
+          GH_TOKEN: ${{ github.token }}
+          WEBHOOK: ${{ secrets.DISCORD_RELEASE_WEBHOOK }}
+          PING_ROLE: "1555337885425860731"
+          TAG: ${{ inputs.tag }}
+          EXTRA: ${{ inputs.message }}
+          PING: ${{ inputs.ping }}
+        run: |
+          if [ -z "$WEBHOOK" ]; then echo "DISCORD_RELEASE_WEBHOOK is not set" >&2; exit 1; fi
+          REL=$(gh api "repos/${{ github.repository }}/releases/tags/$TAG") \
+            || { echo "No GitHub Release for $TAG" >&2; exit 1; }
+          URL=$(jq -r .html_url <<<"$REL")
+          APK=$(jq -r '[.assets[].name | select(endswith(".apk"))][0] // empty' <<<"$REL")
+          MSG="New Android app release: **$TAG**"
+          [ -n "$APK" ] && MSG="$MSG"$'\n'"Download \`$APK\` here: <$URL>" || MSG="$MSG"$'\n'"<$URL>"
+          MSG="$MSG"$'\n'"It installs over your previous Kepler release."
+          [ -n "$EXTRA" ] && MSG="$MSG"$'\n\n'"$EXTRA"
+          if [ "$PING" = "true" ]; then MSG="<@&$PING_ROLE> $MSG"; ROLES="[\"$PING_ROLE\"]"; else ROLES="[]"; fi
+          jq -n --arg c "$MSG" --argjson r "$ROLES" '{content: $c, allowed_mentions: {roles: $r}}' \
+            | curl -fsS -H 'Content-Type: application/json' -d @- "$WEBHOOK"
+          echo "Announced $TAG"
