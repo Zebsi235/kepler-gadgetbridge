@@ -18,6 +18,8 @@ package nodomain.freeyourgadget.gadgetbridge.service.devices.f91kepler;
 
 import static org.junit.Assert.assertArrayEquals;
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 
 import org.junit.Test;
@@ -202,6 +204,49 @@ public class F91KeplerProtocol31Test {
         later.add(Calendar.DAY_OF_YEAR, 40);           // polar day: next set weeks away
         assertEquals(F91KeplerConstants.SUN_NONE,
                 F91KeplerProtocol.sunMinute(later.getTimeInMillis() / 1000L, today, tz));
+    }
+
+    // --- alarm read-back: one-shots the watch rang show off in the app ----------
+
+    @Test
+    public void alarmRecordParsesTheWatchAnswer() {
+        assertArrayEquals(new int[]{2, 1, 7, 30, 0x1F},
+                F91KeplerProtocol.alarmRecord(b(0x01, 2, 1, 7, 30, 0x1F)));
+        assertArrayEquals(new int[]{4, 0, 23, 59, 0},
+                F91KeplerProtocol.alarmRecord(b(0x01, 4, 0, 23, 59, 0)));
+    }
+
+    @Test
+    public void alarmRecordRefusesAnythingElse() {
+        assertNull(F91KeplerProtocol.alarmRecord(null));
+        assertNull(F91KeplerProtocol.alarmRecord(new byte[0]));          // nothing selected
+        assertNull(F91KeplerProtocol.alarmRecord(b(0x01, 2, 1, 7, 30)));  // short
+        assertNull(F91KeplerProtocol.alarmRecord(b(0x02, 0, 5, 0, 'A', 'B')));  // a counter
+    }
+
+    @Test
+    public void aRungOneShotIsSwitchedOff() {
+        final int[] rung = {1, 0, 6, 45, 0};
+        assertTrue(F91KeplerProtocol.watchRangOneShot(true, false, 6, 45, Alarm.ALARM_ONCE, rung));
+    }
+
+    @Test
+    public void onlyAOneShotTheWatchSwitchedOffIsTouched() {
+        final int[] off = {1, 0, 6, 45, 0};
+        final int[] on = {1, 1, 6, 45, 0};
+        // still on on the watch: it has not rung
+        assertFalse(F91KeplerProtocol.watchRangOneShot(true, false, 6, 45, 0, on));
+        // a repeating alarm never switches itself off; a mismatch is not ours
+        assertFalse(F91KeplerProtocol.watchRangOneShot(true, false, 6, 45, Alarm.ALARM_MON, off));
+        assertFalse(F91KeplerProtocol.watchRangOneShot(true, false, 6, 45, 0, new int[]{1, 0, 6, 45, 1}));
+        // the time was changed on the phone meanwhile
+        assertFalse(F91KeplerProtocol.watchRangOneShot(true, false, 7, 45, 0, off));
+        assertFalse(F91KeplerProtocol.watchRangOneShot(true, false, 6, 46, 0, off));
+        // already off, or an unused slot, in the app
+        assertFalse(F91KeplerProtocol.watchRangOneShot(false, false, 6, 45, 0, off));
+        assertFalse(F91KeplerProtocol.watchRangOneShot(true, true, 6, 45, 0, off));
+        // no answer for that slot
+        assertFalse(F91KeplerProtocol.watchRangOneShot(true, false, 6, 45, 0, null));
     }
 
 }
