@@ -2309,7 +2309,7 @@
     <string name="f91_pref_summary_quiet_text">On the clock face, show the sender in the icon row for a few seconds instead of a full-screen popup. Calls still use the popup.</string>
     <string name="f91_pref_header_face">Clock face</string>
     <string name="f91_pref_title_weekday">Show the weekday</string>
-    <string name="f91_pref_summary_weekday">Two letters next to the time. Fresh weather takes the spot while it is under three hours old.</string>
+    <string name="f91_pref_summary_weekday">Two letters beside the date in the top row, e.g. TH 22. The weather stays where it is.</string>
     <string name="f91_pref_title_weekday_lang">Weekday language</string>
     <string name="f91_weekday_lang_auto">Phone language</string>
     <string name="f91_weekday_lang_en">English</string>
