@@ -18,9 +18,12 @@ package nodomain.freeyourgadget.gadgetbridge.service.devices.f91kepler;
 
 import android.bluetooth.BluetoothGatt;
 import android.bluetooth.BluetoothGattCharacteristic;
+import android.content.Intent;
 import android.content.SharedPreferences;
 import android.text.format.DateFormat;
 import android.widget.Toast;
+
+import androidx.localbroadcastmanager.content.LocalBroadcastManager;
 
 import org.apache.commons.lang3.StringUtils;
 import org.slf4j.Logger;
@@ -49,6 +52,7 @@ import nodomain.freeyourgadget.gadgetbridge.devices.f91kepler.F91KeplerModes;
 import nodomain.freeyourgadget.gadgetbridge.impl.GBDevice;
 import nodomain.freeyourgadget.gadgetbridge.model.Alarm;
 import nodomain.freeyourgadget.gadgetbridge.model.CallSpec;
+import nodomain.freeyourgadget.gadgetbridge.model.DeviceService;
 import nodomain.freeyourgadget.gadgetbridge.model.NotificationSpec;
 import nodomain.freeyourgadget.gadgetbridge.model.NotificationType;
 import nodomain.freeyourgadget.gadgetbridge.model.WeatherSpec;
@@ -105,6 +109,17 @@ public class F91KeplerSupport extends AbstractBTLESingleDeviceSupport {
      *  image is not re-uploaded to (and re-toasted about) on every reconnect.
      *  Cleared when the user sends an image again. */
     private volatile boolean imageGaveUp;
+
+    /**
+     * Firmware 3.1 alarm read-back: the five slots as the watch holds them,
+     * filled by {@link #onCharacteristicRead}. {@code alarmSetGen} counts the
+     * phone's own alarm writes, so a read that raced a user edit is discarded
+     * instead of overruling it.
+     */
+    private final int[][] alarmReadSlots = new int[F91KeplerConstants.ALARM_SLOTS_31][];
+    private volatile int alarmSetGen;
+    private volatile int alarmReadGen = -1;
+    private volatile boolean alarmReadWrite;
 
     /** Firmware version read over DIS on THIS connection (null until then).
      *  Every 3.1 write is gated on it, not on the cached device version: a
@@ -246,6 +261,9 @@ public class F91KeplerSupport extends AbstractBTLESingleDeviceSupport {
      * know the phone's preference and should not need one.
      */
     private void handleAlertEvent(final byte ev) {
+        if (ev == F91KeplerConstants.ALERT_EVENT_ALARM && has31()) {
+            readAlarmSlots(false);     // a one-shot just switched itself off
+        }
         final SharedPreferences prefs =
                 GBApplication.getDeviceSpecificSharedPrefs(getDevice().getAddress());
         final boolean enabled;
@@ -283,6 +301,11 @@ public class F91KeplerSupport extends AbstractBTLESingleDeviceSupport {
             reconcileImage(status == BluetoothGatt.GATT_SUCCESS ? value : null);
             return true;
         }
+        if (F91KeplerConstants.UUID_CHAR_RECORD.equals(characteristic.getUuid())
+                && alarmReadGen >= 0) {
+            onAlarmSlotRead(status == BluetoothGatt.GATT_SUCCESS ? value : null);
+            return true;
+        }
         return super.onCharacteristicRead(gatt, characteristic, value, status);
     }
 
@@ -301,6 +324,14 @@ public class F91KeplerSupport extends AbstractBTLESingleDeviceSupport {
                     || F91KeplerConstants.UUID_CHAR_IMAGE_CONTROL.equals(characteristic.getUuid()))) {
             LOG.warn("F91 image write to {} failed with status {}", characteristic.getUuid(), status);
             reconcileImage(null);
+        }
+        if (status != BluetoothGatt.GATT_SUCCESS && characteristic != null
+                && F91KeplerConstants.UUID_CHAR_RECORD.equals(characteristic.getUuid())
+                && alarmReadGen >= 0) {
+            // A failed select cancels the reads queued behind it, so no read
+            // answer would ever end the round: end it here, writing as before.
+            LOG.warn("F91 alarm slot select failed with status {}", status);
+            finishAlarmRead(false);
         }
         return super.onCharacteristicWrite(gatt, characteristic, status);
     }
@@ -367,9 +398,12 @@ public class F91KeplerSupport extends AbstractBTLESingleDeviceSupport {
             final TransactionBuilder b31 = createTransactionBuilder("restore 3.1 config");
             addUiOptions(b31);
             addCounterNames(b31);
-            addAlarmSlots(b31, DBHelper.getAlarms(getDevice()));
             addForecastAndSun(b31);
             b31.queue();
+            // The slots last, and only after reading them: a one-shot that rang
+            // while the phone was away is off on the watch, and writing the
+            // app's list blindly would re-arm it for tomorrow.
+            readAlarmSlots(true);
         }
     }
 
@@ -598,6 +632,7 @@ public class F91KeplerSupport extends AbstractBTLESingleDeviceSupport {
     @Override
     public void onSetAlarms(final ArrayList<? extends Alarm> alarms) {
         if (has31()) {
+            alarmSetGen++;
             final TransactionBuilder builder = createTransactionBuilder("set alarm slots");
             addAlarmSlots(builder, alarms);
             builder.queue();
@@ -661,6 +696,84 @@ public class F91KeplerSupport extends AbstractBTLESingleDeviceSupport {
         }
         builder.write(F91KeplerConstants.UUID_CHAR_ALARM_ENABLED, F91KeplerProtocol.alarmEnabled(false));
         builder.write(F91KeplerConstants.UUID_CHAR_ALARM_TIME, F91KeplerProtocol.alarmTime(0L));
+    }
+
+    /**
+     * Select and read the five ALARM records (select = {@code [type][index]}
+     * with no payload). The answers arrive in {@link #onAlarmSlotRead}, in
+     * order. {@code thenWrite}: write the app's slots once all five are in (the
+     * connect path); otherwise only reconcile (after the watch rang one).
+     */
+    private void readAlarmSlots(final boolean thenWrite) {
+        java.util.Arrays.fill(alarmReadSlots, null);
+        alarmReadWrite = thenWrite;
+        alarmReadGen = alarmSetGen;
+        final TransactionBuilder builder = createTransactionBuilder("read alarm slots");
+        for (int i = 0; i < F91KeplerConstants.ALARM_SLOTS_31; i++) {
+            builder.write(F91KeplerConstants.UUID_CHAR_RECORD,
+                          F91KeplerProtocol.record(F91KeplerConstants.REC_ALARM, i, new byte[0]));
+            builder.read(F91KeplerConstants.UUID_CHAR_RECORD);
+        }
+        builder.queue();
+    }
+
+    /**
+     * One ALARM record answer. A failed or unparseable read ends the round:
+     * the slots are written from the app's list exactly as before this
+     * read-back existed, so a watch that cannot answer loses nothing.
+     */
+    private void onAlarmSlotRead(final byte[] value) {
+        final int[] slot = F91KeplerProtocol.alarmRecord(value);
+        if (slot == null || slot[0] >= alarmReadSlots.length) {
+            LOG.warn("F91 alarm slot read failed, writing the app's alarms as they are");
+            finishAlarmRead(false);
+            return;
+        }
+        alarmReadSlots[slot[0]] = slot;
+        if (slot[0] == alarmReadSlots.length - 1) {
+            finishAlarmRead(true);
+        }
+    }
+
+    private void finishAlarmRead(final boolean complete) {
+        final boolean write = alarmReadWrite;
+        final boolean raced = alarmReadGen != alarmSetGen;
+        alarmReadGen = -1;
+        if (raced) {
+            LOG.debug("F91 alarms were edited during the read-back, keeping the edit");
+            return;                    // onSetAlarms has written the user's list already
+        }
+        if (complete) {
+            reconcileOneShots();
+        }
+        if (write) {
+            final TransactionBuilder builder = createTransactionBuilder("restore alarm slots");
+            addAlarmSlots(builder, DBHelper.getAlarms(getDevice()));
+            builder.queue();
+        }
+    }
+
+    /** One-shots the watch has rung are switched off in the app too. */
+    private void reconcileOneShots() {
+        int changed = 0;
+        for (final nodomain.freeyourgadget.gadgetbridge.entities.Alarm a : DBHelper.getAlarms(getDevice())) {
+            final int pos = a.getPosition();
+            if (pos < 0 || pos >= alarmReadSlots.length) {
+                continue;
+            }
+            if (F91KeplerProtocol.watchRangOneShot(a.getEnabled(), a.getUnused(), a.getHour(),
+                                                   a.getMinute(), a.getRepetition(),
+                                                   alarmReadSlots[pos])) {
+                LOG.info("F91 one-shot alarm {} rang on the watch, switching it off", pos);
+                a.setEnabled(false);
+                DBHelper.store(a);
+                changed++;
+            }
+        }
+        if (changed > 0) {
+            LocalBroadcastManager.getInstance(getContext())
+                    .sendBroadcast(new Intent(DeviceService.ACTION_SAVE_ALARMS));
+        }
     }
 
     // --- Firmware 3.1: options, counters, forecast, sun --------------------

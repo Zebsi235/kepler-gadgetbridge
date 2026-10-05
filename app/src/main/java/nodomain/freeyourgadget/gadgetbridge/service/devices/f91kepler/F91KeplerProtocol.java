@@ -429,6 +429,35 @@ final class F91KeplerProtocol {
     }
 
     /**
+     * A Record ALARM read, {@code [0x01][index][enabled][hh][mm][daymask]}, as
+     * {@code {index, enabled (0/1), hh, mm, daymask}}; {@code null} for anything
+     * else (another type, a short read, an empty read before any select).
+     */
+    static int[] alarmRecord(final byte[] value) {
+        if (value == null || value.length < 6 || value[0] != F91KeplerConstants.REC_ALARM) {
+            return null;
+        }
+        return new int[]{value[1] & 0xFF, value[2] & 0x01, value[3] & 0xFF,
+                value[4] & 0xFF, value[5] & 0x7F};
+    }
+
+    /**
+     * True when the watch has rung a one-shot alarm the app still shows on: the
+     * app's alarm is on, used and has no repeat days, and the watch's slot holds
+     * the same time with no days but is now OFF -- a one-shot slot switches
+     * itself off as it fires (FW91 f91_alarms.c). Anything else (a repeating
+     * alarm, a time changed on the phone, a slot still on) is not ours to
+     * change: the app stays the owner of the alarm list.
+     */
+    static boolean watchRangOneShot(final boolean appEnabled, final boolean appUnused,
+                                    final int appHour, final int appMinute,
+                                    final int appRepetition, final int[] slot) {
+        return slot != null && appEnabled && !appUnused && appRepetition == 0
+                && slot[1] == 0 && slot[4] == 0
+                && slot[2] == appHour && slot[3] == appMinute;
+    }
+
+    /**
      * What the watch can show of a counter name: printable ASCII only (the
      * watch refuses anything else), accents and umlauts transliterated rather
      * than dropped, at most {@link F91KeplerConstants#COUNTER_NAME_MAX} chars.
