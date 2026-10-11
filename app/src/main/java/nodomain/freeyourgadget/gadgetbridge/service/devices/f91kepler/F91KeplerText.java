@@ -78,7 +78,7 @@ public final class F91KeplerText {
     };
 
     /**
-     * @param text          what the phone wants to show
+     * @param raw           what the phone wants to show
      * @param watchDrawsBox true from firmware 3.1.14 on: symbols without a
      *                      look-alike pass through for the watch to box
      */
@@ -124,7 +124,10 @@ public final class F91KeplerText {
                 }
                 continue;
             }
-            final String m = map(cp);
+            String m = map(cp);
+            if (BOX.equals(m)) {
+                m = baseLetter(cp);
+            }
             if (BOX.equals(m)) {
                 if (watchDrawsBox) {
                     out.appendCodePoint(cp);
@@ -136,6 +139,20 @@ public final class F91KeplerText {
             }
         }
         return out.toString();
+    }
+
+    /**
+     * A letter beyond the firmware's table (Romanian ș, Vietnamese ễ, ...): its
+     * base letter if it decomposes to one, else {@link #BOX}. A phone-only
+     * improvement over the watch, which boxes these.
+     */
+    private static String baseLetter(final int cp) {
+        if (!Character.isLetter(cp)) {
+            return BOX;
+        }
+        final String d = Normalizer.normalize(new String(Character.toChars(cp)), Normalizer.Form.NFD);
+        final char c = d.isEmpty() ? 0 : d.charAt(0);
+        return (c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z') ? String.valueOf(c) : BOX;
     }
 
     /** One code point: its ASCII spelling, "" to drop it, or {@link #BOX}. */

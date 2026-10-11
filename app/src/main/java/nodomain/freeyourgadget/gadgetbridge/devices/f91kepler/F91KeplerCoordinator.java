@@ -97,6 +97,18 @@ public class F91KeplerCoordinator extends AbstractBLEDeviceCoordinator {
                 ? F91KeplerConstants.ALARM_SLOTS_31 : 1;
     }
 
+    /**
+     * Not literally: the watch's font is ASCII. But the driver folds all text
+     * itself (F91KeplerText, the firmware's table, and boxes for emoji from
+     * 3.1.14), so Gadgetbridge must not add its generic ASCII flattener after
+     * the transliteration languages: that one turns ß, €, dashes and emoji
+     * into '?' before the driver sees them.
+     */
+    @Override
+    public boolean supportsUnicodeEmojis(@NonNull final GBDevice device) {
+        return true;
+    }
+
     @Override
     public int[] getSupportedDeviceSpecificSettings(final GBDevice device) {
         // Offer only what this watch's firmware can act on. Each version-dependent

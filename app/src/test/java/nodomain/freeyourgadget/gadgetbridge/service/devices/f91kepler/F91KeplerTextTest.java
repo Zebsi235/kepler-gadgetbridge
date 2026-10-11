@@ -41,7 +41,7 @@ public class F91KeplerTextTest {
 
     @Test
     public void germanLettersAreSpelledWithTwoLetters() {
-        assertEquals("Muesli Strasse AEpfel Oel", old("Müsli Straße Äpfel Öl"));
+        assertEquals("Muesli Strasse Aepfel Oel", old("Müsli Straße Äpfel Öl"));
         assertEquals("Ueber aerger", old("Über ärger"));
     }
 
@@ -49,6 +49,13 @@ public class F91KeplerTextTest {
     public void otherAccentsBecomeTheBaseLetter() {
         assertEquals("Cafe creme a la Francois, Lodz, Ceske", old("Café crème à la François, Łódź, České"));
         assertEquals("Hakon Oystein", old("Håkon Øystein"));
+    }
+
+    @Test
+    public void lettersBeyondTheTableKeepTheirBaseLetter() {
+        assertEquals("Nguyen", old("Nguyễn"));
+        assertEquals("Iasi Constanta", old("Iași Constanța"));
+        assertEquals("Nguyen", box("Nguyễn"));
     }
 
     @Test
