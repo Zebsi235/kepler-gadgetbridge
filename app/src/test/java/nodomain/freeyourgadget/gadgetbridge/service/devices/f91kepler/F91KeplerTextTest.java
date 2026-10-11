@@ -56,6 +56,8 @@ public class F91KeplerTextTest {
         assertEquals("Nguyen", old("Nguyễn"));
         assertEquals("Iasi Constanta", old("Iași Constanța"));
         assertEquals("Nguyen", box("Nguyễn"));
+        assertEquals("Bold AB", old("\uD835\uDC01\uD835\uDC28\uD835\uDC25\uD835\uDC1D \uFF21\uFF22")); // 𝐁𝐨𝐥𝐝 ＡＢ
+        assertEquals("fish", old("\uFB01sh")); // ﬁ ligature
     }
 
     @Test

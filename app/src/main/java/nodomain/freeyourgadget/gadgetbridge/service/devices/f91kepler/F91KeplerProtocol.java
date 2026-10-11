@@ -467,7 +467,8 @@ final class F91KeplerProtocol {
         if (name == null) {
             return "";
         }
-        final String plain = F91KeplerText.fold(name.trim(), true);
+        // Controls (tabs, bells) are dropped from a name, not turned into spaces.
+        final String plain = F91KeplerText.fold(name.trim().replaceAll("\\p{Cntrl}", ""), true);
         final StringBuilder out = new StringBuilder();
         for (int i = 0; i < plain.length() && out.length() < F91KeplerConstants.COUNTER_NAME_MAX; i++) {
             final char c = plain.charAt(i);

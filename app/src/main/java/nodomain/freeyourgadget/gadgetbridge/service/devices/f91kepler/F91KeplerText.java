@@ -142,17 +142,19 @@ public final class F91KeplerText {
     }
 
     /**
-     * A letter beyond the firmware's table (Romanian ș, Vietnamese ễ, ...): its
-     * base letter if it decomposes to one, else {@link #BOX}. A phone-only
-     * improvement over the watch, which boxes these.
+     * A letter beyond the firmware's table (Romanian ș, Vietnamese ễ, fullwidth
+     * or "bold" letters from display names): its base letter if it decomposes
+     * to one, else {@link #BOX}. A phone-only improvement over the watch, which
+     * boxes these.
      */
     private static String baseLetter(final int cp) {
         if (!Character.isLetter(cp)) {
             return BOX;
         }
-        final String d = Normalizer.normalize(new String(Character.toChars(cp)), Normalizer.Form.NFD);
-        final char c = d.isEmpty() ? 0 : d.charAt(0);
-        return (c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z') ? String.valueOf(c) : BOX;
+        // Compatibility decomposition, accents removed: "ễ" → "e", "ﬁ" → "fi".
+        final String d = Normalizer.normalize(new String(Character.toChars(cp)), Normalizer.Form.NFKD)
+                .replaceAll("\\p{Mn}", "");
+        return !d.isEmpty() && d.matches("[A-Za-z]+") ? d : BOX;
     }
 
     /** One code point: its ASCII spelling, "" to drop it, or {@link #BOX}. */
