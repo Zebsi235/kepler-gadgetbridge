@@ -412,6 +412,15 @@ public class F91KeplerSupport extends AbstractBTLESingleDeviceSupport {
         return F91KeplerFirmware.has31(connectedFw);
     }
 
+    /**
+     * Text for the watch's 5x7 font, folded with the firmware's own table:
+     * symbols without a look-alike pass through for the watch to box from
+     * 3.1.14, and become '?' before it (older firmware draws stray pixels).
+     */
+    private String forWatch(final String text) {
+        return F91KeplerText.fold(text, F91KeplerFirmware.atLeast(connectedFw, F91KeplerFirmware.MIN_TEXT_FOLD));
+    }
+
     // --- Time ---------------------------------------------------------------
 
     @Override
@@ -477,7 +486,7 @@ public class F91KeplerSupport extends AbstractBTLESingleDeviceSupport {
                 // whole payload within the characteristic's byte budget.
                 final String app = StringUtils.firstNonBlank(notificationSpec.getSourceName(), "");
                 builder.write(F91KeplerConstants.UUID_CHAR_INCOMING_TEXT,
-                              F91KeplerProtocol.incomingTextPopup(app, sender));
+                              F91KeplerProtocol.incomingTextPopup(forWatch(app), forWatch(sender)));
             }
         }
         addRecentNotifications(builder);   // push the updated history list to the watch
@@ -527,7 +536,7 @@ public class F91KeplerSupport extends AbstractBTLESingleDeviceSupport {
         for (int i = 0; i < total; i++) {
             final RecentNotif e = recent.get(i);
             builder.write(F91KeplerConstants.UUID_CHAR_NOTIFICATION_ENTRY,
-                          F91KeplerProtocol.notificationEntry(i, total, e.app, e.sender));
+                          F91KeplerProtocol.notificationEntry(i, total, forWatch(e.app), forWatch(e.sender)));
         }
     }
 
@@ -587,7 +596,7 @@ public class F91KeplerSupport extends AbstractBTLESingleDeviceSupport {
         }
         final String name = StringUtils.firstNonBlank(callSpec.getName(), callSpec.getNumber());
         final TransactionBuilder builder = createTransactionBuilder("incoming call");
-        builder.write(F91KeplerConstants.UUID_CHAR_INCOMING_CALL, F91KeplerProtocol.contactName(name));
+        builder.write(F91KeplerConstants.UUID_CHAR_INCOMING_CALL, F91KeplerProtocol.contactName(forWatch(name)));
         builder.queue();
     }
 
