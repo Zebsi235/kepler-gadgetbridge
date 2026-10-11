@@ -124,6 +124,9 @@ public class F91KeplerCoordinator extends AbstractBLEDeviceCoordinator {
             xml.add(R.xml.devicesettings_f91kepler_brightness);
         }
         xml.add(R.xml.devicesettings_f91kepler);
+        // Language rules on top of the built-in folding (F91KeplerText), e.g.
+        // Scandinavian å→aa; the watch's font is ASCII only either way.
+        xml.add(R.xml.devicesettings_transliteration);
         // After devicesettings_f91kepler: its quiet switch depends on the popup
         // switch defined there. Hidden until the watch reports 3.1.
         xml.add(R.xml.devicesettings_f91kepler_31_face);

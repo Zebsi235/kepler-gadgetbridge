@@ -20,7 +20,6 @@ import java.io.ByteArrayOutputStream;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.nio.charset.StandardCharsets;
-import java.text.Normalizer;
 import java.util.Calendar;
 import java.util.Locale;
 import java.util.TimeZone;
@@ -459,18 +458,16 @@ final class F91KeplerProtocol {
 
     /**
      * What the watch can show of a counter name: printable ASCII only (the
-     * watch refuses anything else), accents and umlauts transliterated rather
-     * than dropped, at most {@link F91KeplerConstants#COUNTER_NAME_MAX} chars.
+     * watch refuses anything else), folded with the firmware's table
+     * ({@link F91KeplerText}: ä→ae, é→e, ...) so accents are spelled, not
+     * dropped; symbols without a look-alike are left out. At most
+     * {@link F91KeplerConstants#COUNTER_NAME_MAX} chars.
      */
     static String sanitizeCounterName(final String name) {
         if (name == null) {
             return "";
         }
-        final String t = name.trim()
-                .replace("ä", "ae").replace("ö", "oe").replace("ü", "ue")
-                .replace("Ä", "Ae").replace("Ö", "Oe").replace("Ü", "Ue")
-                .replace("ß", "ss");
-        final String plain = Normalizer.normalize(t, Normalizer.Form.NFD);
+        final String plain = F91KeplerText.fold(name.trim(), true);
         final StringBuilder out = new StringBuilder();
         for (int i = 0; i < plain.length() && out.length() < F91KeplerConstants.COUNTER_NAME_MAX; i++) {
             final char c = plain.charAt(i);

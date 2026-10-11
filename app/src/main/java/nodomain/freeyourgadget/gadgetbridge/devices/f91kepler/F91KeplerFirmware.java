@@ -72,6 +72,12 @@ public final class F91KeplerFirmware {
      * Before it the cycle held Main + 9.
      */
     public static final int[] MIN_MODE_ORDER_14 = {3, 1, 3};
+    /**
+     * The watch folds UTF-8 text itself and draws a box for symbols it has no
+     * look-alike for (FW91 fix/text-unicode, 3.1.14). Before it, any non-ASCII
+     * byte drew stray pixels, so the phone folds everything to ASCII.
+     */
+    public static final int[] MIN_TEXT_FOLD = {3, 1, 14};
 
     private static final Pattern VERSION = Pattern.compile("^\\s*v?(\\d+)\\.(\\d+)\\.(\\d+)");
 
