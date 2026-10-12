@@ -1434,6 +1434,8 @@
     <string name="authentication_failed_negotiation">Authentication key negotiation failed</string>
     <string name="click_here_for_more_information">Click here for more information.</string>
     <string name="authentication_expired">Authentication expired</string>
+    <string name="music_control_access_title">Music control needs notification access</string>
+    <string name="music_control_access_text">Without it, buttons on your watch may control the wrong player. Tap to allow Gadgetbridge notification access.</string>
     <string name="expiration_notifications_title">Expiration notification</string>
     <string name="auth_expiration_notifications_summary">Display a notification when authentication is expired.</string>
     <string name="garmin_oauth_expired_description">Authentication for %1$s has expired, some functions may not work. Click here for more information.</string>
