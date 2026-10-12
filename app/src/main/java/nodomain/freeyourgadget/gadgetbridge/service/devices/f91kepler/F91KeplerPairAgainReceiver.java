@@ -34,6 +34,7 @@ import nodomain.freeyourgadget.gadgetbridge.GBApplication;
 import nodomain.freeyourgadget.gadgetbridge.R;
 import nodomain.freeyourgadget.gadgetbridge.activities.ControlCenterv2;
 import nodomain.freeyourgadget.gadgetbridge.impl.GBDevice;
+import nodomain.freeyourgadget.gadgetbridge.util.BondingUtil;
 import nodomain.freeyourgadget.gadgetbridge.util.GB;
 
 /**
@@ -98,9 +99,9 @@ public class F91KeplerPairAgainReceiver extends BroadcastReceiver {
             GBApplication.deviceService(device).disconnect();
             final BluetoothDevice bt = BluetoothAdapter.getDefaultAdapter().getRemoteDevice(device.getAddress());
             if (bt.getBondState() != BluetoothDevice.BOND_NONE) {
-                // Hidden but long-standing API; BondingUtil uses it the same way.
-                final boolean asked = (boolean) bt.getClass().getMethod("removeBond").invoke(bt);
-                LOG.info("pair again: removeBond({}) -> {}", device.getAddress(), asked);
+                // GB's own unpair: CompanionDeviceManager where available, else removeBond
+                final boolean asked = BondingUtil.Unpair(context, device.getAddress());
+                LOG.info("pair again: unpair({}) -> {}", device.getAddress(), asked);
                 final long until = System.currentTimeMillis() + BOND_DROP_WAIT_MS;
                 while (bt.getBondState() != BluetoothDevice.BOND_NONE && System.currentTimeMillis() < until) {
                     Thread.sleep(200);

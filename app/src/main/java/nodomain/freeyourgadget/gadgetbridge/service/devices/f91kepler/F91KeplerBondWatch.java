@@ -36,16 +36,32 @@ public final class F91KeplerBondWatch {
     private boolean initializedThisLink;
     private boolean offered;
 
-    /** HCI disconnect reasons and GATT statuses that mean "keys did not work". */
-    static boolean isSecurityStatus(final int status) {
+    /**
+     * Disconnect reasons (HCI codes, as onConnectionStateChange reports them)
+     * that mean "the keys did not work". The same numbers mean other things as
+     * GATT statuses, so reads and writes use {@link #isSecurityGattStatus}.
+     */
+    static boolean isSecurityDisconnect(final int status) {
         switch (status) {
-            case 0x05: // HCI authentication failure / GATT_INSUFFICIENT_AUTHENTICATION
-            case 0x06: // HCI PIN or key missing: the peer has no key for us
+            case 0x05: // authentication failure
+            case 0x06: // PIN or key missing: the peer has no key for us
+            case 0x3D: // connection terminated due to MIC failure
+            case 0x89: // GATT_AUTH_FAIL, as some stacks report it on disconnect
+                return true;
+            default:
+                return false;
+        }
+    }
+
+    /** GATT read/write statuses that mean "the link is not secure enough". */
+    static boolean isSecurityGattStatus(final int status) {
+        switch (status) {
+            case 0x05: // GATT_INSUFFICIENT_AUTHENTICATION
             case 0x0F: // GATT_INSUFFICIENT_ENCRYPTION
-            case 0x3D: // HCI connection terminated due to MIC failure
             case 0x89: // GATT_AUTH_FAIL
                 return true;
             default:
+                // not 0x06: as a GATT status that is REQUEST_NOT_SUPPORTED
                 return false;
         }
     }
@@ -57,7 +73,7 @@ public final class F91KeplerBondWatch {
 
     /** A read or write on this link failed; status as Android reported it. */
     public synchronized void onOperationStatus(final int status) {
-        if (isSecurityStatus(status)) {
+        if (isSecurityGattStatus(status)) {
             authFailureThisLink = true;
         }
     }
@@ -77,7 +93,7 @@ public final class F91KeplerBondWatch {
      *               one, the next connect simply pairs anew and nothing is stale
      */
     public synchronized boolean onLinkDown(final int status, final boolean bonded) {
-        final boolean failed = !initializedThisLink && (authFailureThisLink || isSecurityStatus(status));
+        final boolean failed = !initializedThisLink && (authFailureThisLink || isSecurityDisconnect(status));
         authFailureThisLink = false;
         initializedThisLink = false;
         if (!bonded || !failed) {

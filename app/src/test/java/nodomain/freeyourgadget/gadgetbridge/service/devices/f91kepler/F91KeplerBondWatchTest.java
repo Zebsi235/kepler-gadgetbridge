@@ -77,4 +77,16 @@ public class F91KeplerBondWatchTest {
         assertFalse(link(w, KEY_MISSING, false));
         assertEquals(0, w.failedLinks());
     }
+
+    @Test
+    public void anUnsupportedRequestIsNotAKeyFailure() {
+        // GATT 0x06 = REQUEST_NOT_SUPPORTED on a read/write, unlike HCI 0x06 on a disconnect
+        final F91KeplerBondWatch w = new F91KeplerBondWatch();
+        for (int i = 0; i < 3; i++) {
+            w.onLinkUp();
+            w.onOperationStatus(0x06);
+            assertFalse(w.onLinkDown(0x13, true));
+        }
+        assertEquals(0, w.failedLinks());
+    }
 }

@@ -297,11 +297,6 @@ public class F91KeplerSupport extends AbstractBTLESingleDeviceSupport {
         }
     }
 
-    /**
-     * ImageControl (A3F2) reads report {@code [valid][xor8]}, which is the watch's
-     * own account of the image it is holding. Every image decision runs through
-     * this one answer -- see {@link #reconcileImage}.
-     */
     private F91KeplerBondWatch bondWatch() {
         return BOND_WATCHES.computeIfAbsent(getDevice().getAddress(), a -> new F91KeplerBondWatch());
     }
@@ -328,6 +323,11 @@ public class F91KeplerSupport extends AbstractBTLESingleDeviceSupport {
         }
     }
 
+    /**
+     * ImageControl (A3F2) reads report {@code [valid][xor8]}, which is the watch's
+     * own account of the image it is holding. Every image decision runs through
+     * this one answer -- see {@link #reconcileImage}.
+     */
     @Override
     public boolean onCharacteristicRead(final BluetoothGatt gatt,
                                         final BluetoothGattCharacteristic characteristic,
