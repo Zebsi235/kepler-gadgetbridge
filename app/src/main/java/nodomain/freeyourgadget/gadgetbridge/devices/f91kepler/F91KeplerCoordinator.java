@@ -57,6 +57,14 @@ public class F91KeplerCoordinator extends AbstractBLEDeviceCoordinator {
     }
 
     @Override
+    public boolean prefersScanReconnect() {
+        // After 2 h without a phone the watch advertises one 2-second burst per
+        // minute. Direct retries back off to 64 s and Doze stretches them to
+        // minutes, so they keep missing the burst; a filtered scan catches it.
+        return true;
+    }
+
+    @Override
     public int getBondingStyle() {
         // Bond after discovery. F91 firmware v2.0.x requires an encrypted
         // (bonded) link for every clock/notification characteristic

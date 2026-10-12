@@ -392,18 +392,26 @@ public class DeviceCommunicationService extends Service implements SharedPrefere
         }
 
         startForeground();
-        if (reconnectViaScan) {
-            scanAllDevices();
-
+        if (scanAllDevices()) {
             Intent scanServiceIntent = new Intent(this, BLEScanService.class);
             startService(scanServiceIntent);
         }
     }
 
-    private void scanAllDevices() {
+    /** Global "reconnect by BLE scan", or a device that prefers it (Kepler). */
+    private boolean reconnectsViaScan(final GBDevice device) {
+        return reconnectViaScan || device.getDeviceCoordinator().prefersScanReconnect();
+    }
+
+    /** Puts every device that reconnects by scan into WAITING_FOR_SCAN; true if any. */
+    private boolean scanAllDevices() {
+        boolean any = false;
         List<GBDevice> devices = GBApplication.app().getDeviceManager().getDevices();
         for (GBDevice device : devices) {
             if (!device.getDeviceCoordinator().getConnectionType().usesBluetoothLE()) {
+                continue;
+            }
+            if (!reconnectsViaScan(device)) {
                 continue;
             }
             if (device.getState() != GBDevice.State.NOT_CONNECTED) {
@@ -415,7 +423,9 @@ public class DeviceCommunicationService extends Service implements SharedPrefere
             }
             createDeviceStruct(device);
             device.setUpdateState(GBDevice.State.WAITING_FOR_SCAN, this);
+            any = true;
         }
+        return any || reconnectViaScan;
     }
 
     private DeviceStruct createDeviceStruct(GBDevice target) {
@@ -550,11 +560,18 @@ public class DeviceCommunicationService extends Service implements SharedPrefere
                 if (deviceSupport != null) {
                     try {
                         final boolean connected;
+                        final boolean viaScan = reconnectsViaScan(gbDevice);
+                        if (viaScan) {
+                            // idempotent; needed when only this device uses scans
+                            startService(new Intent(this, BLEScanService.class));
+                        }
                         if (firstTime) {
+                            // a later drop must already reconnect the device's way
+                            deviceSupport.setScanReconnect(viaScan);
                             connected = deviceSupport.connectFirstTime();
                         } else {
                             deviceSupport.setAutoReconnect(autoReconnect);
-                            deviceSupport.setScanReconnect(reconnectViaScan);
+                            deviceSupport.setScanReconnect(viaScan);
                             if (BuildConfig.DEBUG) {
                                 connected = stressTestConnect(deviceSupport);
                             } else {
