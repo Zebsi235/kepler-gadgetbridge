@@ -16,8 +16,10 @@
     along with this program.  If not, see <https://www.gnu.org/licenses/>. */
 package nodomain.freeyourgadget.gadgetbridge.service.devices.f91kepler;
 
+import android.bluetooth.BluetoothDevice;
 import android.bluetooth.BluetoothGatt;
 import android.bluetooth.BluetoothGattCharacteristic;
+import android.bluetooth.BluetoothProfile;
 import android.content.Intent;
 import android.content.SharedPreferences;
 import android.text.format.DateFormat;
@@ -34,7 +36,9 @@ import java.util.Calendar;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.TimeZone;
+import java.util.concurrent.ConcurrentHashMap;
 
 import nodomain.freeyourgadget.gadgetbridge.GBApplication;
 import nodomain.freeyourgadget.gadgetbridge.R;
@@ -88,6 +92,9 @@ import nodomain.freeyourgadget.gadgetbridge.service.btle.profiles.deviceinfo.Dev
  */
 public class F91KeplerSupport extends AbstractBTLESingleDeviceSupport {
     private static final Logger LOG = LoggerFactory.getLogger(F91KeplerSupport.class);
+
+    /** Per watch address, so it outlives a support object re-created for a reconnect. */
+    private static final Map<String, F91KeplerBondWatch> BOND_WATCHES = new ConcurrentHashMap<>();
 
     private final GBDeviceEventBatteryInfo batteryCmd = new GBDeviceEventBatteryInfo();
     private final GBDeviceEventVersionInfo versionCmd = new GBDeviceEventVersionInfo();
@@ -193,6 +200,8 @@ public class F91KeplerSupport extends AbstractBTLESingleDeviceSupport {
         addRadioSchedule(builder);
         deviceInfoProfile.requestDeviceInfo(builder);
         builder.setDeviceState(GBDevice.State.INITIALIZED);
+        // The encrypted writes above went through: the bond is good.
+        builder.run(this::onLinkInitialized);
         batteryInfoProfile.requestBatteryInfo(builder);
         batteryInfoProfile.enableNotify(builder, true);
         // Subscribe to the Music Control PlaybackCmd notify (P6): the watch is a
@@ -288,6 +297,32 @@ public class F91KeplerSupport extends AbstractBTLESingleDeviceSupport {
         }
     }
 
+    private F91KeplerBondWatch bondWatch() {
+        return BOND_WATCHES.computeIfAbsent(getDevice().getAddress(), a -> new F91KeplerBondWatch());
+    }
+
+    private void onLinkInitialized() {
+        bondWatch().onInitialized();
+        F91KeplerPairAgainReceiver.cancelNotification(getContext());
+    }
+
+    @Override
+    public void onConnectionStateChange(final BluetoothGatt gatt, final int status, final int newState) {
+        super.onConnectionStateChange(gatt, status, newState);
+        if (newState == BluetoothProfile.STATE_CONNECTED) {
+            bondWatch().onLinkUp();
+        } else if (newState == BluetoothProfile.STATE_DISCONNECTED) {
+            final boolean bonded = gatt.getDevice().getBondState() == BluetoothDevice.BOND_BONDED;
+            final boolean offer = bondWatch().onLinkDown(status, bonded);
+            LOG.info("F91 link down: status {} bonded {} failed links in a row {}",
+                    status, bonded, bondWatch().failedLinks());
+            if (offer) {
+                LOG.warn("F91 watch seems to have lost its keys for this phone: offering to pair again");
+                F91KeplerPairAgainReceiver.showNotification(getContext(), getDevice());
+            }
+        }
+    }
+
     /**
      * ImageControl (A3F2) reads report {@code [valid][xor8]}, which is the watch's
      * own account of the image it is holding. Every image decision runs through
@@ -297,6 +332,9 @@ public class F91KeplerSupport extends AbstractBTLESingleDeviceSupport {
     public boolean onCharacteristicRead(final BluetoothGatt gatt,
                                         final BluetoothGattCharacteristic characteristic,
                                         final byte[] value, final int status) {
+        if (status != BluetoothGatt.GATT_SUCCESS) {
+            bondWatch().onOperationStatus(status);
+        }
         if (F91KeplerConstants.UUID_CHAR_IMAGE_CONTROL.equals(characteristic.getUuid())) {
             reconcileImage(status == BluetoothGatt.GATT_SUCCESS ? value : null);
             return true;
@@ -319,6 +357,9 @@ public class F91KeplerSupport extends AbstractBTLESingleDeviceSupport {
     public boolean onCharacteristicWrite(final BluetoothGatt gatt,
                                          final BluetoothGattCharacteristic characteristic,
                                          final int status) {
+        if (status != BluetoothGatt.GATT_SUCCESS) {
+            bondWatch().onOperationStatus(status);
+        }
         if (status != BluetoothGatt.GATT_SUCCESS && characteristic != null
                 && (F91KeplerConstants.UUID_CHAR_IMAGE_CHUNK.equals(characteristic.getUuid())
                     || F91KeplerConstants.UUID_CHAR_IMAGE_CONTROL.equals(characteristic.getUuid()))) {

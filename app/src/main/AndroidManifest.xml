@@ -682,6 +682,10 @@
         </receiver>
 
         <receiver
+            android:name=".service.devices.f91kepler.F91KeplerPairAgainReceiver"
+            android:exported="false" />
+
+        <receiver
             android:name=".externalevents.AutoStartReceiver"
             android:permission="android.permission.RECEIVE_BOOT_COMPLETED"
             android:exported="false">

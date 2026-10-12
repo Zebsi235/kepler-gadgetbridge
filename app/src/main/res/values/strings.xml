@@ -5647,4 +5647,9 @@
     <string name="gpx_include_navigation_straight">Include \'Continue straight\' instructions</string>
     <string name="gpx_roundabout_exit">Exit %1$d</string>
     <string name="pref_title_connect_to_this_device_when_another_device_connects">Connect to this device when another device connects</string>
+    <string name="f91kepler_pair_again_title">Watch no longer recognises this phone</string>
+    <string name="f91kepler_pair_again_text">%1$s was reset or re-paired elsewhere and lost its pairing with this phone, so it cannot connect. Tap Pair again to remove the old pairing and pair anew.</string>
+    <string name="f91kepler_pair_again_action">Pair again</string>
+    <string name="f91kepler_pair_again_toast">Pairing again with the watch. Accept the pairing request if Android asks.</string>
+    <string name="f91kepler_pair_again_failed">Could not remove the old pairing. Forget the watch in Android\'s Bluetooth settings, then connect again.</string>
 </resources>

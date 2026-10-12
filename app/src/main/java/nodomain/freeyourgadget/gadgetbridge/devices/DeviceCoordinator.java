@@ -188,6 +188,17 @@ public interface DeviceCoordinator {
     boolean isConnectable();
 
     /**
+     * Whether this device should reconnect by waiting for its advertisement (a
+     * filtered BLE scan) rather than by direct connect attempts, even when the
+     * global "reconnect by BLE scan" setting is off. Worth it for devices that
+     * advertise rarely after a long absence: direct retries back off, and Doze
+     * stretches them further, while a filtered scan catches the next burst.
+     */
+    default boolean prefersScanReconnect() {
+        return false;
+    }
+
+    /**
      * Checks whether this coordinator handles the given candidate.
      *
      * @param candidate
