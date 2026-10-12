@@ -17,6 +17,8 @@
     along with this program.  If not, see <https://www.gnu.org/licenses/>. */
 package nodomain.freeyourgadget.gadgetbridge.service.receivers;
 
+import android.app.Notification;
+import android.app.PendingIntent;
 import android.content.BroadcastReceiver;
 import android.content.ComponentName;
 import android.content.Context;
@@ -28,16 +30,22 @@ import android.media.session.MediaSessionManager;
 import android.media.session.PlaybackState;
 import android.os.Build;
 import android.os.SystemClock;
+import android.provider.Settings;
 import android.view.KeyEvent;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.util.ArrayList;
 import java.util.List;
 
+import androidx.core.app.NotificationCompat;
+
 import nodomain.freeyourgadget.gadgetbridge.GBApplication;
+import nodomain.freeyourgadget.gadgetbridge.R;
 import nodomain.freeyourgadget.gadgetbridge.deviceevents.GBDeviceEventMusicControl;
 import nodomain.freeyourgadget.gadgetbridge.externalevents.NotificationListener;
+import nodomain.freeyourgadget.gadgetbridge.util.GB;
 import nodomain.freeyourgadget.gadgetbridge.util.GBPrefs;
 import nodomain.freeyourgadget.gadgetbridge.util.Prefs;
 
@@ -149,7 +157,15 @@ public class GBMusicControlReceiver extends BroadcastReceiver {
                         return;
                     }
                 } else {
-                    controller = controllers.get(0);
+                    // The first active session is not necessarily the one playing
+                    // (a paused player that was used last can come first), and
+                    // play/pause, next and previous should steer what is audible.
+                    final List<Integer> states = new ArrayList<>(controllers.size());
+                    for (final MediaController c : controllers) {
+                        final PlaybackState ps = c.getPlaybackState();
+                        states.add(ps != null ? ps.getState() : PlaybackState.STATE_NONE);
+                    }
+                    controller = controllers.get(pickControllerIndex(states));
                 }
 
                 LOG.debug("Will send {} to media controller for {}", musicCmd, controller.getPackageName());
@@ -198,11 +214,66 @@ public class GBMusicControlReceiver extends BroadcastReceiver {
                         controller.getTransportControls().fastForward();
                 }
             } catch (final SecurityException e) {
+                // Without notification access the sessions are invisible. The
+                // media key still reaches whichever player Android routes keys
+                // to, and the user learns why it may be the wrong one.
                 LOG.warn("Failed to get media controller - did not grant notification access?", e);
+                broadcastMediaKeyEvent(eventTime, keyCode, audioManager);
+                notifyMissingNotificationAccess(context);
             } catch (final Exception e) {
                 LOG.error("Failed to get media controller", e);
             }
         }
+    }
+
+    /**
+     * Index of the session to steer: the first one that is playing (or about to),
+     * else the first, which is the most recently active one.
+     */
+    static int pickControllerIndex(final List<Integer> playbackStates) {
+        for (int i = 0; i < playbackStates.size(); i++) {
+            switch (playbackStates.get(i)) {
+                case PlaybackState.STATE_PLAYING:
+                case PlaybackState.STATE_BUFFERING:
+                case PlaybackState.STATE_CONNECTING:
+                case PlaybackState.STATE_FAST_FORWARDING:
+                case PlaybackState.STATE_REWINDING:
+                case PlaybackState.STATE_SKIPPING_TO_NEXT:
+                case PlaybackState.STATE_SKIPPING_TO_PREVIOUS:
+                case PlaybackState.STATE_SKIPPING_TO_QUEUE_ITEM:
+                    return i;
+                default:
+                    break;
+            }
+        }
+        return 0;
+    }
+
+    static final String PREF_LAST_MUSIC_ACCESS_HINT = "music_control_access_hint_last";
+    static final long MUSIC_ACCESS_HINT_INTERVAL_MS = 6 * 60 * 60 * 1000L;
+
+    /** At most every few hours: a hint that opens Android's notification access settings. */
+    private static void notifyMissingNotificationAccess(final Context context) {
+        final Prefs prefs = GBApplication.getPrefs();
+        final long now = System.currentTimeMillis();
+        if (now - prefs.getLong(PREF_LAST_MUSIC_ACCESS_HINT, 0) < MUSIC_ACCESS_HINT_INTERVAL_MS) {
+            return;
+        }
+        prefs.getPreferences().edit().putLong(PREF_LAST_MUSIC_ACCESS_HINT, now).apply();
+
+        final Intent settings = new Intent(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS);
+        settings.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+        final Notification notification = new NotificationCompat.Builder(context, GB.NOTIFICATION_CHANNEL_ID_DEVICE_WARNINGS)
+                .setSmallIcon(R.drawable.ic_warning)
+                .setContentTitle(context.getString(R.string.music_control_access_title))
+                .setContentText(context.getString(R.string.music_control_access_text))
+                .setStyle(new NotificationCompat.BigTextStyle()
+                        .bigText(context.getString(R.string.music_control_access_text)))
+                .setAutoCancel(true)
+                .setContentIntent(PendingIntent.getActivity(context, 0, settings,
+                        PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE))
+                .build();
+        GB.notify(GB.NOTIFICATION_ID_MUSIC_ACCESS, notification, context);
     }
 
     private static void broadcastMediaKeyEvent(final long eventTime, final int keyCode, final AudioManager audioManager) {

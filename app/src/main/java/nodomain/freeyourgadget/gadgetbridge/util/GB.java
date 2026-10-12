@@ -94,6 +94,7 @@ public class GB {
     public static final int NOTIFICATION_ID_SCAN = 8;
     public static final int NOTIFICATION_ID_PEBBLE_JS = 10;
     public static final int NOTIFICATION_ID_ERROR = 42;
+    public static final int NOTIFICATION_ID_MUSIC_ACCESS = 43;
 
     private static final Logger LOG = LoggerFactory.getLogger(GB.class);
     public static final int INFO = 1;
