@@ -196,6 +196,12 @@ public class GBMusicControlReceiver extends BroadcastReceiver {
                                     controller.getTransportControls().play();
                                     return;
                                 case PlaybackState.STATE_PLAYING:
+                                case PlaybackState.STATE_BUFFERING:
+                                case PlaybackState.STATE_CONNECTING:
+                                case PlaybackState.STATE_SKIPPING_TO_NEXT:
+                                case PlaybackState.STATE_SKIPPING_TO_PREVIOUS:
+                                case PlaybackState.STATE_SKIPPING_TO_QUEUE_ITEM:
+                                    // about to be audible: play/pause means stop it
                                     controller.getTransportControls().pause();
                                     return;
                                 default:
