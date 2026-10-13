@@ -89,4 +89,36 @@ public class F91KeplerBondWatchTest {
         }
         assertEquals(0, w.failedLinks());
     }
+
+    @Test
+    public void aLinkStuckAfterASecurityFailureWaitsForPairingThenDrops() {
+        final F91KeplerBondWatch w = new F91KeplerBondWatch();
+        w.onLinkUp();
+        assertEquals(F91KeplerBondWatch.StuckLink.NONE, w.stuckLink(false));
+        assertTrue("before initialising", w.onOperationStatus(AUTH));
+        assertEquals(F91KeplerBondWatch.StuckLink.WAIT, w.stuckLink(true));
+        assertEquals(F91KeplerBondWatch.StuckLink.DROP, w.stuckLink(false));
+        // the dropped link is then counted like any other failed one
+        assertFalse(w.onLinkDown(0x16, true));
+        assertEquals(1, w.failedLinks());
+    }
+
+    @Test
+    public void anInitialisedLinkIsNeverDropped() {
+        final F91KeplerBondWatch w = new F91KeplerBondWatch();
+        w.onLinkUp();
+        w.onInitialized();
+        assertFalse("after initialising", w.onOperationStatus(AUTH));
+        assertEquals(F91KeplerBondWatch.StuckLink.NONE, w.stuckLink(false));
+        assertFalse("not a security status", w.onOperationStatus(GATT_ERROR));
+    }
+
+    @Test
+    public void aNewLinkForgetsTheLastLinksSecurityFailure() {
+        final F91KeplerBondWatch w = new F91KeplerBondWatch();
+        w.onLinkUp();
+        w.onOperationStatus(AUTH);
+        w.onLinkUp();
+        assertEquals(F91KeplerBondWatch.StuckLink.NONE, w.stuckLink(false));
+    }
 }
