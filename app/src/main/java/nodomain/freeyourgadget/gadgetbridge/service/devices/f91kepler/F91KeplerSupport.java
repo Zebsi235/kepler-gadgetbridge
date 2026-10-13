@@ -20,10 +20,10 @@ import android.bluetooth.BluetoothDevice;
 import android.bluetooth.BluetoothGatt;
 import android.bluetooth.BluetoothGattCharacteristic;
 import android.bluetooth.BluetoothProfile;
-import android.os.Handler;
-import android.os.Looper;
 import android.content.Intent;
 import android.content.SharedPreferences;
+import android.os.Handler;
+import android.os.Looper;
 import android.text.format.DateFormat;
 import android.widget.Toast;
 
@@ -305,24 +305,38 @@ public class F91KeplerSupport extends AbstractBTLESingleDeviceSupport {
 
     /** Delay between checks on a link stuck after a security failure. */
     private static final long STUCK_CHECK_MS = 5_000;
-    /** Checks before the link is dropped even while Android still says pairing. */
+    /** Checks (2 min) before the link is dropped even while Android still says pairing. */
     private static final int STUCK_CHECKS_MAX = 24;
+    /**
+     * Longest wait before dropping a link without a bond. Each such drop
+     * reconnects and Android asks to pair again, so the wait doubles up to this
+     * to keep an unanswered pairing dialog from popping up every few seconds.
+     */
+    private static final long STUCK_UNBONDED_MAX_MS = 5 * 60_000;
     private final Handler stuckHandler = new Handler(Looper.getMainLooper());
+    /** Links dropped without a bond since the last initialisation. */
+    private int unbondedDrops;
 
     /** See {@link F91KeplerBondWatch#stuckLink}. */
     private void watchStuckLink(final BluetoothGatt gatt) {
         stuckHandler.removeCallbacksAndMessages(null);
+        final long firstDelay = Math.min(STUCK_CHECK_MS << Math.min(unbondedDrops, 6), STUCK_UNBONDED_MAX_MS);
         stuckHandler.postDelayed(new Runnable() {
             private int checks;
 
             @Override
             public void run() {
-                final boolean bonding = gatt.getDevice().getBondState() == BluetoothDevice.BOND_BONDING;
-                switch (bondWatch().stuckLink(bonding && ++checks < STUCK_CHECKS_MAX)) {
+                final int bondState = gatt.getDevice().getBondState();
+                checks++;
+                final boolean bonding = bondState == BluetoothDevice.BOND_BONDING && checks < STUCK_CHECKS_MAX;
+                switch (bondWatch().stuckLink(bonding)) {
                     case WAIT:
                         stuckHandler.postDelayed(this, STUCK_CHECK_MS);
                         break;
                     case DROP:
+                        if (bondState != BluetoothDevice.BOND_BONDED) {
+                            unbondedDrops++;
+                        }
                         LOG.warn("F91 link failed the security step and did not end: disconnecting so it reconnects");
                         gatt.disconnect();
                         break;
@@ -330,7 +344,7 @@ public class F91KeplerSupport extends AbstractBTLESingleDeviceSupport {
                         break;
                 }
             }
-        }, STUCK_CHECK_MS);
+        }, firstDelay);
     }
 
     @Override
@@ -340,6 +354,7 @@ public class F91KeplerSupport extends AbstractBTLESingleDeviceSupport {
     }
 
     private void onLinkInitialized() {
+        unbondedDrops = 0;
         bondWatch().onInitialized();
         F91KeplerPairAgainReceiver.cancelNotification(getContext());
     }

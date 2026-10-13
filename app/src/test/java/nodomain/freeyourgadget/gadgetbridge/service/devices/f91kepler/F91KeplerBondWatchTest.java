@@ -112,4 +112,13 @@ public class F91KeplerBondWatchTest {
         assertEquals(F91KeplerBondWatch.StuckLink.NONE, w.stuckLink(false));
         assertFalse("not a security status", w.onOperationStatus(GATT_ERROR));
     }
+
+    @Test
+    public void aNewLinkForgetsTheLastLinksSecurityFailure() {
+        final F91KeplerBondWatch w = new F91KeplerBondWatch();
+        w.onLinkUp();
+        w.onOperationStatus(AUTH);
+        w.onLinkUp();
+        assertEquals(F91KeplerBondWatch.StuckLink.NONE, w.stuckLink(false));
+    }
 }
