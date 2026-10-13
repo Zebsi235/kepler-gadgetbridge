@@ -20,6 +20,8 @@ import android.bluetooth.BluetoothDevice;
 import android.bluetooth.BluetoothGatt;
 import android.bluetooth.BluetoothGattCharacteristic;
 import android.bluetooth.BluetoothProfile;
+import android.os.Handler;
+import android.os.Looper;
 import android.content.Intent;
 import android.content.SharedPreferences;
 import android.text.format.DateFormat;
@@ -301,6 +303,42 @@ public class F91KeplerSupport extends AbstractBTLESingleDeviceSupport {
         return BOND_WATCHES.computeIfAbsent(getDevice().getAddress(), a -> new F91KeplerBondWatch());
     }
 
+    /** Delay between checks on a link stuck after a security failure. */
+    private static final long STUCK_CHECK_MS = 5_000;
+    /** Checks before the link is dropped even while Android still says pairing. */
+    private static final int STUCK_CHECKS_MAX = 24;
+    private final Handler stuckHandler = new Handler(Looper.getMainLooper());
+
+    /** See {@link F91KeplerBondWatch#stuckLink}. */
+    private void watchStuckLink(final BluetoothGatt gatt) {
+        stuckHandler.removeCallbacksAndMessages(null);
+        stuckHandler.postDelayed(new Runnable() {
+            private int checks;
+
+            @Override
+            public void run() {
+                final boolean bonding = gatt.getDevice().getBondState() == BluetoothDevice.BOND_BONDING;
+                switch (bondWatch().stuckLink(bonding && ++checks < STUCK_CHECKS_MAX)) {
+                    case WAIT:
+                        stuckHandler.postDelayed(this, STUCK_CHECK_MS);
+                        break;
+                    case DROP:
+                        LOG.warn("F91 link failed the security step and did not end: disconnecting so it reconnects");
+                        gatt.disconnect();
+                        break;
+                    default:
+                        break;
+                }
+            }
+        }, STUCK_CHECK_MS);
+    }
+
+    @Override
+    public void dispose() {
+        stuckHandler.removeCallbacksAndMessages(null);
+        super.dispose();
+    }
+
     private void onLinkInitialized() {
         bondWatch().onInitialized();
         F91KeplerPairAgainReceiver.cancelNotification(getContext());
@@ -312,6 +350,7 @@ public class F91KeplerSupport extends AbstractBTLESingleDeviceSupport {
         if (newState == BluetoothProfile.STATE_CONNECTED) {
             bondWatch().onLinkUp();
         } else if (newState == BluetoothProfile.STATE_DISCONNECTED) {
+            stuckHandler.removeCallbacksAndMessages(null);
             final boolean bonded = gatt.getDevice().getBondState() == BluetoothDevice.BOND_BONDED;
             final boolean offer = bondWatch().onLinkDown(status, bonded);
             LOG.info("F91 link down: status {} bonded {} failed links in a row {}",
@@ -332,8 +371,8 @@ public class F91KeplerSupport extends AbstractBTLESingleDeviceSupport {
     public boolean onCharacteristicRead(final BluetoothGatt gatt,
                                         final BluetoothGattCharacteristic characteristic,
                                         final byte[] value, final int status) {
-        if (status != BluetoothGatt.GATT_SUCCESS) {
-            bondWatch().onOperationStatus(status);
+        if (status != BluetoothGatt.GATT_SUCCESS && bondWatch().onOperationStatus(status)) {
+            watchStuckLink(gatt);
         }
         if (F91KeplerConstants.UUID_CHAR_IMAGE_CONTROL.equals(characteristic.getUuid())) {
             reconcileImage(status == BluetoothGatt.GATT_SUCCESS ? value : null);
@@ -357,8 +396,8 @@ public class F91KeplerSupport extends AbstractBTLESingleDeviceSupport {
     public boolean onCharacteristicWrite(final BluetoothGatt gatt,
                                          final BluetoothGattCharacteristic characteristic,
                                          final int status) {
-        if (status != BluetoothGatt.GATT_SUCCESS) {
-            bondWatch().onOperationStatus(status);
+        if (status != BluetoothGatt.GATT_SUCCESS && bondWatch().onOperationStatus(status)) {
+            watchStuckLink(gatt);
         }
         if (status != BluetoothGatt.GATT_SUCCESS && characteristic != null
                 && (F91KeplerConstants.UUID_CHAR_IMAGE_CHUNK.equals(characteristic.getUuid())

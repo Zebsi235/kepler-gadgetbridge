@@ -71,11 +71,36 @@ public final class F91KeplerBondWatch {
         initializedThisLink = false;
     }
 
-    /** A read or write on this link failed; status as Android reported it. */
-    public synchronized void onOperationStatus(final int status) {
+    /**
+     * A read or write on this link failed; status as Android reported it.
+     * Returns true when it failed the security step before initialising.
+     */
+    public synchronized boolean onOperationStatus(final int status) {
         if (isSecurityGattStatus(status)) {
             authFailureThisLink = true;
+            return !initializedThisLink;
         }
+        return false;
+    }
+
+    /** What a link that failed the security step before initialising should do next. */
+    public enum StuckLink { NONE, WAIT, DROP }
+
+    /**
+     * A security failure aborts the initialisation transaction but need not end
+     * the link: Android may keep it up, and Gadgetbridge then shows "Connecting"
+     * forever. Asked a few seconds after such a failure: wait while Android is
+     * still pairing (dropping the link would cancel the pairing), otherwise
+     * drop the link so the usual reconnect runs, with the new keys if pairing
+     * just finished, and so {@link #onLinkDown} counts the failed link.
+     *
+     * @param bonding whether Android is pairing with the watch right now
+     */
+    public synchronized StuckLink stuckLink(final boolean bonding) {
+        if (initializedThisLink || !authFailureThisLink) {
+            return StuckLink.NONE;
+        }
+        return bonding ? StuckLink.WAIT : StuckLink.DROP;
     }
 
     public synchronized void onInitialized() {
