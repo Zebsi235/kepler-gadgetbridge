@@ -1066,7 +1066,7 @@ public final class BtLEQueue implements Thread.UncaughtExceptionHandler {
         @Override
         public void onConnectionStateChange(BluetoothDevice device, int status, int newState) {
             LOG.debug("server onConnectionStateChange: {} {}",
-                    BleNamesResolver.getStatusString(status),
+                    BleNamesResolver.getConnectionStatusString(status),
                     BleNamesResolver.getStateString(newState));
 
             if(!checkCorrectBluetoothDevice(device)) {
@@ -1074,7 +1074,7 @@ public final class BtLEQueue implements Thread.UncaughtExceptionHandler {
             }
 
             if (status != BluetoothGatt.GATT_SUCCESS) {
-                LOG.warn("server onConnectionStateChange with status: {}", BleNamesResolver.getStatusString(status));
+                LOG.warn("server onConnectionStateChange with status: {}", BleNamesResolver.getConnectionStatusString(status));
             }
         }
 
