@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- The Kepler logo mark (orbit, core, satellite), as on the shop's logo-kepler.svg
+     and the companion app's kepler_mark. Greyed by the device list while offline. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="45sp"
+    android:height="45sp"
+    android:viewportWidth="40"
+    android:viewportHeight="40">
+    <group
+        android:pivotX="20"
+        android:pivotY="20"
+        android:rotation="-22">
+        <path
+            android:fillColor="#00000000"
+            android:pathData="M3,20a17,8 0,1 0,34 0a17,8 0,1 0,-34 0z"
+            android:strokeWidth="2"
+            android:strokeColor="#FF6EE7D6" />
+    </group>
+    <path
+        android:fillColor="#FF6EE7D6"
+        android:pathData="M15.5,20a4.5,4.5 0,1 0,9 0a4.5,4.5 0,1 0,-9 0z" />
+    <path
+        android:fillColor="#FFF5B14C"
+        android:pathData="M32,11a2,2 0,1 0,4 0a2,2 0,1 0,-4 0z" />
+</vector>

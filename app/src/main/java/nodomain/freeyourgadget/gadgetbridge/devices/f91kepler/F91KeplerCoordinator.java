@@ -42,7 +42,9 @@ import nodomain.freeyourgadget.gadgetbridge.service.devices.f91kepler.F91KeplerS
 public class F91KeplerCoordinator extends AbstractBLEDeviceCoordinator {
     @Override
     protected Pattern getSupportedDeviceName() {
-        return Pattern.compile("F91 Kepler");
+        // Today's firmware advertises "F91 Kepler"; plain "Kepler" is accepted
+        // too so a later rename of the advertised name does not lock the app out.
+        return Pattern.compile("(F91 )?Kepler");
     }
 
     @NonNull
@@ -53,7 +55,7 @@ public class F91KeplerCoordinator extends AbstractBLEDeviceCoordinator {
 
     @Override
     public String getManufacturer() {
-        return "Zebsi235";
+        return "Kepler";
     }
 
     @Override
@@ -168,6 +170,6 @@ public class F91KeplerCoordinator extends AbstractBLEDeviceCoordinator {
 
     @Override
     public int getDefaultIconResource() {
-        return R.drawable.ic_device_default;
+        return R.drawable.ic_device_kepler;
     }
 }
