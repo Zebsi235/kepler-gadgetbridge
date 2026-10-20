@@ -1,7 +1,7 @@
 Kepler Gadgetbridge
 ===================
 
-The Android app for the **Kepler F91** watch ([kepler.watch](https://kepler.watch)).
+The Android app for the **Kepler** watch ([kepler.watch](https://kepler.watch)).
 It is a fork of [Gadgetbridge](https://codeberg.org/Freeyourgadget/Gadgetbridge) with
 support for the Kepler watch added: notifications, time sync, weather, music control,
 alarms, find my phone, screen order, image mode, brightness and sleep times.
