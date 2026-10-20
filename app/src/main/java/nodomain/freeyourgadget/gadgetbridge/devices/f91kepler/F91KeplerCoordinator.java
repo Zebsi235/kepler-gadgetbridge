@@ -27,6 +27,8 @@ import nodomain.freeyourgadget.gadgetbridge.R;
 import nodomain.freeyourgadget.gadgetbridge.activities.devicesettings.DeviceSpecificSettingsCustomizer;
 import nodomain.freeyourgadget.gadgetbridge.devices.AbstractBLEDeviceCoordinator;
 import nodomain.freeyourgadget.gadgetbridge.impl.GBDevice;
+import nodomain.freeyourgadget.gadgetbridge.impl.GBDeviceCandidate;
+import nodomain.freeyourgadget.gadgetbridge.model.DeviceType;
 import nodomain.freeyourgadget.gadgetbridge.service.DeviceSupport;
 import nodomain.freeyourgadget.gadgetbridge.service.devices.f91kepler.F91KeplerSupport;
 
@@ -45,6 +47,18 @@ public class F91KeplerCoordinator extends AbstractBLEDeviceCoordinator {
         // Today's firmware advertises "F91 Kepler"; plain "Kepler" is accepted
         // too so a later rename of the advertised name does not lock the app out.
         return Pattern.compile("(F91 )?Kepler");
+    }
+
+    /** A new watch is shown as "Kepler" (the advertised "F91 Kepler" stays its name); renaming still works. */
+    @Override
+    public GBDevice createDevice(final GBDeviceCandidate candidate, final DeviceType deviceType) {
+        final GBDevice device = super.createDevice(candidate, deviceType);
+        device.setAlias(displayName(candidate.getName()));
+        return device;
+    }
+
+    static String displayName(final String advertised) {
+        return advertised != null && advertised.startsWith("F91 ") ? advertised.substring(4) : advertised;
     }
 
     @NonNull
