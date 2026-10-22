@@ -399,4 +399,16 @@ public class F91KeplerProtocolTest {
         assertEquals(null, F91KeplerProtocol.alarmSound(read, 1));
         assertEquals(null, F91KeplerProtocol.alarmSound(new byte[]{0x06, 0x02, 0x41, 0x09, 0x01}, 2));
     }
+
+    @Test
+    public void soundWritesKeepAllAlarmsOff() {
+        // firmware 3.2.2: bit 14 = all alarms off, set on the watch
+        final byte[] cfg = {0x0C, 0x40, 0x28, 0x05, (byte) 0xA4, 0x01, 0x0F, 0x3C};
+        final int flags = F91KeplerProtocol.soundFlagWith(F91KeplerProtocol.soundFlags(cfg), F91KeplerConstants.SND_SILENT, true);
+        assertEquals(0x400D, flags);
+        assertArrayEquals(new byte[]{0x06, 0x00, 0x0D, 0x40, 0x28, 0x05, (byte) 0xA4, 0x01, 0x0F, 0x3C},
+                F91KeplerProtocol.soundCfgWrite(cfg, flags));
+        assertEquals(0x4000 | F91KeplerConstants.SND_CALL,
+                F91KeplerProtocol.soundFlags(0x4000, false, true, false, false));
+    }
 }

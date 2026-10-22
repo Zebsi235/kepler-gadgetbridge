@@ -426,8 +426,13 @@ public class F91KeplerSupport extends AbstractBTLESingleDeviceSupport {
             return true;
         }
         if (F91KeplerConstants.UUID_CHAR_RECORD.equals(characteristic.getUuid()) && alarmSoundInFlight) {
-            onAlarmSoundRead(status == BluetoothGatt.GATT_SUCCESS ? value : null);
-            return true;
+            final boolean ours = status != BluetoothGatt.GATT_SUCCESS
+                    || (value != null && value.length > 0 && value[0] == F91KeplerConstants.REC_ALARM_SOUND);
+            // Another record's answer: the alarm-sound read was dropped without a callback.
+            onAlarmSoundRead(ours && status == BluetoothGatt.GATT_SUCCESS ? value : null);
+            if (ours) {
+                return true;
+            }
         }
         if (F91KeplerConstants.UUID_CHAR_RECORD.equals(characteristic.getUuid()) && soundInFlight) {
             // The answer of the sound read on the air (transactions run one at a time).
@@ -641,8 +646,10 @@ public class F91KeplerSupport extends AbstractBTLESingleDeviceSupport {
         for (int i = 0; i < got.length; i++) {
             builder.write(F91KeplerConstants.UUID_CHAR_RECORD, F91KeplerProtocol.alarmSoundSnooze(i, got[i], minutes));
         }
+        // Done only when all five went through: a failed write or a dropped link aborts
+        // the transaction before this, and the change stays for the next connect.
+        builder.run(() -> prefs.edit().putBoolean(F91KeplerConstants.PREF_SOUND_SNOOZE_DIRTY, false).apply());
         builder.queue();
-        prefs.edit().putBoolean(F91KeplerConstants.PREF_SOUND_SNOOZE_DIRTY, false).apply();
     }
 
     private void endSoundRead() {
