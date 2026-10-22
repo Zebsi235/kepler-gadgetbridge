@@ -136,8 +136,10 @@ public class F91KeplerSupport extends AbstractBTLESingleDeviceSupport {
      * these bytes, so what the companion app or the watch set stays.
      */
     private volatile byte[] soundCfg;
-    /** SOUND_CFG select + reads queued; their answers are recognised by the type byte. */
-    private int soundReadsPending;          // guarded by soundWriteKeys
+    /** SOUND_CFG select + reads queued and not answered yet (guarded by soundWriteKeys). */
+    private int soundReadsPending;
+    /** A SOUND_CFG select + read is on the air right now: set when its transaction starts. */
+    private volatile boolean soundInFlight;
     /** The connect read adopts the watch's values into the switches; later reads only refresh. */
     private volatile boolean soundAdopt;
     /** The switches to write once the fresh SOUND_CFG arrives (empty: just adopt the watch's). */
@@ -205,8 +207,11 @@ public class F91KeplerSupport extends AbstractBTLESingleDeviceSupport {
         soundCfg = null;
         synchronized (soundWriteKeys) {
             soundReadsPending = 0;
+            // Changes still waiting (a deferred read, a dropped link): the next connect writes them.
+            addSoundDirty(GBApplication.getDeviceSpecificSharedPrefs(getDevice().getAddress()), soundWriteKeys);
             soundWriteKeys.clear();
         }
+        soundInFlight = false;
         soundAdopt = false;
         builder.setDeviceState(GBDevice.State.INITIALIZING);
         if (GBApplication.getPrefs().syncTime()) {
@@ -412,15 +417,11 @@ public class F91KeplerSupport extends AbstractBTLESingleDeviceSupport {
             reconcileImage(status == BluetoothGatt.GATT_SUCCESS ? value : null);
             return true;
         }
-        if (F91KeplerConstants.UUID_CHAR_RECORD.equals(characteristic.getUuid()) && takeSoundRead()) {
-            // By content: a successful answer of another record means the select
-            // failed and its read was cancelled -- this one is an alarm slot, hand it on.
-            final boolean other = status == BluetoothGatt.GATT_SUCCESS && value != null && value.length > 0
-                    && value[0] != F91KeplerConstants.REC_SOUND_CFG;
+        if (F91KeplerConstants.UUID_CHAR_RECORD.equals(characteristic.getUuid()) && soundInFlight) {
+            // The answer of the sound read on the air (transactions run one at a time).
+            endSoundRead();
             onSoundCfgRead(status == BluetoothGatt.GATT_SUCCESS ? F91KeplerProtocol.soundCfg(value) : null);
-            if (!other) {
-                return true;
-            }
+            return true;
         }
         if (F91KeplerConstants.UUID_CHAR_RECORD.equals(characteristic.getUuid())
                 && alarmReadGen >= 0) {
@@ -451,10 +452,10 @@ public class F91KeplerSupport extends AbstractBTLESingleDeviceSupport {
         }
         if (status != BluetoothGatt.GATT_SUCCESS && characteristic != null
                 && F91KeplerConstants.UUID_CHAR_RECORD.equals(characteristic.getUuid())
-                && takeSoundRead()) {
-            // A sound select is queued alone or ahead of the alarm selects, so a failed
-            // Record write while one is due is its: its read was cancelled.
+                && soundInFlight) {
+            // Our select failed; its read was cancelled with the rest of the transaction.
             LOG.warn("F91 sound settings select failed with status {}", status);
+            endSoundRead();
             onSoundCfgRead(null);
             return super.onCharacteristicWrite(gatt, characteristic, status);
         }
@@ -556,14 +557,12 @@ public class F91KeplerSupport extends AbstractBTLESingleDeviceSupport {
         }
     }
 
-    /** One queued SOUND_CFG answer is due (and is now taken). */
-    private boolean takeSoundRead() {
+    private void endSoundRead() {
+        soundInFlight = false;
         synchronized (soundWriteKeys) {
-            if (soundReadsPending == 0) {
-                return false;
+            if (soundReadsPending > 0) {
+                soundReadsPending--;
             }
-            soundReadsPending--;
-            return true;
         }
     }
 
@@ -572,6 +571,7 @@ public class F91KeplerSupport extends AbstractBTLESingleDeviceSupport {
             soundReadsPending++;
         }
         final TransactionBuilder builder = createTransactionBuilder("read sound settings");
+        builder.run(() -> soundInFlight = true);
         builder.write(F91KeplerConstants.UUID_CHAR_RECORD,
                       F91KeplerProtocol.record(F91KeplerConstants.REC_SOUND_CFG, 0, new byte[0]));
         builder.read(F91KeplerConstants.UUID_CHAR_RECORD);
@@ -612,7 +612,8 @@ public class F91KeplerSupport extends AbstractBTLESingleDeviceSupport {
         }
         if (adopt) {
             // The watch's values, except a switch the user is changing right now. Sent as an
-            // event: it stores them and refreshes an open settings screen.
+            // event: it stores them and tells the settings screen, whose customizer
+            // (onDeviceChanged) then shows them.
             final int f = F91KeplerProtocol.soundFlags(cfg);
             final GBDeviceEventUpdatePreferences ev = new GBDeviceEventUpdatePreferences();
             adoptSwitch(ev, keys, F91KeplerConstants.PREF_SOUND_MUTE, f, F91KeplerConstants.SND_SILENT);
