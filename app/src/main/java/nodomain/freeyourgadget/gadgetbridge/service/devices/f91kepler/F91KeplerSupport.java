@@ -992,6 +992,14 @@ public class F91KeplerSupport extends AbstractBTLESingleDeviceSupport {
         alarmReadWrite = thenWrite;
         alarmReadGen = alarmSetGen;
         final TransactionBuilder builder = createTransactionBuilder("read alarm slots");
+        // Transactions run one at a time: a sound read still "on the air" here was
+        // dropped without a callback (Android refused it locally). Its change waits.
+        builder.run(() -> {
+            if (soundInFlight) {
+                endSoundRead();
+                onSoundCfgRead(null);
+            }
+        });
         for (int i = 0; i < F91KeplerConstants.ALARM_SLOTS_31; i++) {
             builder.write(F91KeplerConstants.UUID_CHAR_RECORD,
                           F91KeplerProtocol.record(F91KeplerConstants.REC_ALARM, i, new byte[0]));
