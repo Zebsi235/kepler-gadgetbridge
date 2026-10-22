@@ -17,16 +17,19 @@
 package nodomain.freeyourgadget.gadgetbridge.devices.f91kepler;
 
 import android.content.Intent;
+import android.content.SharedPreferences;
 import android.os.Parcel;
 import android.text.InputFilter;
 
 import androidx.annotation.NonNull;
 import androidx.preference.EditTextPreference;
 import androidx.preference.Preference;
+import androidx.preference.TwoStatePreference;
 
 import java.util.Collections;
 import java.util.Set;
 
+import nodomain.freeyourgadget.gadgetbridge.GBApplication;
 import nodomain.freeyourgadget.gadgetbridge.activities.devicesettings.DeviceSpecificSettingsCustomizer;
 import nodomain.freeyourgadget.gadgetbridge.activities.devicesettings.DeviceSpecificSettingsHandler;
 import nodomain.freeyourgadget.gadgetbridge.impl.GBDevice;
@@ -107,6 +110,25 @@ public class F91KeplerSettingsCustomizer implements DeviceSpecificSettingsCustom
         // Fired on every GBDevice update, including the one right after the
         // firmware version was read on connect (GBDeviceEventVersionInfo).
         apply31Visibility(handler);
+        showSoundSwitches(handler);
+    }
+
+    /** The sound switches as stored: the support class adopts the watch's values on connect. */
+    private static void showSoundSwitches(final DeviceSpecificSettingsHandler handler) {
+        final GBDevice device = handler.getDevice();
+        if (device == null) {
+            return;
+        }
+        final SharedPreferences prefs = GBApplication.getDeviceSpecificSharedPrefs(device.getAddress());
+        final String[] keys = {F91KeplerConstants.PREF_SOUND_MUTE, F91KeplerConstants.PREF_SOUND_CALL,
+                F91KeplerConstants.PREF_SOUND_TEXT, F91KeplerConstants.PREF_SOUND_LOWBATT};
+        final boolean[] defaults = {false, true, true, false};
+        for (int i = 0; i < keys.length; i++) {
+            final Preference pref = handler.findPreference(keys[i]);
+            if (pref instanceof TwoStatePreference) {
+                ((TwoStatePreference) pref).setChecked(prefs.getBoolean(keys[i], defaults[i]));
+            }
+        }
     }
 
     /** Show the 3.1 groups iff this device is known to run firmware 3.1+. */

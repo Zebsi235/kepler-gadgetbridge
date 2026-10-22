@@ -46,6 +46,7 @@ import nodomain.freeyourgadget.gadgetbridge.GBApplication;
 import nodomain.freeyourgadget.gadgetbridge.R;
 import nodomain.freeyourgadget.gadgetbridge.activities.devicesettings.DeviceSettingsPreferenceConst;
 import nodomain.freeyourgadget.gadgetbridge.database.DBHelper;
+import nodomain.freeyourgadget.gadgetbridge.deviceevents.GBDeviceEventUpdatePreferences;
 import nodomain.freeyourgadget.gadgetbridge.deviceevents.GBDeviceEventBatteryInfo;
 import nodomain.freeyourgadget.gadgetbridge.deviceevents.GBDeviceEventFindPhone;
 import nodomain.freeyourgadget.gadgetbridge.deviceevents.GBDeviceEventMusicControl;
@@ -135,8 +136,10 @@ public class F91KeplerSupport extends AbstractBTLESingleDeviceSupport {
      * these bytes, so what the companion app or the watch set stays.
      */
     private volatile byte[] soundCfg;
-    /** SOUND_CFG select + reads queued; their answers are recognised by the type byte. */
-    private int soundReadsPending;          // guarded by soundWriteKeys
+    /** SOUND_CFG select + reads queued and not answered yet (guarded by soundWriteKeys). */
+    private int soundReadsPending;
+    /** A SOUND_CFG select + read is on the air right now: set when its transaction starts. */
+    private volatile boolean soundInFlight;
     /** The connect read adopts the watch's values into the switches; later reads only refresh. */
     private volatile boolean soundAdopt;
     /** The switches to write once the fresh SOUND_CFG arrives (empty: just adopt the watch's). */
@@ -204,8 +207,11 @@ public class F91KeplerSupport extends AbstractBTLESingleDeviceSupport {
         soundCfg = null;
         synchronized (soundWriteKeys) {
             soundReadsPending = 0;
+            // Changes still waiting (a deferred read, a dropped link): the next connect writes them.
+            addSoundDirty(GBApplication.getDeviceSpecificSharedPrefs(getDevice().getAddress()), soundWriteKeys);
             soundWriteKeys.clear();
         }
+        soundInFlight = false;
         soundAdopt = false;
         builder.setDeviceState(GBDevice.State.INITIALIZING);
         if (GBApplication.getPrefs().syncTime()) {
@@ -411,15 +417,11 @@ public class F91KeplerSupport extends AbstractBTLESingleDeviceSupport {
             reconcileImage(status == BluetoothGatt.GATT_SUCCESS ? value : null);
             return true;
         }
-        if (F91KeplerConstants.UUID_CHAR_RECORD.equals(characteristic.getUuid()) && takeSoundRead()) {
-            // By content: a successful answer of another record means the select
-            // failed and its read was cancelled -- this one is an alarm slot, hand it on.
-            final boolean other = status == BluetoothGatt.GATT_SUCCESS && value != null && value.length > 0
-                    && value[0] != F91KeplerConstants.REC_SOUND_CFG;
+        if (F91KeplerConstants.UUID_CHAR_RECORD.equals(characteristic.getUuid()) && soundInFlight) {
+            // The answer of the sound read on the air (transactions run one at a time).
+            endSoundRead();
             onSoundCfgRead(status == BluetoothGatt.GATT_SUCCESS ? F91KeplerProtocol.soundCfg(value) : null);
-            if (!other) {
-                return true;
-            }
+            return true;
         }
         if (F91KeplerConstants.UUID_CHAR_RECORD.equals(characteristic.getUuid())
                 && alarmReadGen >= 0) {
@@ -447,6 +449,15 @@ public class F91KeplerSupport extends AbstractBTLESingleDeviceSupport {
                     || F91KeplerConstants.UUID_CHAR_IMAGE_CONTROL.equals(characteristic.getUuid()))) {
             LOG.warn("F91 image write to {} failed with status {}", characteristic.getUuid(), status);
             reconcileImage(null);
+        }
+        if (status != BluetoothGatt.GATT_SUCCESS && characteristic != null
+                && F91KeplerConstants.UUID_CHAR_RECORD.equals(characteristic.getUuid())
+                && soundInFlight) {
+            // Our select failed; its read was cancelled with the rest of the transaction.
+            LOG.warn("F91 sound settings select failed with status {}", status);
+            endSoundRead();
+            onSoundCfgRead(null);
+            return super.onCharacteristicWrite(gatt, characteristic, status);
         }
         if (status != BluetoothGatt.GATT_SUCCESS && characteristic != null
                 && F91KeplerConstants.UUID_CHAR_RECORD.equals(characteristic.getUuid())
@@ -540,14 +551,18 @@ public class F91KeplerSupport extends AbstractBTLESingleDeviceSupport {
         return F91KeplerFirmware.has32(connectedFw);
     }
 
-    /** One queued SOUND_CFG answer is due (and is now taken). */
-    private boolean takeSoundRead() {
+    private boolean soundReadDue() {
         synchronized (soundWriteKeys) {
-            if (soundReadsPending == 0) {
-                return false;
+            return soundReadsPending > 0;
+        }
+    }
+
+    private void endSoundRead() {
+        soundInFlight = false;
+        synchronized (soundWriteKeys) {
+            if (soundReadsPending > 0) {
+                soundReadsPending--;
             }
-            soundReadsPending--;
-            return true;
         }
     }
 
@@ -556,6 +571,7 @@ public class F91KeplerSupport extends AbstractBTLESingleDeviceSupport {
             soundReadsPending++;
         }
         final TransactionBuilder builder = createTransactionBuilder("read sound settings");
+        builder.run(() -> soundInFlight = true);
         builder.write(F91KeplerConstants.UUID_CHAR_RECORD,
                       F91KeplerProtocol.record(F91KeplerConstants.REC_SOUND_CFG, 0, new byte[0]));
         builder.read(F91KeplerConstants.UUID_CHAR_RECORD);
@@ -595,24 +611,26 @@ public class F91KeplerSupport extends AbstractBTLESingleDeviceSupport {
             prefs.edit().remove(F91KeplerConstants.PREF_SOUND_DIRTY_KEYS).apply();
         }
         if (adopt) {
-            // The watch's values, except a switch the user is changing right now.
+            // The watch's values, except a switch the user is changing right now. Sent as an
+            // event: it stores them and tells the settings screen, whose customizer
+            // (onDeviceChanged) then shows them.
             final int f = F91KeplerProtocol.soundFlags(cfg);
-            final SharedPreferences.Editor e = prefs.edit();
-            adoptSwitch(e, keys, F91KeplerConstants.PREF_SOUND_MUTE, f, F91KeplerConstants.SND_SILENT);
-            adoptSwitch(e, keys, F91KeplerConstants.PREF_SOUND_CALL, f, F91KeplerConstants.SND_CALL);
-            adoptSwitch(e, keys, F91KeplerConstants.PREF_SOUND_TEXT, f, F91KeplerConstants.SND_TEXT);
-            adoptSwitch(e, keys, F91KeplerConstants.PREF_SOUND_LOWBATT, f, F91KeplerConstants.SND_LOWBATT);
-            e.apply();
+            final GBDeviceEventUpdatePreferences ev = new GBDeviceEventUpdatePreferences();
+            adoptSwitch(ev, keys, F91KeplerConstants.PREF_SOUND_MUTE, f, F91KeplerConstants.SND_SILENT);
+            adoptSwitch(ev, keys, F91KeplerConstants.PREF_SOUND_CALL, f, F91KeplerConstants.SND_CALL);
+            adoptSwitch(ev, keys, F91KeplerConstants.PREF_SOUND_TEXT, f, F91KeplerConstants.SND_TEXT);
+            adoptSwitch(ev, keys, F91KeplerConstants.PREF_SOUND_LOWBATT, f, F91KeplerConstants.SND_LOWBATT);
+            evaluateGBDeviceEvent(ev);
         }
         if (!keys.isEmpty()) {
             writeSoundSwitches(keys);       // changes while connected: only their own bits
         }
     }
 
-    private static void adoptSwitch(final SharedPreferences.Editor e, final java.util.List<String> pending,
+    private static void adoptSwitch(final GBDeviceEventUpdatePreferences ev, final java.util.List<String> pending,
                                     final String key, final int flags, final int bit) {
         if (!pending.contains(key)) {
-            e.putBoolean(key, (flags & bit) != 0);
+            ev.withPreference(key, (flags & bit) != 0);
         }
     }
 
@@ -974,6 +992,14 @@ public class F91KeplerSupport extends AbstractBTLESingleDeviceSupport {
         alarmReadWrite = thenWrite;
         alarmReadGen = alarmSetGen;
         final TransactionBuilder builder = createTransactionBuilder("read alarm slots");
+        // Transactions run one at a time: a sound read still "on the air" here was
+        // dropped without a callback (Android refused it locally). Its change waits.
+        builder.run(() -> {
+            if (soundInFlight) {
+                endSoundRead();
+                onSoundCfgRead(null);
+            }
+        });
         for (int i = 0; i < F91KeplerConstants.ALARM_SLOTS_31; i++) {
             builder.write(F91KeplerConstants.UUID_CHAR_RECORD,
                           F91KeplerProtocol.record(F91KeplerConstants.REC_ALARM, i, new byte[0]));
@@ -1004,6 +1030,10 @@ public class F91KeplerSupport extends AbstractBTLESingleDeviceSupport {
         final boolean write = alarmReadWrite;
         final boolean raced = alarmReadGen != alarmSetGen;
         alarmReadGen = -1;
+        // A sound switch changed during the read-back waited for the select register.
+        if (!soundWriteKeys.isEmpty() && !soundReadDue()) {
+            readSoundCfg();
+        }
         if (raced) {
             LOG.debug("F91 alarms were edited during the read-back, keeping the edit");
             return;                    // onSetAlarms has written the user's list already
@@ -1280,11 +1310,16 @@ public class F91KeplerSupport extends AbstractBTLESingleDeviceSupport {
             case F91KeplerConstants.PREF_SOUND_CALL:
             case F91KeplerConstants.PREF_SOUND_TEXT:
             case F91KeplerConstants.PREF_SOUND_LOWBATT: {
-                if (has32()) {
+                // connectedFw outlives a disconnect (it is cleared in initializeDevice),
+                // so a pending auto-reconnect must not count as connected.
+                if (getDevice().isInitialized() && has32()) {
                     // Read first: silent mode may have been switched on the watch, or
                     // quiet hours in the companion app, since this connect.
                     soundWriteKeys.add(config);
-                    readSoundCfg();
+                    // An alarm read-back holds the select register: finishAlarmRead reads then.
+                    if (alarmReadGen < 0) {
+                        readSoundCfg();
+                    }
                 } else {
                     // Away (or not read yet): the next 3.2 connect reads the watch, then writes this.
                     addSoundDirty(GBApplication.getDeviceSpecificSharedPrefs(getDevice().getAddress()),
@@ -1293,7 +1328,7 @@ public class F91KeplerSupport extends AbstractBTLESingleDeviceSupport {
                 break;
             }
             case F91KeplerConstants.PREF_SOUND_TEST: {
-                if (has32()) {
+                if (getDevice().isInitialized() && has32()) {
                     final TransactionBuilder builder = createTransactionBuilder("test sound");
                     builder.write(F91KeplerConstants.UUID_CHAR_RECORD,
                                   F91KeplerProtocol.soundPlay(F91KeplerConstants.TONE_BEEP));
