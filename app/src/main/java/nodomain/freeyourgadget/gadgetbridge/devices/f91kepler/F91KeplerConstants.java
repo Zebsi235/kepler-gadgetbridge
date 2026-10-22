@@ -262,8 +262,9 @@ public final class F91KeplerConstants {
     public static final String PREF_SOUND_TEXT = "f91_sound_text";
     public static final String PREF_SOUND_LOWBATT = "f91_sound_lowbatt";
     public static final String PREF_SOUND_TEST = "f91_sound_test";
-    /** A sound switch changed while the watch was away: write it on the next connect. */
-    public static final String PREF_SOUND_DIRTY = "f91_sound_dirty";
+    /** The sound switches changed while the watch was away (a string set): only
+     *  these are written after the next connect read, the others take the watch's. */
+    public static final String PREF_SOUND_DIRTY_KEYS = "f91_sound_dirty_keys";
     public static final String PREF_CATEGORY_SOUND_32 = "f91_pref_category_sound";
     public static final String PREF_QUIET_TEXT = "f91_quiet_text";
     /** Counter names (fw 3.1); empty = counter not in use. */
