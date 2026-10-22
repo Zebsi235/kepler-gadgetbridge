@@ -91,13 +91,13 @@ public class F91KeplerSettingsCustomizer implements DeviceSpecificSettingsCustom
             F91KeplerModes.PREF_MODES_31,
     };
 
-    /** The opposite: shown only while the watch is NOT known to run 3.1 --
-     *  the nine-mode list, which the thirteen-mode one replaces. */
     /** Shown only once the watch has reported firmware 3.2 (sound). */
     static final String[] KEYS_32 = {
             F91KeplerConstants.PREF_CATEGORY_SOUND_32,
     };
 
+    /** The opposite: shown only while the watch is NOT known to run 3.1 --
+     *  the nine-mode list, which the thirteen-mode one replaces. */
     static final String[] KEYS_PRE31 = {
             F91KeplerModes.PREF_MODES,
     };

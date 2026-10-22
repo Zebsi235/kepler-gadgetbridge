@@ -433,6 +433,11 @@ final class F91KeplerProtocol {
         return f & 0xFFFF;
     }
 
+    /** {@code flags} with one bit set or cleared. */
+    static int soundFlagWith(final int flags, final int bit, final boolean on) {
+        return (on ? flags | bit : flags & ~bit) & 0xFFFF;
+    }
+
     /** The SOUND_CFG write: the payload as read, with new flags (same length as read). */
     static byte[] soundCfgWrite(final byte[] cfg, final int flags) {
         final byte[] p = cfg.clone();

@@ -369,6 +369,10 @@ public class F91KeplerProtocolTest {
                         | (1 << 10) | (1 << 11),
                 F91KeplerProtocol.soundFlags(watch, true, true, false, true));
         assertEquals((1 << 10) | (1 << 11), F91KeplerProtocol.soundFlags(watch, false, false, false, false));
+        assertEquals(watch | F91KeplerConstants.SND_SILENT,
+                F91KeplerProtocol.soundFlagWith(watch, F91KeplerConstants.SND_SILENT, true));
+        assertEquals(watch & ~F91KeplerConstants.SND_TEXT,
+                F91KeplerProtocol.soundFlagWith(watch, F91KeplerConstants.SND_TEXT, false));
     }
 
     @Test
