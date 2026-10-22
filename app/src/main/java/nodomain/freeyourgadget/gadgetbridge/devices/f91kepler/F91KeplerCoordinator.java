@@ -151,6 +151,8 @@ public class F91KeplerCoordinator extends AbstractBLEDeviceCoordinator {
         // After devicesettings_f91kepler: its quiet switch depends on the popup
         // switch defined there. Hidden until the watch reports 3.1.
         xml.add(R.xml.devicesettings_f91kepler_31_face);
+        // Hidden until the watch reports 3.2 (F91KeplerSettingsCustomizer.KEYS_32).
+        xml.add(R.xml.devicesettings_f91kepler_32_sound);
         if (!F91KeplerFirmware.knownBelow(fw, F91KeplerFirmware.MIN_RADIO_SCHEDULE)) {
             xml.add(R.xml.devicesettings_f91kepler_sleep);
         }

@@ -112,4 +112,13 @@ public class F91KeplerFirmwareTest {
         assertFalse(F91KeplerFirmware.has31("N/A"));
         assertFalse(F91KeplerFirmware.has31("unknown"));
     }
+
+    @Test
+    public void has32GatesTheSoundSettings() {
+        assertTrue(F91KeplerFirmware.has32("3.2.0"));
+        assertTrue(F91KeplerFirmware.has32("3.2.1-bl"));
+        assertTrue(F91KeplerFirmware.has32("3.2.0-rc6-bl-rmt"));
+        assertFalse(F91KeplerFirmware.has32("3.1.24"));
+        assertFalse(F91KeplerFirmware.has32(null));
+    }
 }

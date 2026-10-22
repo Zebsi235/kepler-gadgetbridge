@@ -129,6 +129,14 @@ public class F91KeplerSupport extends AbstractBTLESingleDeviceSupport {
     private volatile int alarmSetGen;
     private volatile int alarmReadGen = -1;
     private volatile boolean alarmReadWrite;
+    /**
+     * Firmware 3.2 SOUND_CFG as last read from this watch (6 or 8 bytes, no
+     * CRC), null until read. The sound switches are written as a change of
+     * these bytes, so what the companion app or the watch set stays.
+     */
+    private volatile byte[] soundCfg;
+    /** The next Record read answers the SOUND_CFG select (queued before the alarm reads). */
+    private volatile boolean soundReadPending;
 
     /** Firmware version read over DIS on THIS connection (null until then).
      *  Every 3.1 write is gated on it, not on the cached device version: a
@@ -189,6 +197,8 @@ public class F91KeplerSupport extends AbstractBTLESingleDeviceSupport {
         // A new connection: forget the previous one's firmware version, so the
         // 3.1 gate (has31) is closed until THIS watch has reported its version.
         connectedFw = null;
+        soundCfg = null;
+        soundReadPending = false;
         builder.setDeviceState(GBDevice.State.INITIALIZING);
         if (GBApplication.getPrefs().syncTime()) {
             addSetTime(builder);
@@ -393,6 +403,11 @@ public class F91KeplerSupport extends AbstractBTLESingleDeviceSupport {
             reconcileImage(status == BluetoothGatt.GATT_SUCCESS ? value : null);
             return true;
         }
+        if (F91KeplerConstants.UUID_CHAR_RECORD.equals(characteristic.getUuid()) && soundReadPending) {
+            soundReadPending = false;
+            onSoundCfgRead(status == BluetoothGatt.GATT_SUCCESS ? F91KeplerProtocol.soundCfg(value) : null);
+            return true;
+        }
         if (F91KeplerConstants.UUID_CHAR_RECORD.equals(characteristic.getUuid())
                 && alarmReadGen >= 0) {
             onAlarmSlotRead(status == BluetoothGatt.GATT_SUCCESS ? value : null);
@@ -495,11 +510,74 @@ public class F91KeplerSupport extends AbstractBTLESingleDeviceSupport {
             addCounterNames(b31);
             addForecastAndSun(b31);
             b31.queue();
+            if (F91KeplerFirmware.has32(fw)) {
+                readSoundCfg();             // before the alarm reads: the first Record answer is its
+            }
             // The slots last, and only after reading them: a one-shot that rang
             // while the phone was away is off on the watch, and writing the
             // app's list blindly would re-arm it for tomorrow.
             readAlarmSlots(true);
         }
+    }
+
+    // --- Sound (firmware 3.2) ------------------------------------------------
+
+    private boolean has32() {
+        return F91KeplerFirmware.has32(connectedFw);
+    }
+
+    private void readSoundCfg() {
+        soundReadPending = true;
+        final TransactionBuilder builder = createTransactionBuilder("read sound settings");
+        builder.write(F91KeplerConstants.UUID_CHAR_RECORD,
+                      F91KeplerProtocol.record(F91KeplerConstants.REC_SOUND_CFG, 0, new byte[0]));
+        builder.read(F91KeplerConstants.UUID_CHAR_RECORD);
+        builder.queue();
+    }
+
+    /**
+     * The watch's sound settings. Normally they win: silent mode can be switched
+     * on the watch, and the companion app may have set them. Only a switch the
+     * user changed here while the watch was away is written back.
+     */
+    private void onSoundCfgRead(final byte[] cfg) {
+        if (cfg == null) {
+            LOG.warn("F91 sound settings read failed; the sound switches stay as they are");
+            return;
+        }
+        soundCfg = cfg;
+        final SharedPreferences prefs = GBApplication.getDeviceSpecificSharedPrefs(getDevice().getAddress());
+        if (prefs.getBoolean(F91KeplerConstants.PREF_SOUND_DIRTY, false)) {
+            writeSoundSwitches();
+            prefs.edit().putBoolean(F91KeplerConstants.PREF_SOUND_DIRTY, false).apply();
+            return;
+        }
+        final int f = F91KeplerProtocol.soundFlags(cfg);
+        prefs.edit()
+                .putBoolean(F91KeplerConstants.PREF_SOUND_MUTE, (f & F91KeplerConstants.SND_SILENT) != 0)
+                .putBoolean(F91KeplerConstants.PREF_SOUND_CALL, (f & F91KeplerConstants.SND_CALL) != 0)
+                .putBoolean(F91KeplerConstants.PREF_SOUND_TEXT, (f & F91KeplerConstants.SND_TEXT) != 0)
+                .putBoolean(F91KeplerConstants.PREF_SOUND_LOWBATT, (f & F91KeplerConstants.SND_LOWBATT) != 0)
+                .apply();
+    }
+
+    /** The four switches into the watch's SOUND_CFG (needs a read first). */
+    private void writeSoundSwitches() {
+        final byte[] cfg = soundCfg;
+        if (cfg == null) {
+            return;
+        }
+        final SharedPreferences prefs = GBApplication.getDeviceSpecificSharedPrefs(getDevice().getAddress());
+        final int flags = F91KeplerProtocol.soundFlags(F91KeplerProtocol.soundFlags(cfg),
+                prefs.getBoolean(F91KeplerConstants.PREF_SOUND_MUTE, false),
+                prefs.getBoolean(F91KeplerConstants.PREF_SOUND_CALL, true),
+                prefs.getBoolean(F91KeplerConstants.PREF_SOUND_TEXT, true),
+                prefs.getBoolean(F91KeplerConstants.PREF_SOUND_LOWBATT, false));
+        final byte[] frame = F91KeplerProtocol.soundCfgWrite(cfg, flags);
+        soundCfg = java.util.Arrays.copyOfRange(frame, 2, frame.length);
+        final TransactionBuilder builder = createTransactionBuilder("set sound switches");
+        builder.write(F91KeplerConstants.UUID_CHAR_RECORD, frame);
+        builder.queue();
     }
 
     /** True when this connection's firmware is known to have the 3.1 surface. */
@@ -1113,6 +1191,28 @@ public class F91KeplerSupport extends AbstractBTLESingleDeviceSupport {
                 final TransactionBuilder builder = createTransactionBuilder("set sleep window");
                 addRadioSchedule(builder);
                 builder.queue();
+                break;
+            }
+            case F91KeplerConstants.PREF_SOUND_MUTE:
+            case F91KeplerConstants.PREF_SOUND_CALL:
+            case F91KeplerConstants.PREF_SOUND_TEXT:
+            case F91KeplerConstants.PREF_SOUND_LOWBATT: {
+                if (has32() && soundCfg != null) {
+                    writeSoundSwitches();
+                } else {
+                    // Away (or not read yet): the next 3.2 connect reads the watch, then writes this.
+                    GBApplication.getDeviceSpecificSharedPrefs(getDevice().getAddress()).edit()
+                            .putBoolean(F91KeplerConstants.PREF_SOUND_DIRTY, true).apply();
+                }
+                break;
+            }
+            case F91KeplerConstants.PREF_SOUND_TEST: {
+                if (has32()) {
+                    final TransactionBuilder builder = createTransactionBuilder("test sound");
+                    builder.write(F91KeplerConstants.UUID_CHAR_RECORD,
+                                  F91KeplerProtocol.soundPlay(F91KeplerConstants.TONE_BEEP));
+                    builder.queue();
+                }
                 break;
             }
             case F91KeplerConstants.PREF_IMAGE_UPLOAD: {

@@ -343,4 +343,40 @@ public class F91KeplerProtocolTest {
         assertFalse(F91KeplerProtocol.imageControlMatches(new byte[0], (byte) 0x5A));
         assertFalse(F91KeplerProtocol.imageControlMatches(null, (byte) 0x5A));
     }
+
+    // --- Firmware 3.2 sound -------------------------------------------------
+
+    @Test
+    public void soundCfgTakesThePayloadWithoutTheCrc() {
+        // rc3+ read: [06][00] flags=0x040C quiet 22:00-07:00 lowBatt 15 bpm 60, CRC 0xBEEF
+        final byte[] read = {0x06, 0x00, 0x0C, 0x04, 0x28, 0x05, (byte) 0xA4, 0x01, 0x0F, 0x3C, (byte) 0xEF, (byte) 0xBE};
+        assertArrayEquals(new byte[]{0x0C, 0x04, 0x28, 0x05, (byte) 0xA4, 0x01, 0x0F, 0x3C},
+                F91KeplerProtocol.soundCfg(read));
+        assertEquals(0x040C, F91KeplerProtocol.soundFlags(F91KeplerProtocol.soundCfg(read)));
+        // rc1 answers 6 bytes of settings
+        assertEquals(6, F91KeplerProtocol.soundCfg(new byte[]{0x06, 0, 4, 0, 0, 0, 0, 0}).length);
+        // another record, a short answer, nothing
+        assertEquals(null, F91KeplerProtocol.soundCfg(new byte[]{0x01, 0, 1, 7, 0, 0, 0, 0}));
+        assertEquals(null, F91KeplerProtocol.soundCfg(new byte[]{0x06, 0, 4}));
+        assertEquals(null, F91KeplerProtocol.soundCfg(null));
+    }
+
+    @Test
+    public void soundSwitchesChangeOnlyTheirBits() {
+        // watch: call + text + quiet hours (bit 10) + phone DND (bit 11)
+        final int watch = F91KeplerConstants.SND_CALL | F91KeplerConstants.SND_TEXT | (1 << 10) | (1 << 11);
+        assertEquals(F91KeplerConstants.SND_SILENT | F91KeplerConstants.SND_CALL | F91KeplerConstants.SND_LOWBATT
+                        | (1 << 10) | (1 << 11),
+                F91KeplerProtocol.soundFlags(watch, true, true, false, true));
+        assertEquals((1 << 10) | (1 << 11), F91KeplerProtocol.soundFlags(watch, false, false, false, false));
+    }
+
+    @Test
+    public void soundCfgWriteKeepsTheRestOfThePayload() {
+        final byte[] cfg = {0x0C, 0x00, 0x28, 0x05, (byte) 0xA4, 0x01, 0x0F, 0x3C};
+        assertArrayEquals(new byte[]{0x06, 0x00, 0x0D, 0x00, 0x28, 0x05, (byte) 0xA4, 0x01, 0x0F, 0x3C},
+                F91KeplerProtocol.soundCfgWrite(cfg, 0x000D));
+        assertEquals(0x0C, cfg[0]);   // the cached copy is not changed in place
+        assertArrayEquals(new byte[]{0x0C, 0x00, 0x01}, F91KeplerProtocol.soundPlay(F91KeplerConstants.TONE_BEEP));
+    }
 }
