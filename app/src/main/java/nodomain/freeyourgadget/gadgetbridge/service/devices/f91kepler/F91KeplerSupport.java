@@ -1407,14 +1407,14 @@ public class F91KeplerSupport extends AbstractBTLESingleDeviceSupport {
                 builder.queue();
                 break;
             }
-            case F91KeplerConstants.PREF_SOUND_MUTE:
-            case F91KeplerConstants.PREF_SOUND_CALL:
-            case F91KeplerConstants.PREF_SOUND_TEXT:
             case F91KeplerConstants.PREF_SOUND_LOST:
                 if (getDevice().isInitialized() && !F91KeplerFirmware.hasLostAlert(connectedFw)) {
                     break;                  // 3.2.1 could beep falsely after a radio-off night
                 }
                 // fall through
+            case F91KeplerConstants.PREF_SOUND_MUTE:
+            case F91KeplerConstants.PREF_SOUND_CALL:
+            case F91KeplerConstants.PREF_SOUND_TEXT:
             case F91KeplerConstants.PREF_SOUND_LOWBATT: {
                 // connectedFw outlives a disconnect (it is cleared in initializeDevice),
                 // so a pending auto-reconnect must not count as connected.
