@@ -136,10 +136,10 @@ public class F91KeplerSupport extends AbstractBTLESingleDeviceSupport {
      */
     private volatile byte[] soundCfg;
     /** SOUND_CFG select + reads queued; their answers are recognised by the type byte. */
-    private final java.util.concurrent.atomic.AtomicInteger soundReadsPending = new java.util.concurrent.atomic.AtomicInteger();
-    /** The switches to write once the fresh SOUND_CFG arrives (empty: just adopt the watch's). */
+    private int soundReadsPending;          // guarded by soundWriteKeys
     /** The connect read adopts the watch's values into the switches; later reads only refresh. */
     private volatile boolean soundAdopt;
+    /** The switches to write once the fresh SOUND_CFG arrives (empty: just adopt the watch's). */
     private final java.util.Set<String> soundWriteKeys = java.util.Collections.synchronizedSet(new java.util.LinkedHashSet<>());
 
     /** Firmware version read over DIS on THIS connection (null until then).
@@ -202,9 +202,11 @@ public class F91KeplerSupport extends AbstractBTLESingleDeviceSupport {
         // 3.1 gate (has31) is closed until THIS watch has reported its version.
         connectedFw = null;
         soundCfg = null;
-        soundReadsPending.set(0);
+        synchronized (soundWriteKeys) {
+            soundReadsPending = 0;
+            soundWriteKeys.clear();
+        }
         soundAdopt = false;
-        soundWriteKeys.clear();
         builder.setDeviceState(GBDevice.State.INITIALIZING);
         if (GBApplication.getPrefs().syncTime()) {
             addSetTime(builder);
@@ -409,13 +411,13 @@ public class F91KeplerSupport extends AbstractBTLESingleDeviceSupport {
             reconcileImage(status == BluetoothGatt.GATT_SUCCESS ? value : null);
             return true;
         }
-        if (F91KeplerConstants.UUID_CHAR_RECORD.equals(characteristic.getUuid())
-                && soundReadsPending.getAndUpdate(n -> Math.max(0, n - 1)) > 0) {
-            // By content: if the select failed, its read was cancelled and this
-            // answer belongs to whatever came next (an alarm slot) -- hand it on.
-            final byte[] cfg = status == BluetoothGatt.GATT_SUCCESS ? F91KeplerProtocol.soundCfg(value) : null;
-            onSoundCfgRead(cfg);
-            if (cfg != null) {
+        if (F91KeplerConstants.UUID_CHAR_RECORD.equals(characteristic.getUuid()) && takeSoundRead()) {
+            // By content: a successful answer of another record means the select
+            // failed and its read was cancelled -- this one is an alarm slot, hand it on.
+            final boolean other = status == BluetoothGatt.GATT_SUCCESS && value != null && value.length > 0
+                    && value[0] != F91KeplerConstants.REC_SOUND_CFG;
+            onSoundCfgRead(status == BluetoothGatt.GATT_SUCCESS ? F91KeplerProtocol.soundCfg(value) : null);
+            if (!other) {
                 return true;
             }
         }
@@ -538,8 +540,21 @@ public class F91KeplerSupport extends AbstractBTLESingleDeviceSupport {
         return F91KeplerFirmware.has32(connectedFw);
     }
 
+    /** One queued SOUND_CFG answer is due (and is now taken). */
+    private boolean takeSoundRead() {
+        synchronized (soundWriteKeys) {
+            if (soundReadsPending == 0) {
+                return false;
+            }
+            soundReadsPending--;
+            return true;
+        }
+    }
+
     private void readSoundCfg() {
-        soundReadsPending.incrementAndGet();
+        synchronized (soundWriteKeys) {
+            soundReadsPending++;
+        }
         final TransactionBuilder builder = createTransactionBuilder("read sound settings");
         builder.write(F91KeplerConstants.UUID_CHAR_RECORD,
                       F91KeplerProtocol.record(F91KeplerConstants.REC_SOUND_CFG, 0, new byte[0]));
@@ -558,33 +573,43 @@ public class F91KeplerSupport extends AbstractBTLESingleDeviceSupport {
             keys = new java.util.ArrayList<>(soundWriteKeys);
             soundWriteKeys.clear();
         }
+        final SharedPreferences prefs = GBApplication.getDeviceSpecificSharedPrefs(getDevice().getAddress());
         if (cfg == null) {
             LOG.warn("F91 sound settings read failed; the sound switches stay as they are");
+            if (!keys.isEmpty()) {
+                // Not lost: the next 3.2 connect reads the watch and writes the switches.
+                prefs.edit().putBoolean(F91KeplerConstants.PREF_SOUND_DIRTY, true).apply();
+            }
             return;
         }
         soundCfg = cfg;
-        final SharedPreferences prefs = GBApplication.getDeviceSpecificSharedPrefs(getDevice().getAddress());
-        if (!keys.isEmpty()) {
-            soundAdopt = false;             // the user's change wins over adopting this read
-            writeSoundSwitches(keys);       // changes while connected: only their own bits
-            return;
-        }
-        if (!soundAdopt) {
-            return;                         // a second read of a burst: the write is already queued
-        }
+        final boolean adopt = soundAdopt;
         soundAdopt = false;
-        if (prefs.getBoolean(F91KeplerConstants.PREF_SOUND_DIRTY, false)) {
+        if (adopt && prefs.getBoolean(F91KeplerConstants.PREF_SOUND_DIRTY, false)) {
             writeSoundSwitches();           // changed while the watch was away
             prefs.edit().putBoolean(F91KeplerConstants.PREF_SOUND_DIRTY, false).apply();
             return;
         }
-        final int f = F91KeplerProtocol.soundFlags(cfg);
-        prefs.edit()
-                .putBoolean(F91KeplerConstants.PREF_SOUND_MUTE, (f & F91KeplerConstants.SND_SILENT) != 0)
-                .putBoolean(F91KeplerConstants.PREF_SOUND_CALL, (f & F91KeplerConstants.SND_CALL) != 0)
-                .putBoolean(F91KeplerConstants.PREF_SOUND_TEXT, (f & F91KeplerConstants.SND_TEXT) != 0)
-                .putBoolean(F91KeplerConstants.PREF_SOUND_LOWBATT, (f & F91KeplerConstants.SND_LOWBATT) != 0)
-                .apply();
+        if (adopt) {
+            // The watch's values, except a switch the user is changing right now.
+            final int f = F91KeplerProtocol.soundFlags(cfg);
+            final SharedPreferences.Editor e = prefs.edit();
+            adoptSwitch(e, keys, F91KeplerConstants.PREF_SOUND_MUTE, f, F91KeplerConstants.SND_SILENT);
+            adoptSwitch(e, keys, F91KeplerConstants.PREF_SOUND_CALL, f, F91KeplerConstants.SND_CALL);
+            adoptSwitch(e, keys, F91KeplerConstants.PREF_SOUND_TEXT, f, F91KeplerConstants.SND_TEXT);
+            adoptSwitch(e, keys, F91KeplerConstants.PREF_SOUND_LOWBATT, f, F91KeplerConstants.SND_LOWBATT);
+            e.apply();
+        }
+        if (!keys.isEmpty()) {
+            writeSoundSwitches(keys);       // changes while connected: only their own bits
+        }
+    }
+
+    private static void adoptSwitch(final SharedPreferences.Editor e, final java.util.List<String> pending,
+                                    final String key, final int flags, final int bit) {
+        if (!pending.contains(key)) {
+            e.putBoolean(key, (flags & bit) != 0);
+        }
     }
 
     /** The given switches into the freshly read SOUND_CFG; every other bit stays the watch's. */
