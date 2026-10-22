@@ -446,6 +446,25 @@ final class F91KeplerProtocol {
         return record(F91KeplerConstants.REC_SOUND_CFG, 0, p);
     }
 
+    /**
+     * The payload of an ALARM_SOUND read ({@code [0x08][slot][toneRef][snoozeMin][flags]};
+     * rc1 has no flags byte), or null if it is not one or not this slot.
+     */
+    static byte[] alarmSound(final byte[] value, final int slot) {
+        if (value == null || value.length < 4 || value[0] != F91KeplerConstants.REC_ALARM_SOUND
+                || (value[1] & 0xFF) != slot) {
+            return null;
+        }
+        return java.util.Arrays.copyOfRange(value, 2, Math.min(value.length, 5));
+    }
+
+    /** The ALARM_SOUND write with a new snooze length (0 = none, 1..30 min); tone and flags stay. */
+    static byte[] alarmSoundSnooze(final int slot, final byte[] payload, final int minutes) {
+        final byte[] p = payload.clone();
+        p[1] = (byte) Math.max(0, Math.min(30, minutes));
+        return record(F91KeplerConstants.REC_ALARM_SOUND, slot, p);
+    }
+
     /** PLAY {@code [0x0C][0][toneRef]}: the watch plays the tone once. */
     static byte[] soundPlay(final byte toneRef) {
         return record(F91KeplerConstants.REC_SOUND_PLAY, 0, new byte[]{toneRef});

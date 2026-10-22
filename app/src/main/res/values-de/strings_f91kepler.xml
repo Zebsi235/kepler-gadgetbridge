@@ -91,4 +91,11 @@
         <item>Klingeln</item>
         <item>Nur vibrieren</item>
     </string-array>
+    <string name="f91_pref_title_sound_lost">Alarm bei verlorenem Telefon</string>
+    <string name="f91_pref_summary_sound_lost">Piepen, wenn das Telefon eine Minute lang außer Reichweite ist.</string>
+    <string name="f91_pref_title_sound_snooze">Schlummerdauer</string>
+    <string name="f91_snooze_off">Kein Schlummern</string>
+    <string name="f91_snooze_5">5 Minuten</string>
+    <string name="f91_snooze_9">9 Minuten</string>
+    <string name="f91_snooze_15">15 Minuten</string>
 </resources>

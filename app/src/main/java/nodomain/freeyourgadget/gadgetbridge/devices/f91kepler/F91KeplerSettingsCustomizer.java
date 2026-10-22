@@ -75,6 +75,7 @@ public class F91KeplerSettingsCustomizer implements DeviceSpecificSettingsCustom
             F91KeplerConstants.PREF_QUIET_TEXT, F91KeplerConstants.PREF_HOURLY_CHIME,
             F91KeplerConstants.PREF_SOUND_MUTE, F91KeplerConstants.PREF_SOUND_CALL,
             F91KeplerConstants.PREF_SOUND_TEXT, F91KeplerConstants.PREF_SOUND_LOWBATT,
+            F91KeplerConstants.PREF_SOUND_LOST, F91KeplerConstants.PREF_SOUND_SNOOZE,
             F91KeplerConstants.PREF_COUNTER_NAME_PREFIX + "0",
             F91KeplerConstants.PREF_COUNTER_NAME_PREFIX + "1",
             F91KeplerConstants.PREF_COUNTER_NAME_PREFIX + "2",
@@ -121,8 +122,9 @@ public class F91KeplerSettingsCustomizer implements DeviceSpecificSettingsCustom
         }
         final SharedPreferences prefs = GBApplication.getDeviceSpecificSharedPrefs(device.getAddress());
         final String[] keys = {F91KeplerConstants.PREF_SOUND_MUTE, F91KeplerConstants.PREF_SOUND_CALL,
-                F91KeplerConstants.PREF_SOUND_TEXT, F91KeplerConstants.PREF_SOUND_LOWBATT};
-        final boolean[] defaults = {false, true, true, false};
+                F91KeplerConstants.PREF_SOUND_TEXT, F91KeplerConstants.PREF_SOUND_LOWBATT,
+                F91KeplerConstants.PREF_SOUND_LOST};
+        final boolean[] defaults = {false, true, true, false, false};
         for (int i = 0; i < keys.length; i++) {
             final Preference pref = handler.findPreference(keys[i]);
             if (pref instanceof TwoStatePreference) {
@@ -153,6 +155,10 @@ public class F91KeplerSettingsCustomizer implements DeviceSpecificSettingsCustom
             if (pref != null) {
                 pref.setVisible(show32);
             }
+        }
+        final Preference lost = handler.findPreference(F91KeplerConstants.PREF_SOUND_LOST);
+        if (lost != null) {
+            lost.setVisible(device != null && F91KeplerFirmware.hasLostAlert(device.getFirmwareVersion()));
         }
     }
 

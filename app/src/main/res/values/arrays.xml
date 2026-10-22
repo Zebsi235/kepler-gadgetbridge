@@ -5755,4 +5755,17 @@
         <item>bmr</item>
         <item>impedance</item>
     </string-array>
+    <!-- F91 Kepler snooze length (minutes) for all five alarms, firmware 3.2 (ALARM_SOUND). -->
+    <string-array name="f91_sound_snooze">
+        <item>@string/f91_snooze_off</item>
+        <item>@string/f91_snooze_5</item>
+        <item>@string/f91_snooze_9</item>
+        <item>@string/f91_snooze_15</item>
+    </string-array>
+    <string-array name="f91_sound_snooze_values" translatable="false">
+        <item>0</item>
+        <item>5</item>
+        <item>9</item>
+        <item>15</item>
+    </string-array>
 </resources>
