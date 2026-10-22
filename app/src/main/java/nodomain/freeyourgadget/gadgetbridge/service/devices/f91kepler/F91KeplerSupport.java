@@ -576,19 +576,23 @@ public class F91KeplerSupport extends AbstractBTLESingleDeviceSupport {
         final SharedPreferences prefs = GBApplication.getDeviceSpecificSharedPrefs(getDevice().getAddress());
         if (cfg == null) {
             LOG.warn("F91 sound settings read failed; the sound switches stay as they are");
-            if (!keys.isEmpty()) {
-                // Not lost: the next 3.2 connect reads the watch and writes the switches.
-                prefs.edit().putBoolean(F91KeplerConstants.PREF_SOUND_DIRTY, true).apply();
-            }
+            soundAdopt = false;
+            // Not lost: the next 3.2 connect reads the watch and writes these.
+            addSoundDirty(prefs, keys);
             return;
         }
         soundCfg = cfg;
         final boolean adopt = soundAdopt;
         soundAdopt = false;
-        if (adopt && prefs.getBoolean(F91KeplerConstants.PREF_SOUND_DIRTY, false)) {
-            writeSoundSwitches();           // changed while the watch was away
-            prefs.edit().putBoolean(F91KeplerConstants.PREF_SOUND_DIRTY, false).apply();
-            return;
+        if (adopt) {
+            // Only the switches changed here while away go back; the rest is the watch's.
+            for (final String k : prefs.getStringSet(F91KeplerConstants.PREF_SOUND_DIRTY_KEYS,
+                                                     java.util.Collections.emptySet())) {
+                if (!keys.contains(k)) {
+                    keys.add(k);
+                }
+            }
+            prefs.edit().remove(F91KeplerConstants.PREF_SOUND_DIRTY_KEYS).apply();
         }
         if (adopt) {
             // The watch's values, except a switch the user is changing right now.
@@ -641,19 +645,14 @@ public class F91KeplerSupport extends AbstractBTLESingleDeviceSupport {
         writeSoundCfg(cfg, flags);
     }
 
-    /** The four switches into the watch's SOUND_CFG (needs a read first). */
-    private void writeSoundSwitches() {
-        final byte[] cfg = soundCfg;
-        if (cfg == null) {
+    private static void addSoundDirty(final SharedPreferences prefs, final java.util.Collection<String> keys) {
+        if (keys.isEmpty()) {
             return;
         }
-        final SharedPreferences prefs = GBApplication.getDeviceSpecificSharedPrefs(getDevice().getAddress());
-        final int flags = F91KeplerProtocol.soundFlags(F91KeplerProtocol.soundFlags(cfg),
-                prefs.getBoolean(F91KeplerConstants.PREF_SOUND_MUTE, false),
-                prefs.getBoolean(F91KeplerConstants.PREF_SOUND_CALL, true),
-                prefs.getBoolean(F91KeplerConstants.PREF_SOUND_TEXT, true),
-                prefs.getBoolean(F91KeplerConstants.PREF_SOUND_LOWBATT, false));
-        writeSoundCfg(cfg, flags);
+        final java.util.Set<String> dirty = new java.util.HashSet<>(
+                prefs.getStringSet(F91KeplerConstants.PREF_SOUND_DIRTY_KEYS, java.util.Collections.emptySet()));
+        dirty.addAll(keys);
+        prefs.edit().putStringSet(F91KeplerConstants.PREF_SOUND_DIRTY_KEYS, dirty).apply();
     }
 
     private void writeSoundCfg(final byte[] cfg, final int flags) {
@@ -1288,8 +1287,8 @@ public class F91KeplerSupport extends AbstractBTLESingleDeviceSupport {
                     readSoundCfg();
                 } else {
                     // Away (or not read yet): the next 3.2 connect reads the watch, then writes this.
-                    GBApplication.getDeviceSpecificSharedPrefs(getDevice().getAddress()).edit()
-                            .putBoolean(F91KeplerConstants.PREF_SOUND_DIRTY, true).apply();
+                    addSoundDirty(GBApplication.getDeviceSpecificSharedPrefs(getDevice().getAddress()),
+                                  java.util.Collections.singletonList(config));
                 }
                 break;
             }
