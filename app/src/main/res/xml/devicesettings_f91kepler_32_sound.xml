@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="utf-8"?>
+<androidx.preference.PreferenceScreen
+    xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- Firmware 3.2 sound (Record SOUND_CFG / PLAY). Always loaded by
+         F91KeplerCoordinator, shown by F91KeplerSettingsCustomizer only once
+         the watch has reported firmware 3.2.0 or newer (KEYS_32). The switches
+         take the watch's values on every connect (silent mode can also be
+         switched on the watch); a change writes only these four bits. -->
+    <PreferenceCategory
+        android:key="f91_pref_category_sound"
+        android:title="@string/f91_pref_header_sound">
+        <SwitchPreferenceCompat
+            android:defaultValue="false"
+            android:key="f91_sound_mute"
+            android:summary="@string/f91_pref_summary_sound_mute"
+            android:title="@string/f91_pref_title_sound_mute" />
+        <SwitchPreferenceCompat
+            android:defaultValue="true"
+            android:key="f91_sound_call"
+            android:summary="@string/f91_pref_summary_sound_call"
+            android:title="@string/f91_pref_title_sound_call" />
+        <SwitchPreferenceCompat
+            android:defaultValue="true"
+            android:key="f91_sound_text"
+            android:summary="@string/f91_pref_summary_sound_text"
+            android:title="@string/f91_pref_title_sound_text" />
+        <SwitchPreferenceCompat
+            android:defaultValue="false"
+            android:key="f91_sound_lowbatt"
+            android:summary="@string/f91_pref_summary_sound_lowbatt"
+            android:title="@string/f91_pref_title_sound_lowbatt" />
+        <Preference
+            android:key="f91_sound_test"
+            android:summary="@string/f91_pref_summary_sound_test"
+            android:title="@string/f91_pref_title_sound_test" />
+    </PreferenceCategory>
+</androidx.preference.PreferenceScreen>

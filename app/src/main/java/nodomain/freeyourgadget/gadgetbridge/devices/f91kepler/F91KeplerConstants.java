@@ -168,6 +168,19 @@ public final class F91KeplerConstants {
     /** 7 days, index 0 = today, {@code [condition][high i8][low i8]} in the user's unit. */
     public static final byte REC_FORECAST = 0x04;
 
+    // Firmware 3.2 sound (docs/FW32_PROTOCOL.md in the firmware repo), Record types.
+    /** SOUND_CFG: {@code [flags u16][quietStart u16][quietEnd u16][lowBattPct][bpm]}
+     *  (rc1: the first 6 bytes); a read adds a settings CRC (u16). */
+    public static final byte REC_SOUND_CFG = 0x06;
+    /** PLAY: {@code [toneRef]} plays it once ("test on watch"), {@code [0]} stops. */
+    public static final byte REC_SOUND_PLAY = 0x0C;
+    public static final int SND_SILENT = 1;          // mutes everything except alarms
+    public static final int SND_CALL = 1 << 2;       // call ring (default on)
+    public static final int SND_TEXT = 1 << 3;       // text beeps (default on from 3.2.0-rc7)
+    public static final int SND_LOWBATT = 1 << 7;    // low-battery sound (opt-in)
+    /** The built-in beep (toneRef 1), what a text plays by default. */
+    public static final byte TONE_BEEP = 1;
+
     public static final int ALARM_SLOTS_31 = 5;
     public static final int COUNTERS = 3;
     public static final int COUNTER_NAME_MAX = 10;
@@ -243,6 +256,15 @@ public final class F91KeplerConstants {
     /** "auto" (German when the phone's language is German), "en" or "de". */
     public static final String PREF_WEEKDAY_LANG = "f91_weekday_lang";
     public static final String PREF_HOURLY_CHIME = "f91_hourly_chime";
+    // Firmware 3.2 sound switches (SOUND_CFG flags) and the test button.
+    public static final String PREF_SOUND_MUTE = "f91_sound_mute";
+    public static final String PREF_SOUND_CALL = "f91_sound_call";
+    public static final String PREF_SOUND_TEXT = "f91_sound_text";
+    public static final String PREF_SOUND_LOWBATT = "f91_sound_lowbatt";
+    public static final String PREF_SOUND_TEST = "f91_sound_test";
+    /** A sound switch changed while the watch was away: write it on the next connect. */
+    public static final String PREF_SOUND_DIRTY = "f91_sound_dirty";
+    public static final String PREF_CATEGORY_SOUND_32 = "f91_pref_category_sound";
     public static final String PREF_QUIET_TEXT = "f91_quiet_text";
     /** Counter names (fw 3.1); empty = counter not in use. */
     public static final String PREF_COUNTER_NAME_PREFIX = "f91_counter_name_";

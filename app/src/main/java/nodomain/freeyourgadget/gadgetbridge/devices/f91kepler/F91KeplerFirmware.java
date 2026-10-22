@@ -78,6 +78,8 @@ public final class F91KeplerFirmware {
      * byte drew stray pixels, so the phone folds everything to ASCII.
      */
     public static final int[] MIN_TEXT_FOLD = {3, 1, 14};
+    /** Sound: the case-back piezo and its Record types (SOUND_CFG, PLAY, ...). */
+    public static final int[] MIN_32 = {3, 2, 0};
 
     private static final Pattern VERSION = Pattern.compile("^\\s*v?(\\d+)\\.(\\d+)\\.(\\d+)");
 
@@ -140,5 +142,9 @@ public final class F91KeplerFirmware {
      */
     public static boolean has31(@Nullable final String firmware) {
         return atLeast(firmware, MIN_31);
+    }
+
+    public static boolean has32(@Nullable final String firmware) {
+        return atLeast(firmware, MIN_32);
     }
 }

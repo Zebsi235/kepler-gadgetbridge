@@ -70,6 +70,8 @@ public class F91KeplerSettingsCustomizer implements DeviceSpecificSettingsCustom
             F91KeplerConstants.PREF_SLEEP_END,
             F91KeplerConstants.PREF_WEEKDAY, F91KeplerConstants.PREF_WEEKDAY_LANG,
             F91KeplerConstants.PREF_QUIET_TEXT, F91KeplerConstants.PREF_HOURLY_CHIME,
+            F91KeplerConstants.PREF_SOUND_MUTE, F91KeplerConstants.PREF_SOUND_CALL,
+            F91KeplerConstants.PREF_SOUND_TEXT, F91KeplerConstants.PREF_SOUND_LOWBATT,
             F91KeplerConstants.PREF_COUNTER_NAME_PREFIX + "0",
             F91KeplerConstants.PREF_COUNTER_NAME_PREFIX + "1",
             F91KeplerConstants.PREF_COUNTER_NAME_PREFIX + "2",
@@ -87,6 +89,11 @@ public class F91KeplerSettingsCustomizer implements DeviceSpecificSettingsCustom
             F91KeplerConstants.PREF_CATEGORY_FACE_31,
             F91KeplerConstants.PREF_CATEGORY_SCREENS_31,
             F91KeplerModes.PREF_MODES_31,
+    };
+
+    /** Shown only once the watch has reported firmware 3.2 (sound). */
+    static final String[] KEYS_32 = {
+            F91KeplerConstants.PREF_CATEGORY_SOUND_32,
     };
 
     /** The opposite: shown only while the watch is NOT known to run 3.1 --
@@ -118,6 +125,13 @@ public class F91KeplerSettingsCustomizer implements DeviceSpecificSettingsCustom
                 pref.setVisible(!show);
             }
         }
+        final boolean show32 = device != null && F91KeplerFirmware.has32(device.getFirmwareVersion());
+        for (final String key : KEYS_32) {
+            final Preference pref = handler.findPreference(key);
+            if (pref != null) {
+                pref.setVisible(show32);
+            }
+        }
     }
 
     @Override
@@ -136,6 +150,13 @@ public class F91KeplerSettingsCustomizer implements DeviceSpecificSettingsCustom
                 name.setOnBindEditTextListener(editText -> editText.setFilters(new InputFilter[]{
                         new InputFilter.LengthFilter(F91KeplerConstants.COUNTER_NAME_MAX)}));
             }
+        }
+        final Preference soundTest = handler.findPreference(F91KeplerConstants.PREF_SOUND_TEST);
+        if (soundTest != null) {
+            soundTest.setOnPreferenceClickListener(preference -> {
+                handler.notifyPreferenceChanged(F91KeplerConstants.PREF_SOUND_TEST);
+                return true;
+            });
         }
         final Preference imageUpload = handler.findPreference(F91KeplerConstants.PREF_IMAGE_UPLOAD);
         if (imageUpload == null) {

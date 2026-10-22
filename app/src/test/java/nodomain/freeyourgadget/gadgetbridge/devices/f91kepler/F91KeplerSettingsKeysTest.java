@@ -16,6 +16,7 @@
     along with this program.  If not, see <https://www.gnu.org/licenses/>. */
 package nodomain.freeyourgadget.gadgetbridge.devices.f91kepler;
 
+import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 
 import org.junit.Test;
@@ -47,6 +48,7 @@ public class F91KeplerSettingsKeysTest {
             "devicesettings_f91kepler_modes.xml",
             "devicesettings_f91kepler_31_face.xml",
             "devicesettings_f91kepler_31_screens.xml",
+            "devicesettings_f91kepler_32_sound.xml",
     };
 
     /** The files whose every preference exists only on firmware 3.1. */
@@ -59,7 +61,9 @@ public class F91KeplerSettingsKeysTest {
     private static final Set<String> PHONE_ONLY = new HashSet<>(Arrays.asList(
             F91KeplerConstants.PREF_ALERT_TIMER, F91KeplerConstants.PREF_ALERT_ALARM,
             F91KeplerConstants.PREF_ALERT_MODE, F91KeplerConstants.PREF_NOTIFICATION_POPUP,
-            F91KeplerConstants.PREF_IMAGE_UPLOAD));
+            F91KeplerConstants.PREF_IMAGE_UPLOAD,
+            // a button: its click sends it (notifyPreferenceChanged), there is no value
+            F91KeplerConstants.PREF_SOUND_TEST));
 
     private static File xmlDir() {
         File dir = new File("").getAbsoluteFile();
@@ -174,5 +178,19 @@ public class F91KeplerSettingsKeysTest {
         final Set<String> pre31 = new HashSet<>(Arrays.asList(F91KeplerSettingsCustomizer.KEYS_PRE31));
         assertTrue(on31.contains(F91KeplerModes.PREF_MODES_31));
         assertTrue(pre31.contains(F91KeplerModes.PREF_MODES));
+    }
+
+    @Test
+    public void theSoundGroupIsHiddenBelowThreeTwo() throws Exception {
+        final DocumentBuilderFactory f = DocumentBuilderFactory.newInstance();
+        f.setNamespaceAware(false);
+        final NodeList cats = f.newDocumentBuilder()
+                .parse(new File(xmlDir(), "devicesettings_f91kepler_32_sound.xml"))
+                .getElementsByTagName("PreferenceCategory");
+        assertEquals(1, cats.getLength());
+        assertEquals(F91KeplerConstants.PREF_CATEGORY_SOUND_32,
+                ((Element) cats.item(0)).getAttribute("android:key"));
+        assertTrue(Arrays.asList(F91KeplerSettingsCustomizer.KEYS_32)
+                .contains(F91KeplerConstants.PREF_CATEGORY_SOUND_32));
     }
 }

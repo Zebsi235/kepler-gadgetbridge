@@ -401,6 +401,56 @@ final class F91KeplerProtocol {
         return bits;
     }
 
+    /**
+     * The SOUND_CFG payload of a Record read ({@code [0x06][0][payload]}): its
+     * first 8 bytes (6 on rc1), without the settings CRC; null if it is not one.
+     */
+    static byte[] soundCfg(final byte[] value) {
+        if (value == null || value.length < 8 || value[0] != F91KeplerConstants.REC_SOUND_CFG || value[1] != 0) {
+            return null;
+        }
+        return java.util.Arrays.copyOfRange(value, 2, Math.min(value.length, 10));
+    }
+
+    /** The flags (u16 LE) of a SOUND_CFG payload. */
+    static int soundFlags(final byte[] cfg) {
+        return (cfg[0] & 0xFF) | ((cfg[1] & 0xFF) << 8);
+    }
+
+    /**
+     * The watch's SOUND_CFG flags with the four switches Gadgetbridge offers set
+     * as chosen; every other bit (quiet hours, phone DND, metronome ...) stays
+     * the watch's, as the companion app or the watch itself set it.
+     */
+    static int soundFlags(final int watchFlags, final boolean mute, final boolean call,
+                          final boolean text, final boolean lowBattery) {
+        int f = watchFlags & ~(F91KeplerConstants.SND_SILENT | F91KeplerConstants.SND_CALL
+                | F91KeplerConstants.SND_TEXT | F91KeplerConstants.SND_LOWBATT);
+        if (mute) f |= F91KeplerConstants.SND_SILENT;
+        if (call) f |= F91KeplerConstants.SND_CALL;
+        if (text) f |= F91KeplerConstants.SND_TEXT;
+        if (lowBattery) f |= F91KeplerConstants.SND_LOWBATT;
+        return f & 0xFFFF;
+    }
+
+    /** {@code flags} with one bit set or cleared. */
+    static int soundFlagWith(final int flags, final int bit, final boolean on) {
+        return (on ? flags | bit : flags & ~bit) & 0xFFFF;
+    }
+
+    /** The SOUND_CFG write: the payload as read, with new flags (same length as read). */
+    static byte[] soundCfgWrite(final byte[] cfg, final int flags) {
+        final byte[] p = cfg.clone();
+        p[0] = (byte) flags;
+        p[1] = (byte) (flags >> 8);
+        return record(F91KeplerConstants.REC_SOUND_CFG, 0, p);
+    }
+
+    /** PLAY {@code [0x0C][0][toneRef]}: the watch plays the tone once. */
+    static byte[] soundPlay(final byte toneRef) {
+        return record(F91KeplerConstants.REC_SOUND_PLAY, 0, new byte[]{toneRef});
+    }
+
     /** Record (F2F4) frame: {@code [type][index][payload]}. */
     static byte[] record(final byte type, final int index, final byte[] payload) {
         final byte[] out = new byte[2 + payload.length];
