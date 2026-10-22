@@ -140,6 +140,10 @@ public class F91KeplerSupport extends AbstractBTLESingleDeviceSupport {
     private int soundReadsPending;
     /** A SOUND_CFG select + read is on the air right now: set when its transaction starts. */
     private volatile boolean soundInFlight;
+    /** The five ALARM_SOUND reads (snooze length) are on the air; their payloads so far. */
+    private volatile boolean alarmSoundInFlight;
+    private final byte[][] alarmSounds = new byte[F91KeplerConstants.ALARM_SLOTS_31][];
+    private int alarmSoundsGot;
     /** The connect read adopts the watch's values into the switches; later reads only refresh. */
     private volatile boolean soundAdopt;
     /** The switches to write once the fresh SOUND_CFG arrives (empty: just adopt the watch's). */
@@ -212,6 +216,10 @@ public class F91KeplerSupport extends AbstractBTLESingleDeviceSupport {
             soundWriteKeys.clear();
         }
         soundInFlight = false;
+        if (alarmSoundInFlight) {
+            markSnoozeDirty();
+        }
+        alarmSoundInFlight = false;
         soundAdopt = false;
         builder.setDeviceState(GBDevice.State.INITIALIZING);
         if (GBApplication.getPrefs().syncTime()) {
@@ -417,6 +425,15 @@ public class F91KeplerSupport extends AbstractBTLESingleDeviceSupport {
             reconcileImage(status == BluetoothGatt.GATT_SUCCESS ? value : null);
             return true;
         }
+        if (F91KeplerConstants.UUID_CHAR_RECORD.equals(characteristic.getUuid()) && alarmSoundInFlight) {
+            final boolean ours = status != BluetoothGatt.GATT_SUCCESS
+                    || (value != null && value.length > 0 && value[0] == F91KeplerConstants.REC_ALARM_SOUND);
+            // Another record's answer: the alarm-sound read was dropped without a callback.
+            onAlarmSoundRead(ours && status == BluetoothGatt.GATT_SUCCESS ? value : null);
+            if (ours) {
+                return true;
+            }
+        }
         if (F91KeplerConstants.UUID_CHAR_RECORD.equals(characteristic.getUuid()) && soundInFlight) {
             // The answer of the sound read on the air (transactions run one at a time).
             endSoundRead();
@@ -449,6 +466,13 @@ public class F91KeplerSupport extends AbstractBTLESingleDeviceSupport {
                     || F91KeplerConstants.UUID_CHAR_IMAGE_CONTROL.equals(characteristic.getUuid()))) {
             LOG.warn("F91 image write to {} failed with status {}", characteristic.getUuid(), status);
             reconcileImage(null);
+        }
+        if (status != BluetoothGatt.GATT_SUCCESS && characteristic != null
+                && F91KeplerConstants.UUID_CHAR_RECORD.equals(characteristic.getUuid())
+                && alarmSoundInFlight) {
+            LOG.warn("F91 alarm sound select failed with status {}", status);
+            onAlarmSoundRead(null);
+            return super.onCharacteristicWrite(gatt, characteristic, status);
         }
         if (status != BluetoothGatt.GATT_SUCCESS && characteristic != null
                 && F91KeplerConstants.UUID_CHAR_RECORD.equals(characteristic.getUuid())
@@ -537,6 +561,10 @@ public class F91KeplerSupport extends AbstractBTLESingleDeviceSupport {
             if (F91KeplerFirmware.has32(fw)) {
                 soundAdopt = true;
                 readSoundCfg();             // before the alarm reads
+                if (GBApplication.getDeviceSpecificSharedPrefs(getDevice().getAddress())
+                        .getBoolean(F91KeplerConstants.PREF_SOUND_SNOOZE_DIRTY, false)) {
+                    readAlarmSounds();      // the snooze length changed while away
+                }
             }
             // The slots last, and only after reading them: a one-shot that rang
             // while the phone was away is off on the watch, and writing the
@@ -555,6 +583,73 @@ public class F91KeplerSupport extends AbstractBTLESingleDeviceSupport {
         synchronized (soundWriteKeys) {
             return soundReadsPending > 0;
         }
+    }
+
+    // --- Snooze length (ALARM_SOUND, firmware 3.2) ----------------------------
+
+    private void markSnoozeDirty() {
+        GBApplication.getDeviceSpecificSharedPrefs(getDevice().getAddress()).edit()
+                .putBoolean(F91KeplerConstants.PREF_SOUND_SNOOZE_DIRTY, true).apply();
+    }
+
+    /** Select + read the five ALARM_SOUND records; onAlarmSoundRead writes the snooze back. */
+    private void readAlarmSounds() {
+        if (alarmSoundInFlight) {
+            return;
+        }
+        final TransactionBuilder builder = createTransactionBuilder("read alarm sounds");
+        builder.run(() -> {
+            synchronized (alarmSounds) {
+                java.util.Arrays.fill(alarmSounds, null);
+                alarmSoundsGot = 0;
+            }
+            alarmSoundInFlight = true;
+        });
+        for (int i = 0; i < F91KeplerConstants.ALARM_SLOTS_31; i++) {
+            builder.write(F91KeplerConstants.UUID_CHAR_RECORD,
+                          F91KeplerProtocol.record(F91KeplerConstants.REC_ALARM_SOUND, i, new byte[0]));
+            builder.read(F91KeplerConstants.UUID_CHAR_RECORD);
+        }
+        builder.queue();
+    }
+
+    /**
+     * One ALARM_SOUND answer (null: failed). After all five, each alarm is written back with
+     * the chosen snooze and its own tone and escalation. A failure keeps the change for the
+     * next connect.
+     */
+    private void onAlarmSoundRead(final byte[] value) {
+        final byte[][] got;
+        synchronized (alarmSounds) {
+            final byte[] p = F91KeplerProtocol.alarmSound(value, alarmSoundsGot);
+            if (p == null) {
+                alarmSoundInFlight = false;
+                LOG.warn("F91 alarm sound read failed; the snooze length goes after the next connect");
+                markSnoozeDirty();
+                return;
+            }
+            alarmSounds[alarmSoundsGot++] = p;
+            if (alarmSoundsGot < alarmSounds.length) {
+                return;
+            }
+            alarmSoundInFlight = false;
+            got = alarmSounds.clone();
+        }
+        final SharedPreferences prefs = GBApplication.getDeviceSpecificSharedPrefs(getDevice().getAddress());
+        int minutes;
+        try {
+            minutes = Integer.parseInt(prefs.getString(F91KeplerConstants.PREF_SOUND_SNOOZE, "9"));
+        } catch (final NumberFormatException e) {
+            minutes = 9;
+        }
+        final TransactionBuilder builder = createTransactionBuilder("set snooze length");
+        for (int i = 0; i < got.length; i++) {
+            builder.write(F91KeplerConstants.UUID_CHAR_RECORD, F91KeplerProtocol.alarmSoundSnooze(i, got[i], minutes));
+        }
+        // Done only when all five went through: a failed write or a dropped link aborts
+        // the transaction before this, and the change stays for the next connect.
+        builder.run(() -> prefs.edit().putBoolean(F91KeplerConstants.PREF_SOUND_SNOOZE_DIRTY, false).apply());
+        builder.queue();
     }
 
     private void endSoundRead() {
@@ -620,6 +715,7 @@ public class F91KeplerSupport extends AbstractBTLESingleDeviceSupport {
             adoptSwitch(ev, keys, F91KeplerConstants.PREF_SOUND_CALL, f, F91KeplerConstants.SND_CALL);
             adoptSwitch(ev, keys, F91KeplerConstants.PREF_SOUND_TEXT, f, F91KeplerConstants.SND_TEXT);
             adoptSwitch(ev, keys, F91KeplerConstants.PREF_SOUND_LOWBATT, f, F91KeplerConstants.SND_LOWBATT);
+            adoptSwitch(ev, keys, F91KeplerConstants.PREF_SOUND_LOST, f, F91KeplerConstants.SND_LOST);
             evaluateGBDeviceEvent(ev);
         }
         if (!keys.isEmpty()) {
@@ -655,6 +751,11 @@ public class F91KeplerSupport extends AbstractBTLESingleDeviceSupport {
                     break;
                 case F91KeplerConstants.PREF_SOUND_LOWBATT:
                     flags = F91KeplerProtocol.soundFlagWith(flags, F91KeplerConstants.SND_LOWBATT, prefs.getBoolean(key, false));
+                    break;
+                case F91KeplerConstants.PREF_SOUND_LOST:
+                    if (F91KeplerFirmware.hasLostAlert(connectedFw)) {   // 3.2.1: false beeps after radio-off
+                        flags = F91KeplerProtocol.soundFlagWith(flags, F91KeplerConstants.SND_LOST, prefs.getBoolean(key, false));
+                    }
                     break;
                 default:
                     break;
@@ -999,6 +1100,9 @@ public class F91KeplerSupport extends AbstractBTLESingleDeviceSupport {
                 endSoundRead();
                 onSoundCfgRead(null);
             }
+            if (alarmSoundInFlight) {
+                onAlarmSoundRead(null);
+            }
         });
         for (int i = 0; i < F91KeplerConstants.ALARM_SLOTS_31; i++) {
             builder.write(F91KeplerConstants.UUID_CHAR_RECORD,
@@ -1033,6 +1137,10 @@ public class F91KeplerSupport extends AbstractBTLESingleDeviceSupport {
         // A sound switch changed during the read-back waited for the select register.
         if (!soundWriteKeys.isEmpty() && !soundReadDue()) {
             readSoundCfg();
+        }
+        if (has32() && GBApplication.getDeviceSpecificSharedPrefs(getDevice().getAddress())
+                .getBoolean(F91KeplerConstants.PREF_SOUND_SNOOZE_DIRTY, false)) {
+            readAlarmSounds();
         }
         if (raced) {
             LOG.debug("F91 alarms were edited during the read-back, keeping the edit");
@@ -1306,6 +1414,11 @@ public class F91KeplerSupport extends AbstractBTLESingleDeviceSupport {
                 builder.queue();
                 break;
             }
+            case F91KeplerConstants.PREF_SOUND_LOST:
+                if (getDevice().isInitialized() && !F91KeplerFirmware.hasLostAlert(connectedFw)) {
+                    break;                  // 3.2.1 could beep falsely after a radio-off night
+                }
+                // fall through
             case F91KeplerConstants.PREF_SOUND_MUTE:
             case F91KeplerConstants.PREF_SOUND_CALL:
             case F91KeplerConstants.PREF_SOUND_TEXT:
@@ -1324,6 +1437,15 @@ public class F91KeplerSupport extends AbstractBTLESingleDeviceSupport {
                     // Away (or not read yet): the next 3.2 connect reads the watch, then writes this.
                     addSoundDirty(GBApplication.getDeviceSpecificSharedPrefs(getDevice().getAddress()),
                                   java.util.Collections.singletonList(config));
+                }
+                break;
+            }
+            case F91KeplerConstants.PREF_SOUND_SNOOZE: {
+                // Away, reconnecting, or an alarm read-back holds the select register:
+                // finishAlarmRead / the next connect reads and writes it.
+                markSnoozeDirty();
+                if (getDevice().isInitialized() && has32() && alarmReadGen < 0) {
+                    readAlarmSounds();
                 }
                 break;
             }

@@ -121,4 +121,12 @@ public class F91KeplerFirmwareTest {
         assertFalse(F91KeplerFirmware.has32("3.1.24"));
         assertFalse(F91KeplerFirmware.has32(null));
     }
+
+    @Test
+    public void lostPhoneAlertNeeds322() {
+        assertTrue(F91KeplerFirmware.hasLostAlert("3.2.2"));
+        assertTrue(F91KeplerFirmware.hasLostAlert("3.2.2-bl"));
+        assertFalse(F91KeplerFirmware.hasLostAlert("3.2.1"));
+        assertFalse(F91KeplerFirmware.hasLostAlert(null));
+    }
 }

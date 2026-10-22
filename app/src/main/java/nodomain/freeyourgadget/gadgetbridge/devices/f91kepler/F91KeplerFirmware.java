@@ -80,6 +80,8 @@ public final class F91KeplerFirmware {
     public static final int[] MIN_TEXT_FOLD = {3, 1, 14};
     /** Sound: the case-back piezo and its Record types (SOUND_CFG, PLAY, ...). */
     public static final int[] MIN_32 = {3, 2, 0};
+    /** The lost-phone alert: 3.2.1 can beep falsely ~90 s after the radio comes back on. */
+    public static final int[] MIN_LOST_ALERT = {3, 2, 2};
 
     private static final Pattern VERSION = Pattern.compile("^\\s*v?(\\d+)\\.(\\d+)\\.(\\d+)");
 
@@ -146,5 +148,9 @@ public final class F91KeplerFirmware {
 
     public static boolean has32(@Nullable final String firmware) {
         return atLeast(firmware, MIN_32);
+    }
+
+    public static boolean hasLostAlert(@Nullable final String firmware) {
+        return atLeast(firmware, MIN_LOST_ALERT);
     }
 }

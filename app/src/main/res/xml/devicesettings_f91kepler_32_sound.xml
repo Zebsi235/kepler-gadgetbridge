@@ -1,6 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <androidx.preference.PreferenceScreen
-    xmlns:android="http://schemas.android.com/apk/res/android">
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto">
     <!-- Firmware 3.2 sound (Record SOUND_CFG / PLAY). Always loaded by
          F91KeplerCoordinator, shown by F91KeplerSettingsCustomizer only once
          the watch has reported firmware 3.2.0 or newer (KEYS_32). The switches
@@ -29,6 +30,19 @@
             android:key="f91_sound_lowbatt"
             android:summary="@string/f91_pref_summary_sound_lowbatt"
             android:title="@string/f91_pref_title_sound_lowbatt" />
+        <!-- Shown only from firmware 3.2.2 (F91KeplerFirmware.hasLostAlert). -->
+        <SwitchPreferenceCompat
+            android:defaultValue="false"
+            android:key="f91_sound_lost"
+            android:summary="@string/f91_pref_summary_sound_lost"
+            android:title="@string/f91_pref_title_sound_lost" />
+        <ListPreference
+            android:defaultValue="9"
+            android:entries="@array/f91_sound_snooze"
+            android:entryValues="@array/f91_sound_snooze_values"
+            android:key="f91_sound_snooze"
+            android:title="@string/f91_pref_title_sound_snooze"
+            app:useSimpleSummaryProvider="true" />
         <Preference
             android:key="f91_sound_test"
             android:summary="@string/f91_pref_summary_sound_test"

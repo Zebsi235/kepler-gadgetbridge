@@ -174,9 +174,12 @@ public final class F91KeplerConstants {
     public static final byte REC_SOUND_CFG = 0x06;
     /** PLAY: {@code [toneRef]} plays it once ("test on watch"), {@code [0]} stops. */
     public static final byte REC_SOUND_PLAY = 0x0C;
+    /** ALARM_SOUND idx 0..4: {@code [toneRef][snoozeMin][flags]} (rc1: the first 2 bytes). */
+    public static final byte REC_ALARM_SOUND = 0x08;
     public static final int SND_SILENT = 1;          // mutes everything except alarms
     public static final int SND_CALL = 1 << 2;       // call ring (default on)
     public static final int SND_TEXT = 1 << 3;       // text beeps (default on from 3.2.0-rc7)
+    public static final int SND_LOST = 1 << 6;       // lost-phone alert, 60 s after the link drops (opt-in)
     public static final int SND_LOWBATT = 1 << 7;    // low-battery sound (opt-in)
     /** The built-in beep (toneRef 1), what a text plays by default. */
     public static final byte TONE_BEEP = 1;
@@ -261,6 +264,11 @@ public final class F91KeplerConstants {
     public static final String PREF_SOUND_CALL = "f91_sound_call";
     public static final String PREF_SOUND_TEXT = "f91_sound_text";
     public static final String PREF_SOUND_LOWBATT = "f91_sound_lowbatt";
+    public static final String PREF_SOUND_LOST = "f91_sound_lost";
+    /** Snooze length in minutes for all five alarms ("0" = no snooze); written into ALARM_SOUND. */
+    public static final String PREF_SOUND_SNOOZE = "f91_sound_snooze";
+    /** The snooze length changed while the watch was away: written after the next connect. */
+    public static final String PREF_SOUND_SNOOZE_DIRTY = "f91_sound_snooze_dirty";
     public static final String PREF_SOUND_TEST = "f91_sound_test";
     /** The sound switches changed while the watch was away (a string set): only
      *  these are written after the next connect read, the others take the watch's. */

@@ -2327,6 +2327,13 @@
     <string name="f91_pref_summary_sound_text">Beep when a notification arrives.</string>
     <string name="f91_pref_title_sound_lowbatt">Low-battery sound</string>
     <string name="f91_pref_summary_sound_lowbatt">Beep once when the battery runs low.</string>
+    <string name="f91_pref_title_sound_lost">Lost-phone alert</string>
+    <string name="f91_pref_summary_sound_lost">Beep when the phone has been out of reach for a minute.</string>
+    <string name="f91_pref_title_sound_snooze">Snooze length</string>
+    <string name="f91_snooze_off">No snooze</string>
+    <string name="f91_snooze_5">5 minutes</string>
+    <string name="f91_snooze_9">9 minutes</string>
+    <string name="f91_snooze_15">15 minutes</string>
     <string name="f91_pref_title_sound_test">Test sound on watch</string>
     <string name="f91_pref_summary_sound_test">Plays one beep on the watch.</string>
     <string name="f91_pref_header_screens_31">Counters</string>

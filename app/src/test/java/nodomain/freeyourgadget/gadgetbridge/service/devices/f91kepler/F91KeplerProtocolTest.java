@@ -383,4 +383,32 @@ public class F91KeplerProtocolTest {
         assertEquals(0x0C, cfg[0]);   // the cached copy is not changed in place
         assertArrayEquals(new byte[]{0x0C, 0x00, 0x01}, F91KeplerProtocol.soundPlay(F91KeplerConstants.TONE_BEEP));
     }
+
+    @Test
+    public void alarmSoundSnoozeKeepsToneAndEscalation() {
+        // slot 2: tone 0x41 (melody slot 1), snooze 9, escalation on
+        final byte[] read = {0x08, 0x02, 0x41, 0x09, 0x01};
+        final byte[] p = F91KeplerProtocol.alarmSound(read, 2);
+        assertArrayEquals(new byte[]{0x41, 0x09, 0x01}, p);
+        assertArrayEquals(new byte[]{0x08, 0x02, 0x41, 0x0F, 0x01}, F91KeplerProtocol.alarmSoundSnooze(2, p, 15));
+        assertArrayEquals(new byte[]{0x08, 0x02, 0x41, 0x00, 0x01}, F91KeplerProtocol.alarmSoundSnooze(2, p, 0));
+        assertArrayEquals(new byte[]{0x08, 0x02, 0x41, 0x1E, 0x01}, F91KeplerProtocol.alarmSoundSnooze(2, p, 99));
+        // rc1: two bytes, written back as two
+        assertArrayEquals(new byte[]{0x03, 0x09}, F91KeplerProtocol.alarmSound(new byte[]{0x08, 0x00, 0x03, 0x09}, 0));
+        // wrong slot or record
+        assertEquals(null, F91KeplerProtocol.alarmSound(read, 1));
+        assertEquals(null, F91KeplerProtocol.alarmSound(new byte[]{0x06, 0x02, 0x41, 0x09, 0x01}, 2));
+    }
+
+    @Test
+    public void soundWritesKeepAllAlarmsOff() {
+        // firmware 3.2.2: bit 14 = all alarms off, set on the watch
+        final byte[] cfg = {0x0C, 0x40, 0x28, 0x05, (byte) 0xA4, 0x01, 0x0F, 0x3C};
+        final int flags = F91KeplerProtocol.soundFlagWith(F91KeplerProtocol.soundFlags(cfg), F91KeplerConstants.SND_SILENT, true);
+        assertEquals(0x400D, flags);
+        assertArrayEquals(new byte[]{0x06, 0x00, 0x0D, 0x40, 0x28, 0x05, (byte) 0xA4, 0x01, 0x0F, 0x3C},
+                F91KeplerProtocol.soundCfgWrite(cfg, flags));
+        assertEquals(0x4000 | F91KeplerConstants.SND_CALL,
+                F91KeplerProtocol.soundFlags(0x4000, false, true, false, false));
+    }
 }
