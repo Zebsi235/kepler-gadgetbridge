@@ -658,7 +658,13 @@ public class F91KeplerSupport extends AbstractBTLESingleDeviceSupport {
         }
         // Done only when all five went through: a failed write or a dropped link aborts
         // the transaction before this, and the change stays for the next connect.
-        builder.run(() -> prefs.edit().putBoolean(F91KeplerConstants.PREF_SOUND_SNOOZE_DIRTY, false).apply());
+        final String written = String.valueOf(minutes);
+        builder.run(() -> {
+            // Changed again while these went out: that change keeps the flag (its own read follows).
+            if (written.equals(prefs.getString(F91KeplerConstants.PREF_SOUND_SNOOZE, "9"))) {
+                prefs.edit().putBoolean(F91KeplerConstants.PREF_SOUND_SNOOZE_DIRTY, false).apply();
+            }
+        });
         builder.queue();
     }
 
