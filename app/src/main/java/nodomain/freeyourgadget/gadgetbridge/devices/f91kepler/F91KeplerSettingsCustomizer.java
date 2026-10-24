@@ -20,9 +20,11 @@ import android.content.Intent;
 import android.content.SharedPreferences;
 import android.os.Parcel;
 import android.text.InputFilter;
+import android.widget.Toast;
 
 import androidx.annotation.NonNull;
 import androidx.preference.EditTextPreference;
+import androidx.preference.ListPreference;
 import androidx.preference.Preference;
 import androidx.preference.TwoStatePreference;
 
@@ -30,10 +32,12 @@ import java.util.Collections;
 import java.util.Set;
 
 import nodomain.freeyourgadget.gadgetbridge.GBApplication;
+import nodomain.freeyourgadget.gadgetbridge.R;
 import nodomain.freeyourgadget.gadgetbridge.activities.devicesettings.DeviceSpecificSettingsCustomizer;
 import nodomain.freeyourgadget.gadgetbridge.activities.devicesettings.DeviceSpecificSettingsHandler;
 import nodomain.freeyourgadget.gadgetbridge.impl.GBDevice;
 import nodomain.freeyourgadget.gadgetbridge.util.Prefs;
+import nodomain.freeyourgadget.gadgetbridge.util.GB;
 
 /**
  * Opens the image screen from the watch's settings (the click is wired here so
@@ -131,6 +135,14 @@ public class F91KeplerSettingsCustomizer implements DeviceSpecificSettingsCustom
                 ((TwoStatePreference) pref).setChecked(prefs.getBoolean(keys[i], defaults[i]));
             }
         }
+        final Preference snooze = handler.findPreference(F91KeplerConstants.PREF_SOUND_SNOOZE);
+        if (snooze instanceof ListPreference) {
+            final ListPreference list = (ListPreference) snooze;
+            final String v = prefs.getString(F91KeplerConstants.PREF_SOUND_SNOOZE, "9");
+            if (list.findIndexOfValue(v) >= 0) {
+                list.setValue(v);           // a value the list does not offer is left as shown
+            }
+        }
     }
 
     /** Show the 3.1 groups iff this device is known to run firmware 3.1+. */
@@ -182,7 +194,14 @@ public class F91KeplerSettingsCustomizer implements DeviceSpecificSettingsCustom
         final Preference soundTest = handler.findPreference(F91KeplerConstants.PREF_SOUND_TEST);
         if (soundTest != null) {
             soundTest.setOnPreferenceClickListener(preference -> {
-                handler.notifyPreferenceChanged(F91KeplerConstants.PREF_SOUND_TEST);
+                final GBDevice d = handler.getDevice();
+                if (d != null && d.isInitialized()) {
+                    handler.notifyPreferenceChanged(F91KeplerConstants.PREF_SOUND_TEST);
+                } else {
+                    // Without a link the request would be dropped without a word.
+                    GB.toast(handler.getContext(), handler.getContext().getString(R.string.f91_sound_test_connect),
+                             Toast.LENGTH_SHORT, GB.INFO);
+                }
                 return true;
             });
         }

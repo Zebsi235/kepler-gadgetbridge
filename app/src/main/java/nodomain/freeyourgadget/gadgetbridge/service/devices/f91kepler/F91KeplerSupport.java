@@ -216,9 +216,8 @@ public class F91KeplerSupport extends AbstractBTLESingleDeviceSupport {
             soundWriteKeys.clear();
         }
         soundInFlight = false;
-        if (alarmSoundInFlight) {
-            markSnoozeDirty();
-        }
+        // A snooze change still to send keeps its dirty flag (set on the change, cleared
+        // only after all five writes); a read that only showed the watch's value marks nothing.
         alarmSoundInFlight = false;
         soundAdopt = false;
         builder.setDeviceState(GBDevice.State.INITIALIZING);
@@ -561,10 +560,8 @@ public class F91KeplerSupport extends AbstractBTLESingleDeviceSupport {
             if (F91KeplerFirmware.has32(fw)) {
                 soundAdopt = true;
                 readSoundCfg();             // before the alarm reads
-                if (GBApplication.getDeviceSpecificSharedPrefs(getDevice().getAddress())
-                        .getBoolean(F91KeplerConstants.PREF_SOUND_SNOOZE_DIRTY, false)) {
-                    readAlarmSounds();      // the snooze length changed while away
-                }
+                // Changed while away: written; else the watch's snooze is shown.
+                readAlarmSounds();
             }
             // The slots last, and only after reading them: a one-shot that rang
             // while the phone was away is off on the watch, and writing the
@@ -624,8 +621,7 @@ public class F91KeplerSupport extends AbstractBTLESingleDeviceSupport {
             final byte[] p = F91KeplerProtocol.alarmSound(value, alarmSoundsGot);
             if (p == null) {
                 alarmSoundInFlight = false;
-                LOG.warn("F91 alarm sound read failed; the snooze length goes after the next connect");
-                markSnoozeDirty();
+                LOG.warn("F91 alarm sound read failed; a pending snooze change goes after the next connect");
                 return;
             }
             alarmSounds[alarmSoundsGot++] = p;
@@ -636,6 +632,20 @@ public class F91KeplerSupport extends AbstractBTLESingleDeviceSupport {
             got = alarmSounds.clone();
         }
         final SharedPreferences prefs = GBApplication.getDeviceSpecificSharedPrefs(getDevice().getAddress());
+        if (!prefs.getBoolean(F91KeplerConstants.PREF_SOUND_SNOOZE_DIRTY, false)) {
+            // Nothing to write: show the watch's snooze when all five alarms share it
+            // (the companion app can set them one by one).
+            final int first = got[0][1] & 0xFF;
+            boolean same = true;
+            for (final byte[] p : got) {
+                same &= (p[1] & 0xFF) == first;
+            }
+            if (same && (first == 0 || first == 5 || first == 9 || first == 15)) {   // the list's values
+                evaluateGBDeviceEvent(new GBDeviceEventUpdatePreferences(
+                        F91KeplerConstants.PREF_SOUND_SNOOZE, String.valueOf(first)));
+            }
+            return;
+        }
         int minutes;
         try {
             minutes = Integer.parseInt(prefs.getString(F91KeplerConstants.PREF_SOUND_SNOOZE, "9"));
@@ -648,7 +658,13 @@ public class F91KeplerSupport extends AbstractBTLESingleDeviceSupport {
         }
         // Done only when all five went through: a failed write or a dropped link aborts
         // the transaction before this, and the change stays for the next connect.
-        builder.run(() -> prefs.edit().putBoolean(F91KeplerConstants.PREF_SOUND_SNOOZE_DIRTY, false).apply());
+        final String written = String.valueOf(minutes);
+        builder.run(() -> {
+            // Changed again while these went out: that change keeps the flag (its own read follows).
+            if (written.equals(prefs.getString(F91KeplerConstants.PREF_SOUND_SNOOZE, "9"))) {
+                prefs.edit().putBoolean(F91KeplerConstants.PREF_SOUND_SNOOZE_DIRTY, false).apply();
+            }
+        });
         builder.queue();
     }
 
