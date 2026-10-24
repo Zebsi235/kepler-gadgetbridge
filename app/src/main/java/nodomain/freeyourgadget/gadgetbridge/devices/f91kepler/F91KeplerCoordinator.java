@@ -141,9 +141,8 @@ public class F91KeplerCoordinator extends AbstractBLEDeviceCoordinator {
         F91KeplerModes.migrate(GBApplication.getDeviceSpecificSharedPrefs(device.getAddress()));
         final List<Integer> xml = new ArrayList<>();
         xml.add(R.xml.devicesettings_timeformat);
-        if (!F91KeplerFirmware.knownBelow(fw, F91KeplerFirmware.MIN_ALERTS)) {
-            xml.add(R.xml.devicesettings_f91kepler_alerts);
-        }
+        // Display and notification switches first (no category of their own), then
+        // Clock face, Sounds, and what the phone does on the watch's timer/alarm.
         if (!F91KeplerFirmware.knownBelow(fw, F91KeplerFirmware.MIN_BRIGHTNESS)) {
             xml.add(R.xml.devicesettings_f91kepler_brightness);
         }
@@ -153,6 +152,9 @@ public class F91KeplerCoordinator extends AbstractBLEDeviceCoordinator {
         xml.add(R.xml.devicesettings_f91kepler_31_face);
         // Hidden until the watch reports 3.2 (F91KeplerSettingsCustomizer.KEYS_32).
         xml.add(R.xml.devicesettings_f91kepler_32_sound);
+        if (!F91KeplerFirmware.knownBelow(fw, F91KeplerFirmware.MIN_ALERTS)) {
+            xml.add(R.xml.devicesettings_f91kepler_alerts);
+        }
         if (!F91KeplerFirmware.knownBelow(fw, F91KeplerFirmware.MIN_RADIO_SCHEDULE)) {
             xml.add(R.xml.devicesettings_f91kepler_sleep);
         }

@@ -23,6 +23,7 @@ import android.text.InputFilter;
 
 import androidx.annotation.NonNull;
 import androidx.preference.EditTextPreference;
+import androidx.preference.ListPreference;
 import androidx.preference.Preference;
 import androidx.preference.TwoStatePreference;
 
@@ -129,6 +130,14 @@ public class F91KeplerSettingsCustomizer implements DeviceSpecificSettingsCustom
             final Preference pref = handler.findPreference(keys[i]);
             if (pref instanceof TwoStatePreference) {
                 ((TwoStatePreference) pref).setChecked(prefs.getBoolean(keys[i], defaults[i]));
+            }
+        }
+        final Preference snooze = handler.findPreference(F91KeplerConstants.PREF_SOUND_SNOOZE);
+        if (snooze instanceof ListPreference) {
+            final ListPreference list = (ListPreference) snooze;
+            final String v = prefs.getString(F91KeplerConstants.PREF_SOUND_SNOOZE, "9");
+            if (list.findIndexOfValue(v) >= 0) {
+                list.setValue(v);           // a value the list does not offer is left as shown
             }
         }
     }

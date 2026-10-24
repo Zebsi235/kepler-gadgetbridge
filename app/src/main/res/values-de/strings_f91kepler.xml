@@ -1,13 +1,13 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="f91_pref_header_alerts">Timer- &amp; Wecker-Hinweise</string>
+    <string name="f91_pref_header_alerts">Hinweise auf diesem Telefon</string>
     <string name="f91_pref_title_alert_timer">Hinweis, wenn der Timer abläuft</string>
-    <string name="f91_pref_summary_alert_timer">Dieses Telefon klingeln oder vibrieren lassen, wenn der Timer der Uhr null erreicht. Die Uhr selbst bleibt stumm.</string>
+    <string name="f91_pref_summary_alert_timer">Dieses Telefon zusätzlich klingeln oder vibrieren lassen, wenn der Timer der Uhr abläuft.</string>
     <string name="f91_pref_title_alert_alarm">Hinweis, wenn der Wecker klingelt</string>
     <string name="f91_pref_summary_alert_alarm">Dieses Telefon zusätzlich klingeln oder vibrieren lassen, wenn der Wecker der Uhr auslöst. Ab Firmware 3.2 piept die Uhr selbst; mit älterer Firmware ist ihr Wecker nur optisch und leicht zu übersehen.</string>
     <string name="f91_pref_title_alert_mode">Art des Hinweises</string>
     <string name="f91_pref_title_brightness">Displayhelligkeit</string>
-    <string name="f91_pref_header_sleep">Ruhezeiten</string>
+    <string name="f91_pref_header_sleep">Funkpause</string>
     <string name="f91_pref_summary_sleep">Die Uhr schaltet ihr Bluetooth in diesem Zeitraum aus, um Akku zu sparen. Über den Bluetooth-Bildschirm der Uhr kannst du es jederzeit wieder einschalten – es bleibt dann bis zum Ende des Zeitraums an.</string>
     <string name="f91_pref_title_sleep_enabled">Funk nachts aus</string>
     <string name="f91_pref_title_sleep_start">Beginn</string>
@@ -20,8 +20,8 @@
     <string name="f91_pref_title_notification_popup">Absender als Vollbild-Popup anzeigen</string>
     <string name="f91_pref_summary_notification_popup">Den Absendernamen bei jeder Benachrichtigung kurz auf der Uhr anzeigen, zusätzlich zum Symbol in der Leiste</string>
     <string name="f91_pref_header_modes">Uhrmodi</string>
-    <string name="f91_pref_summary_modes">Wähle die gewünschten Modi und ziehe sie in die Reihenfolge, in der die obere Taste sie durchschaltet. Das Zifferblatt steht immer an erster Stelle.</string>
-    <string name="f91_pref_summary_modes_31">Wähle die gewünschten Modi und ziehe sie in die Reihenfolge, in der die obere Taste sie durchschaltet. Das Zifferblatt steht immer an erster Stelle. Ein Zähler erscheint, sobald er einen Namen hat.</string>
+    <string name="f91_pref_summary_modes">Wähle die gewünschten Modi und ziehe sie in die Reihenfolge, in der die Taste oben links (MODE) sie durchschaltet. Das Zifferblatt steht immer an erster Stelle.</string>
+    <string name="f91_pref_summary_modes_31">Wähle die gewünschten Modi und ziehe sie in die Reihenfolge, in der die Taste oben links (MODE) sie durchschaltet. Das Zifferblatt steht immer an erster Stelle. Ein Zähler erscheint, sobald er einen Namen hat.</string>
     <string name="f91_pref_title_modes">Uhrmodi</string>
     <string name="f91_pref_title_mode_notif">Benachrichtigungsmodus</string>
     <string name="f91_pref_title_mode_timer">Timer-Modus</string>
@@ -29,14 +29,14 @@
     <string name="f91_pref_title_mode_stopwatch">Stoppuhr-Modus</string>
     <string name="f91_pref_title_mode_info">Info-Modus</string>
     <string name="f91_pref_title_mode_flashlight">Taschenlampen-Modus</string>
-    <string name="f91_pref_title_mode_findphone">Handy-suchen-Modus</string>
+    <string name="f91_pref_title_mode_findphone">Telefon-suchen-Modus</string>
     <string name="f91_pref_title_mode_ble">Bluetooth-Modus</string>
     <string name="f91_pref_title_mode_image">Bildmodus</string>
-    <string name="f91_pref_title_quiet_text">Leise Textbenachrichtigungen</string>
-    <string name="f91_pref_summary_quiet_text">Auf dem Zifferblatt den Absender einige Sekunden in der Symbolzeile statt als Vollbild-Popup anzeigen. Anrufe nutzen weiterhin das Popup.</string>
+    <string name="f91_pref_title_quiet_text">Kompakte Textbenachrichtigungen</string>
+    <string name="f91_pref_summary_quiet_text">Auf dem Zifferblatt den Absender einige Sekunden in der Symbolzeile statt als Vollbild-Popup anzeigen. In diesem Modus piepen Texte nicht; Anrufe nutzen weiterhin das Popup und klingeln.</string>
     <string name="f91_pref_header_face">Zifferblatt</string>
     <string name="f91_pref_title_weekday">Wochentag anzeigen</string>
-    <string name="f91_pref_summary_weekday">Zwei Buchstaben neben dem Datum in der oberen Zeile, z. B. TH 22. Das Wetter bleibt an seinem Platz.</string>
+    <string name="f91_pref_summary_weekday">Zwei Buchstaben neben dem Datum in der oberen Zeile, z. B. DO 22. Das Wetter bleibt an seinem Platz.</string>
     <string name="f91_pref_title_weekday_lang">Sprache des Wochentags</string>
     <string name="f91_weekday_lang_auto">Sprache des Telefons</string>
     <string name="f91_weekday_lang_en">Englisch</string>
@@ -45,7 +45,7 @@
     <string name="f91_pref_summary_hourly_chime">Das Display zu jeder vollen Stunde kurz aufblitzen lassen, wie beim Stundensignal der F-91W; ab Firmware 3.2 piept die Uhr zusätzlich. In den Ruhezeiten bleibt es aus.</string>
     <string name="f91_pref_header_sound">Töne</string>
     <string name="f91_pref_title_sound_mute">Stumm</string>
-    <string name="f91_pref_summary_sound_mute">Schaltet alle Töne außer Weckern stumm. Lässt sich auch auf der Uhr umschalten (Info-Bildschirm, Taste unten links).</string>
+    <string name="f91_pref_summary_sound_mute">Schaltet alle Töne außer Weckern stumm. Lässt sich auch auf der Uhr umschalten (Info-Bildschirm, Taste unten links). Wecker lassen sich auf der Uhr getrennt ausschalten (Info-Bildschirm, rechte Taste).</string>
     <string name="f91_pref_title_sound_call">Anrufton</string>
     <string name="f91_pref_summary_sound_call">Piepen bei eingehendem Anruf.</string>
     <string name="f91_pref_title_sound_text">Nachrichtentöne</string>
@@ -55,7 +55,7 @@
     <string name="f91_pref_title_sound_test">Ton auf der Uhr testen</string>
     <string name="f91_pref_summary_sound_test">Spielt einen Piepton auf der Uhr ab.</string>
     <string name="f91_pref_header_screens_31">Zähler</string>
-    <string name="f91_pref_summary_screens_31">Benenne bis zu drei Strichlisten-Zähler und füge ihre Seiten (und die 7-Tage-Vorhersage) unter Uhrmodi dem Ablauf hinzu. Auf der Uhr zählt die rechte Taste eins hoch; die linke Taste, die nicht zum Moduswechsel dient, zählt eins herunter (gedrückt halten zum Zurücksetzen).</string>
+    <string name="f91_pref_summary_screens_31">Benenne bis zu drei Strichlisten-Zähler und füge ihre Seiten (und die 7-Tage-Vorhersage) unter Uhrmodi dem Ablauf hinzu. Auf der Uhr zählt die rechte Taste eins hoch; die Taste unten links zählt eins herunter (gedrückt halten setzt zurück).</string>
     <string name="f91_pref_title_mode_weather">Vorhersage-Modus</string>
     <string name="f91_pref_title_counter_name_0">Name von Zähler 1</string>
     <string name="f91_pref_title_counter_name_1">Name von Zähler 2</string>
@@ -69,7 +69,7 @@
     <string name="f91_pref_summary_image">Ein Foto für das Schwarz-Weiß-Display der Uhr umwandeln und im Bildmodus anzeigen</string>
     <string name="f91_image_choose">Bild auswählen …</string>
     <string name="f91_image_send">An Uhr senden</string>
-    <string name="f91_image_crop_hint">Zum Zoomen zusammenziehen, zum Positionieren ziehen</string>
+    <string name="f91_image_crop_hint">Mit zwei Fingern zoomen, zum Verschieben ziehen</string>
     <string name="f91_image_dither">Dithering – besser für Fotos</string>
     <string name="f91_image_threshold">Helligkeitsschwelle</string>
     <string name="f91_image_invert">Invertieren</string>
@@ -92,10 +92,11 @@
         <item>Nur vibrieren</item>
     </string-array>
     <string name="f91_pref_title_sound_lost">Alarm bei verlorenem Telefon</string>
-    <string name="f91_pref_summary_sound_lost">Piepen, wenn das Telefon eine Minute lang außer Reichweite ist.</string>
+    <string name="f91_pref_summary_sound_lost">Piepen, wenn das Telefon etwa ein bis zwei Minuten außer Reichweite ist.</string>
     <string name="f91_pref_title_sound_snooze">Schlummerdauer</string>
     <string name="f91_snooze_off">Kein Schlummern</string>
     <string name="f91_snooze_5">5 Minuten</string>
     <string name="f91_snooze_9">9 Minuten</string>
     <string name="f91_snooze_15">15 Minuten</string>
+    <string name="f91_sound_test_connect">Verbinde die Uhr, um den Ton zu testen</string>
 </resources>

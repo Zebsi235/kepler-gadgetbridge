@@ -2275,9 +2275,9 @@
     <string name="devicetype_tlw64" translatable="false">TLW64</string>
     <string name="devicetype_pinetime_jf" translatable="false">PineTime (JF Firmware)</string>
     <string name="devicetype_f91_kepler" translatable="false">Kepler</string>
-    <string name="f91_pref_header_alerts">Timer &amp; alarm alerts</string>
+    <string name="f91_pref_header_alerts">Alerts on this phone</string>
     <string name="f91_pref_title_alert_timer">Alert me when the timer ends</string>
-    <string name="f91_pref_summary_alert_timer">Ring or vibrate this phone when the watch\'s timer reaches zero. The watch itself is silent.</string>
+    <string name="f91_pref_summary_alert_timer">Also ring or vibrate this phone when the watch\'s timer ends.</string>
     <string name="f91_pref_title_alert_alarm">Alert me when the alarm fires</string>
     <string name="f91_pref_summary_alert_alarm">Also ring or vibrate this phone when the watch\'s alarm goes off. From firmware 3.2 the watch beeps itself; on older firmware its alarm is visual only and easy to miss.</string>
     <string name="f91_pref_title_alert_mode">How to alert</string>
@@ -2295,8 +2295,8 @@
     <string name="f91_pref_title_notification_popup">Show sender as full-screen popup</string>
     <string name="f91_pref_summary_notification_popup">Briefly show the sender name on the watch for each notification, in addition to the bar icon</string>
     <string name="f91_pref_header_modes">Watch modes</string>
-    <string name="f91_pref_summary_modes">Tick the modes you want and drag them into the order the top button cycles through. The clock face is always first.</string>
-    <string name="f91_pref_summary_modes_31">Tick the modes you want and drag them into the order the top button cycles through. The clock face is always first. A counter appears once it has a name.</string>
+    <string name="f91_pref_summary_modes">Tick the modes you want and drag them into the order the top-left (MODE) button cycles through. The clock face is always first.</string>
+    <string name="f91_pref_summary_modes_31">Tick the modes you want and drag them into the order the top-left (MODE) button cycles through. The clock face is always first. A counter appears once it has a name.</string>
     <string name="f91_pref_title_modes">Watch modes</string>
     <string name="f91_pref_title_mode_notif">Notifications mode</string>
     <string name="f91_pref_title_mode_timer">Timer mode</string>
@@ -2307,8 +2307,8 @@
     <string name="f91_pref_title_mode_findphone">Find Phone mode</string>
     <string name="f91_pref_title_mode_ble">Bluetooth mode</string>
     <string name="f91_pref_title_mode_image">Image mode</string>
-    <string name="f91_pref_title_quiet_text">Quiet text notifications</string>
-    <string name="f91_pref_summary_quiet_text">On the clock face, show the sender in the icon row for a few seconds instead of a full-screen popup. Calls still use the popup.</string>
+    <string name="f91_pref_title_quiet_text">Compact text notifications</string>
+    <string name="f91_pref_summary_quiet_text">On the clock face, show the sender in the icon row for a few seconds instead of a full-screen popup. Texts make no sound in this mode; calls still use the popup and ring.</string>
     <string name="f91_pref_header_face">Clock face</string>
     <string name="f91_pref_title_weekday">Show the weekday</string>
     <string name="f91_pref_summary_weekday">Two letters beside the date in the top row, e.g. TH 22. The weather stays where it is.</string>
@@ -2320,7 +2320,7 @@
     <string name="f91_pref_summary_hourly_chime">Flash the screen briefly at the top of every hour, like the F-91W\'s hourly beep; from firmware 3.2 it also beeps. Stays dark during sleep times.</string>
     <string name="f91_pref_header_sound">Sounds</string>
     <string name="f91_pref_title_sound_mute">Mute</string>
-    <string name="f91_pref_summary_sound_mute">Silences every sound except alarms. Can also be switched on the watch (Info screen, lower-left button).</string>
+    <string name="f91_pref_summary_sound_mute">Silences every sound except alarms. Can also be switched on the watch (Info screen, lower-left button). Alarms can be switched off separately on the watch (Info screen, right button).</string>
     <string name="f91_pref_title_sound_call">Call ring</string>
     <string name="f91_pref_summary_sound_call">Beep when a call comes in.</string>
     <string name="f91_pref_title_sound_text">Text beeps</string>
@@ -2328,7 +2328,7 @@
     <string name="f91_pref_title_sound_lowbatt">Low-battery sound</string>
     <string name="f91_pref_summary_sound_lowbatt">Beep once when the battery runs low.</string>
     <string name="f91_pref_title_sound_lost">Lost-phone alert</string>
-    <string name="f91_pref_summary_sound_lost">Beep when the phone has been out of reach for a minute.</string>
+    <string name="f91_pref_summary_sound_lost">Beep when the phone has been out of reach for about one to two minutes.</string>
     <string name="f91_pref_title_sound_snooze">Snooze length</string>
     <string name="f91_snooze_off">No snooze</string>
     <string name="f91_snooze_5">5 minutes</string>
@@ -2337,7 +2337,7 @@
     <string name="f91_pref_title_sound_test">Test sound on watch</string>
     <string name="f91_pref_summary_sound_test">Plays one beep on the watch.</string>
     <string name="f91_pref_header_screens_31">Counters</string>
-    <string name="f91_pref_summary_screens_31">Name up to three tally counters, then add their pages (and the 7-day forecast) to the cycle under Watch modes. On the watch, the right-hand button adds one; the left button you do not use to change modes takes one off (hold it to reset).</string>
+    <string name="f91_pref_summary_screens_31">Name up to three tally counters, then add their pages (and the 7-day forecast) to the cycle under Watch modes. On the watch, the right button adds one; the lower-left button takes one off (hold it to reset).</string>
     <string name="f91_pref_title_mode_weather">Forecast mode</string>
     <string name="f91_pref_title_counter_name_0">Counter 1 name</string>
     <string name="f91_pref_title_counter_name_1">Counter 2 name</string>
@@ -5670,4 +5670,5 @@
     <string name="f91kepler_pair_again_action">Pair again</string>
     <string name="f91kepler_pair_again_toast">Pairing again with the watch. Accept the pairing request if Android asks.</string>
     <string name="f91kepler_pair_again_failed">Could not remove the old pairing. Forget the watch in Android\'s Bluetooth settings, then connect again.</string>
+    <string name="f91_sound_test_connect">Connect the watch to test the sound</string>
 </resources>

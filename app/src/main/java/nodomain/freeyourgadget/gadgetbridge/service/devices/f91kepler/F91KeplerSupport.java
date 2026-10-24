@@ -561,10 +561,8 @@ public class F91KeplerSupport extends AbstractBTLESingleDeviceSupport {
             if (F91KeplerFirmware.has32(fw)) {
                 soundAdopt = true;
                 readSoundCfg();             // before the alarm reads
-                if (GBApplication.getDeviceSpecificSharedPrefs(getDevice().getAddress())
-                        .getBoolean(F91KeplerConstants.PREF_SOUND_SNOOZE_DIRTY, false)) {
-                    readAlarmSounds();      // the snooze length changed while away
-                }
+                // Changed while away: written; else the watch's snooze is shown.
+                readAlarmSounds();
             }
             // The slots last, and only after reading them: a one-shot that rang
             // while the phone was away is off on the watch, and writing the
@@ -636,6 +634,20 @@ public class F91KeplerSupport extends AbstractBTLESingleDeviceSupport {
             got = alarmSounds.clone();
         }
         final SharedPreferences prefs = GBApplication.getDeviceSpecificSharedPrefs(getDevice().getAddress());
+        if (!prefs.getBoolean(F91KeplerConstants.PREF_SOUND_SNOOZE_DIRTY, false)) {
+            // Nothing to write: show the watch's snooze when all five alarms share it
+            // (the companion app can set them one by one).
+            final int first = got[0][1] & 0xFF;
+            boolean same = true;
+            for (final byte[] p : got) {
+                same &= (p[1] & 0xFF) == first;
+            }
+            if (same && (first == 0 || first == 5 || first == 9 || first == 15)) {   // the list's values
+                evaluateGBDeviceEvent(new GBDeviceEventUpdatePreferences(
+                        F91KeplerConstants.PREF_SOUND_SNOOZE, String.valueOf(first)));
+            }
+            return;
+        }
         int minutes;
         try {
             minutes = Integer.parseInt(prefs.getString(F91KeplerConstants.PREF_SOUND_SNOOZE, "9"));
@@ -1450,7 +1462,10 @@ public class F91KeplerSupport extends AbstractBTLESingleDeviceSupport {
                 break;
             }
             case F91KeplerConstants.PREF_SOUND_TEST: {
-                if (getDevice().isInitialized() && has32()) {
+                if (!getDevice().isInitialized()) {
+                    GB.toast(getContext(), getContext().getString(R.string.f91_sound_test_connect),
+                             Toast.LENGTH_SHORT, GB.INFO);
+                } else if (has32()) {
                     final TransactionBuilder builder = createTransactionBuilder("test sound");
                     builder.write(F91KeplerConstants.UUID_CHAR_RECORD,
                                   F91KeplerProtocol.soundPlay(F91KeplerConstants.TONE_BEEP));
