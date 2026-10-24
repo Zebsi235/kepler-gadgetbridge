@@ -20,8 +20,8 @@
     <string name="f91_pref_title_notification_popup">Absender als Vollbild-Popup anzeigen</string>
     <string name="f91_pref_summary_notification_popup">Den Absendernamen bei jeder Benachrichtigung kurz auf der Uhr anzeigen, zusätzlich zum Symbol in der Leiste</string>
     <string name="f91_pref_header_modes">Uhrmodi</string>
-    <string name="f91_pref_summary_modes">Wähle die gewünschten Modi und ziehe sie in die Reihenfolge, in der die Taste oben links (MODE) sie durchschaltet. Das Zifferblatt steht immer an erster Stelle.</string>
-    <string name="f91_pref_summary_modes_31">Wähle die gewünschten Modi und ziehe sie in die Reihenfolge, in der die Taste oben links (MODE) sie durchschaltet. Das Zifferblatt steht immer an erster Stelle. Ein Zähler erscheint, sobald er einen Namen hat.</string>
+    <string name="f91_pref_summary_modes">Wähle die gewünschten Modi und ziehe sie in die Reihenfolge, in der die Taste oben links sie durchschaltet. Das Zifferblatt steht immer an erster Stelle.</string>
+    <string name="f91_pref_summary_modes_31">Wähle die gewünschten Modi und ziehe sie in die Reihenfolge, in der die Taste oben links sie durchschaltet. Das Zifferblatt steht immer an erster Stelle. Ein Zähler erscheint, sobald er einen Namen hat.</string>
     <string name="f91_pref_title_modes">Uhrmodi</string>
     <string name="f91_pref_title_mode_notif">Benachrichtigungsmodus</string>
     <string name="f91_pref_title_mode_timer">Timer-Modus</string>
@@ -32,7 +32,7 @@
     <string name="f91_pref_title_mode_findphone">Telefon-suchen-Modus</string>
     <string name="f91_pref_title_mode_ble">Bluetooth-Modus</string>
     <string name="f91_pref_title_mode_image">Bildmodus</string>
-    <string name="f91_pref_title_quiet_text">Kompakte Textbenachrichtigungen</string>
+    <string name="f91_pref_title_quiet_text">Leise Textbenachrichtigungen</string>
     <string name="f91_pref_summary_quiet_text">Auf dem Zifferblatt den Absender einige Sekunden in der Symbolzeile statt als Vollbild-Popup anzeigen. In diesem Modus piepen Texte nicht; Anrufe nutzen weiterhin das Popup und klingeln.</string>
     <string name="f91_pref_header_face">Zifferblatt</string>
     <string name="f91_pref_title_weekday">Wochentag anzeigen</string>
