@@ -50,6 +50,8 @@ import androidx.annotation.Nullable;
 public class F91KeplerCropView extends View {
 
     private static final float MAX_ZOOM = 8f;
+    /** Tallest the crop window gets, as a share of the screen height. */
+    static final float MAX_HEIGHT_FRACTION = 0.4f;
 
     /** Notified whenever the visible crop has changed and settled. */
     public interface OnCropChangedListener {
@@ -65,6 +67,9 @@ public class F91KeplerCropView extends View {
     private float scale = 1f;
     private float transX = 0f;
     private float transY = 0f;
+    /** A crop to restore on the next layout (see {@link #setCropState}). */
+    @Nullable
+    private float[] pendingState;
 
     private final ScaleGestureDetector scaleDetector;
     private final GestureDetector gestureDetector;
@@ -95,10 +100,40 @@ public class F91KeplerCropView extends View {
         return source != null;
     }
 
+    /**
+     * The crop as {zoom over the cover scale, view centre x, view centre y}, the
+     * centre as a fraction of the source -- independent of the view size, so it
+     * survives a rotation. Null without an image.
+     */
+    @Nullable
+    public float[] getCropState() {
+        if (source == null || getWidth() == 0 || getHeight() == 0) {
+            return null;
+        }
+        return new float[]{
+                scale / minScale,
+                (getWidth() / 2f - transX) / scale / source.getWidth(),
+                (getHeight() / 2f - transY) / scale / source.getHeight()};
+    }
+
+    /** Apply a {@link #getCropState} result once the view (next) has a size. */
+    public void setCropState(@Nullable final float[] state) {
+        pendingState = state != null && state.length == 3 ? state : null;
+        resetTransform();
+    }
+
     @Override
     protected void onMeasure(final int widthMeasureSpec, final int heightMeasureSpec) {
-        final int w = MeasureSpec.getSize(widthMeasureSpec);
-        final int h = Math.round(w * (float) F91KeplerConstants.IMAGE_HEIGHT / F91KeplerConstants.IMAGE_WIDTH);
+        int w = MeasureSpec.getSize(widthMeasureSpec);
+        int h = Math.round(w * (float) F91KeplerConstants.IMAGE_HEIGHT / F91KeplerConstants.IMAGE_WIDTH);
+        // In landscape the full width would make the window as tall as the screen,
+        // and every swipe would land on it instead of scrolling the page. Cap the
+        // height and narrow the window to keep the panel's aspect.
+        final int maxH = Math.round(getResources().getDisplayMetrics().heightPixels * MAX_HEIGHT_FRACTION);
+        if (h > maxH) {
+            h = maxH;
+            w = Math.round(h * (float) F91KeplerConstants.IMAGE_WIDTH / F91KeplerConstants.IMAGE_HEIGHT);
+        }
         setMeasuredDimension(w, h);
     }
 
@@ -113,9 +148,16 @@ public class F91KeplerCropView extends View {
             return;
         }
         minScale = coverScale();
-        scale = minScale;
-        transX = (getWidth() - source.getWidth() * scale) / 2f;
-        transY = (getHeight() - source.getHeight() * scale) / 2f;
+        if (pendingState != null) {
+            scale = minScale * Math.max(1f, Math.min(pendingState[0], MAX_ZOOM));
+            transX = getWidth() / 2f - pendingState[1] * source.getWidth() * scale;
+            transY = getHeight() / 2f - pendingState[2] * source.getHeight() * scale;
+            pendingState = null;
+        } else {
+            scale = minScale;
+            transX = (getWidth() - source.getWidth() * scale) / 2f;
+            transY = (getHeight() - source.getHeight() * scale) / 2f;
+        }
         applyMatrix();
         // Defer the callback: resetTransform runs during layout (onSizeChanged), and
         // the listener touches other views, so posting keeps it out of the layout pass.

@@ -16,11 +16,13 @@
             android:text="@string/f91_image_choose" />
 
         <!-- Fixed 96:39-aspect crop window: pinch to zoom, drag to position. Hidden
-             until a photo is picked. -->
+             until a photo is picked. Its height is capped (narrower in landscape),
+             so the page around it still scrolls. -->
         <nodomain.freeyourgadget.gadgetbridge.devices.f91kepler.F91KeplerCropView
             android:id="@+id/f91_image_crop"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
+            android:layout_gravity="center_horizontal"
             android:layout_marginTop="16dp"
             android:background="#000000"
             android:visibility="gone" />
@@ -74,6 +76,7 @@
             android:layout_height="wrap_content"
             android:layout_marginTop="16dp"
             android:adjustViewBounds="true"
+            android:maxHeight="@dimen/f91_image_preview_max_height"
             android:background="#000000"
             android:contentDescription="@string/f91_pref_title_image"
             android:padding="8dp"

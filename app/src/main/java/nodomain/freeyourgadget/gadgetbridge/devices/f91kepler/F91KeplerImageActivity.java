@@ -67,6 +67,9 @@ public class F91KeplerImageActivity extends AbstractGBActivity {
     /** Preview magnification. */
     private static final int PREVIEW_SCALE = 4;
 
+    private static final String STATE_SOURCE_URI = "f91_image_source_uri";
+    private static final String STATE_CROP = "f91_image_crop";
+
     private GBDevice device;
 
     private F91KeplerCropView cropView;
@@ -80,6 +83,9 @@ public class F91KeplerImageActivity extends AbstractGBActivity {
     private Button sendButton;
 
     private Bitmap source;
+    /** Where {@link #source} came from, kept so a rotation can decode it again. */
+    @Nullable
+    private Uri sourceUri;
     /** The one-bit result currently shown, or null when there is nothing to send. */
     private boolean[] bits;
 
@@ -116,7 +122,7 @@ public class F91KeplerImageActivity extends AbstractGBActivity {
 
         picker = registerForActivityResult(new ActivityResultContracts.OpenDocument(), uri -> {
             if (uri != null) {
-                loadSource(uri);
+                loadSource(uri, null);
             }
         });
 
@@ -146,7 +152,25 @@ public class F91KeplerImageActivity extends AbstractGBActivity {
 
         ditherSwitch.setChecked(true);
         showStoredFrame();
+        // A rotation recreates the screen: pick up the same photo and crop again.
+        // The switches and the slider restore themselves (after this, each one
+        // re-rendering through its listener).
+        if (savedInstanceState != null) {
+            final Uri uri = savedInstanceState.getParcelable(STATE_SOURCE_URI);
+            if (uri != null) {
+                loadSource(uri, savedInstanceState.getFloatArray(STATE_CROP));
+            }
+        }
         render();
+    }
+
+    @Override
+    protected void onSaveInstanceState(@NonNull final Bundle outState) {
+        super.onSaveInstanceState(outState);
+        if (source != null && sourceUri != null) {
+            outState.putParcelable(STATE_SOURCE_URI, sourceUri);
+            outState.putFloatArray(STATE_CROP, cropView.getCropState());
+        }
     }
 
     /** Show the last uploaded frame so re-opening the screen is not a blank slate. */
@@ -173,7 +197,7 @@ public class F91KeplerImageActivity extends AbstractGBActivity {
         }
     }
 
-    private void loadSource(final Uri uri) {
+    private void loadSource(final Uri uri, @Nullable final float[] cropState) {
         try {
             source = decodeBounded(uri);
         } catch (final IOException | OutOfMemoryError e) {
@@ -184,7 +208,9 @@ public class F91KeplerImageActivity extends AbstractGBActivity {
             GB.toast(this, getString(R.string.f91_image_load_failed), Toast.LENGTH_LONG, GB.ERROR);
             return;
         }
+        sourceUri = uri;
         cropView.setImage(source);
+        cropView.setCropState(cropState);
         render();
     }
 

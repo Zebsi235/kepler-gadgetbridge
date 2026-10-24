@@ -4,7 +4,7 @@
     <string name="f91_pref_title_alert_timer">Hinweis, wenn der Timer abläuft</string>
     <string name="f91_pref_summary_alert_timer">Dieses Telefon zusätzlich klingeln oder vibrieren lassen, wenn der Timer der Uhr abläuft.</string>
     <string name="f91_pref_title_alert_alarm">Hinweis, wenn der Wecker klingelt</string>
-    <string name="f91_pref_summary_alert_alarm">Dieses Telefon zusätzlich klingeln oder vibrieren lassen, wenn der Wecker der Uhr auslöst. Ab Firmware 3.2 piept die Uhr selbst; mit älterer Firmware ist ihr Wecker nur optisch und leicht zu übersehen.</string>
+    <string name="f91_pref_summary_alert_alarm">Dieses Telefon zusätzlich klingeln oder vibrieren lassen, wenn der Wecker der Uhr auslöst.</string>
     <string name="f91_pref_title_alert_mode">Art des Hinweises</string>
     <string name="f91_pref_title_brightness">Displayhelligkeit</string>
     <string name="f91_pref_header_sleep">Funkpause</string>
@@ -78,6 +78,7 @@
     <string name="f91_image_showing_stored">Zeigt das zuletzt an die Uhr gesendete Bild</string>
     <string name="f91_image_sending">Bild wird an die Uhr gesendet …</string>
     <string name="f91_image_saved_offline">Bild gespeichert – es wird gesendet, sobald die Uhr verbunden ist</string>
+    <string name="f91_image_sent">Das Bild ist auf der Uhr</string>
     <string name="f91_image_upload_failed">Die Uhr hat den Bild-Upload nicht bestätigt</string>
     <string name="f91_image_store_failed">Bild konnte nicht gespeichert werden</string>
     <string name="f91_image_load_failed">Dieses Bild konnte nicht gelesen werden</string>

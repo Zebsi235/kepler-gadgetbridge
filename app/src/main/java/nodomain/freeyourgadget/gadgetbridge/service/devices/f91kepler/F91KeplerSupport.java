@@ -1323,7 +1323,14 @@ public class F91KeplerSupport extends AbstractBTLESingleDeviceSupport {
             return;
         }
         if (F91KeplerProtocol.imageControlMatches(control, F91KeplerImageCodec.xor8(frame))) {
-            LOG.debug("F91 watch already holds the stored image, skipping the upload");
+            if (imageAttempts > 0) {
+                // The read that trails an upload: the watch latched what we sent.
+                LOG.debug("F91 image upload confirmed by the watch (attempt {})", imageAttempts);
+                GB.toast(getContext(), getContext().getString(R.string.f91_image_sent),
+                         Toast.LENGTH_SHORT, GB.INFO);
+            } else {
+                LOG.debug("F91 watch already holds the stored image, skipping the upload");
+            }
             imageAttempts = 0;
             return;
         }

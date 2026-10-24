@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- F91 Kepler image screen: the one-bit preview's height cap. Portrait never
+         reaches it; landscape (values-land) keeps it small so the page scrolls. -->
+    <dimen name="f91_image_preview_max_height">400dp</dimen>
+</resources>

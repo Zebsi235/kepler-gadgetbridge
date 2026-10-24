@@ -2279,7 +2279,7 @@
     <string name="f91_pref_title_alert_timer">Alert me when the timer ends</string>
     <string name="f91_pref_summary_alert_timer">Also ring or vibrate this phone when the watch\'s timer ends.</string>
     <string name="f91_pref_title_alert_alarm">Alert me when the alarm fires</string>
-    <string name="f91_pref_summary_alert_alarm">Also ring or vibrate this phone when the watch\'s alarm goes off. From firmware 3.2 the watch beeps itself; on older firmware its alarm is visual only and easy to miss.</string>
+    <string name="f91_pref_summary_alert_alarm">Also ring or vibrate this phone when the watch\'s alarm goes off.</string>
     <string name="f91_pref_title_alert_mode">How to alert</string>
     <string name="f91_pref_title_brightness">Display brightness</string>
     <string name="f91_pref_header_sleep">Sleep times</string>
@@ -2360,6 +2360,7 @@
     <string name="f91_image_showing_stored">Showing the image last sent to the watch</string>
     <string name="f91_image_sending">Sending the image to the watch…</string>
     <string name="f91_image_saved_offline">Image saved — it will be sent when the watch connects</string>
+    <string name="f91_image_sent">The image is on the watch</string>
     <string name="f91_image_upload_failed">The watch did not confirm the image upload</string>
     <string name="f91_image_store_failed">Could not save the image</string>
     <string name="f91_image_load_failed">Could not read that image</string>
