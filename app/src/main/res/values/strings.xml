@@ -2279,7 +2279,7 @@
     <string name="f91_pref_title_alert_timer">Alert me when the timer ends</string>
     <string name="f91_pref_summary_alert_timer">Ring or vibrate this phone when the watch\'s timer reaches zero. The watch itself is silent.</string>
     <string name="f91_pref_title_alert_alarm">Alert me when the alarm fires</string>
-    <string name="f91_pref_summary_alert_alarm">Ring or vibrate this phone when the watch\'s alarm goes off. The watch alarm is visual only, so this is easy to miss otherwise.</string>
+    <string name="f91_pref_summary_alert_alarm">Also ring or vibrate this phone when the watch\'s alarm goes off. From firmware 3.2 the watch beeps itself; on older firmware its alarm is visual only and easy to miss.</string>
     <string name="f91_pref_title_alert_mode">How to alert</string>
     <string name="f91_pref_title_brightness">Display brightness</string>
     <string name="f91_pref_header_sleep">Sleep times</string>
