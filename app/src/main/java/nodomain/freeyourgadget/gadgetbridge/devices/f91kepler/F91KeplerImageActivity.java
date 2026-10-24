@@ -200,7 +200,9 @@ public class F91KeplerImageActivity extends AbstractGBActivity {
     private void loadSource(final Uri uri, @Nullable final float[] cropState) {
         try {
             source = decodeBounded(uri);
-        } catch (final IOException | OutOfMemoryError e) {
+        } catch (final IOException | OutOfMemoryError | RuntimeException e) {
+            // RuntimeException: a provider can refuse a saved Uri after the process
+            // was restarted (SecurityException); that must not crash the screen.
             LOG.warn("Could not decode the picked image", e);
             source = null;
         }

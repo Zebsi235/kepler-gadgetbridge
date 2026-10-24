@@ -107,6 +107,9 @@ public class F91KeplerCropView extends View {
      */
     @Nullable
     public float[] getCropState() {
+        if (pendingState != null) {
+            return pendingState;   // not laid out yet since the last restore
+        }
         if (source == null || getWidth() == 0 || getHeight() == 0) {
             return null;
         }
