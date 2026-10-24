@@ -4,7 +4,7 @@
     <string name="f91_pref_title_alert_timer">Hinweis, wenn der Timer abläuft</string>
     <string name="f91_pref_summary_alert_timer">Dieses Telefon klingeln oder vibrieren lassen, wenn der Timer der Uhr null erreicht. Die Uhr selbst bleibt stumm.</string>
     <string name="f91_pref_title_alert_alarm">Hinweis, wenn der Wecker klingelt</string>
-    <string name="f91_pref_summary_alert_alarm">Dieses Telefon klingeln oder vibrieren lassen, wenn der Wecker der Uhr auslöst. Der Wecker der Uhr ist nur optisch und wird sonst leicht übersehen.</string>
+    <string name="f91_pref_summary_alert_alarm">Dieses Telefon zusätzlich klingeln oder vibrieren lassen, wenn der Wecker der Uhr auslöst. Ab Firmware 3.2 piept die Uhr selbst; mit älterer Firmware ist ihr Wecker nur optisch und leicht zu übersehen.</string>
     <string name="f91_pref_title_alert_mode">Art des Hinweises</string>
     <string name="f91_pref_title_brightness">Displayhelligkeit</string>
     <string name="f91_pref_header_sleep">Ruhezeiten</string>
