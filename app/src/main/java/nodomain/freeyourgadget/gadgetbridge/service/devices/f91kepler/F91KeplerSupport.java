@@ -216,9 +216,8 @@ public class F91KeplerSupport extends AbstractBTLESingleDeviceSupport {
             soundWriteKeys.clear();
         }
         soundInFlight = false;
-        if (alarmSoundInFlight) {
-            markSnoozeDirty();
-        }
+        // A snooze change still to send keeps its dirty flag (set on the change, cleared
+        // only after all five writes); a read that only showed the watch's value marks nothing.
         alarmSoundInFlight = false;
         soundAdopt = false;
         builder.setDeviceState(GBDevice.State.INITIALIZING);
@@ -622,8 +621,7 @@ public class F91KeplerSupport extends AbstractBTLESingleDeviceSupport {
             final byte[] p = F91KeplerProtocol.alarmSound(value, alarmSoundsGot);
             if (p == null) {
                 alarmSoundInFlight = false;
-                LOG.warn("F91 alarm sound read failed; the snooze length goes after the next connect");
-                markSnoozeDirty();
+                LOG.warn("F91 alarm sound read failed; a pending snooze change goes after the next connect");
                 return;
             }
             alarmSounds[alarmSoundsGot++] = p;
@@ -1462,10 +1460,7 @@ public class F91KeplerSupport extends AbstractBTLESingleDeviceSupport {
                 break;
             }
             case F91KeplerConstants.PREF_SOUND_TEST: {
-                if (!getDevice().isInitialized()) {
-                    GB.toast(getContext(), getContext().getString(R.string.f91_sound_test_connect),
-                             Toast.LENGTH_SHORT, GB.INFO);
-                } else if (has32()) {
+                if (getDevice().isInitialized() && has32()) {
                     final TransactionBuilder builder = createTransactionBuilder("test sound");
                     builder.write(F91KeplerConstants.UUID_CHAR_RECORD,
                                   F91KeplerProtocol.soundPlay(F91KeplerConstants.TONE_BEEP));
