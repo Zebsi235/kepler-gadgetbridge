@@ -53,9 +53,11 @@ import nodomain.freeyourgadget.gadgetbridge.model.CallSpec;
 import nodomain.freeyourgadget.gadgetbridge.model.CannedMessagesSpec;
 import nodomain.freeyourgadget.gadgetbridge.model.Contact;
 import nodomain.freeyourgadget.gadgetbridge.model.DeviceService;
+import nodomain.freeyourgadget.gadgetbridge.model.FindDeviceTarget;
 import nodomain.freeyourgadget.gadgetbridge.model.MusicSpec;
 import nodomain.freeyourgadget.gadgetbridge.model.MusicStateSpec;
 import nodomain.freeyourgadget.gadgetbridge.model.NavigationInfoSpec;
+import nodomain.freeyourgadget.gadgetbridge.model.NavigationRouteSpec;
 import nodomain.freeyourgadget.gadgetbridge.model.NotificationSpec;
 import nodomain.freeyourgadget.gadgetbridge.model.Reminder;
 import nodomain.freeyourgadget.gadgetbridge.model.WorldClock;
@@ -272,6 +274,13 @@ public class GBDeviceService implements DeviceService {
     }
 
     @Override
+    public void onSyncWorkoutTemplate(final long templateId) {
+        Intent intent = createIntent().setAction(ACTION_SYNC_WORKOUT_TEMPLATE)
+                .putExtra(EXTRA_WORKOUT_TEMPLATE_ID, templateId);
+        invokeService(intent);
+    }
+
+    @Override
     public void onSetMusicInfo(@NonNull MusicSpec musicSpec) {
         final MusicSpec withRtlFix = musicSpec.withRtlFix();
         Intent intent = createIntent().setAction(ACTION_SETMUSICINFO)
@@ -282,6 +291,13 @@ public class GBDeviceService implements DeviceService {
     @Override
     public void onSetNavigationInfo(@NonNull NavigationInfoSpec navigationInfoSpec) {
         navigationDispatcher.offer(navigationInfoSpec);
+    }
+
+    @Override
+    public void onSetNavigationRoute(@NonNull NavigationRouteSpec navigationRouteSpec) {
+        Intent intent = createIntent().setAction(ACTION_SETNAVIGATIONROUTE)
+                .putExtra(EXTRA_NAVIGATION_ROUTE_SPEC, navigationRouteSpec);
+        invokeService(intent);
     }
 
     private void forwardNavigationInfo(NavigationInfoSpec navigationInfoSpec) {
@@ -398,8 +414,14 @@ public class GBDeviceService implements DeviceService {
 
     @Override
     public void onFindDevice(boolean start) {
+        onFindDevice(start, FindDeviceTarget.ALL);
+    }
+
+    @Override
+    public void onFindDevice(final boolean start, @NonNull final FindDeviceTarget target) {
         Intent intent = createIntent().setAction(ACTION_FIND_DEVICE)
-                .putExtra(EXTRA_FIND_START, start);
+                .putExtra(EXTRA_FIND_START, start)
+                .putExtra(EXTRA_FIND_TARGET, target);
         invokeService(intent);
     }
 

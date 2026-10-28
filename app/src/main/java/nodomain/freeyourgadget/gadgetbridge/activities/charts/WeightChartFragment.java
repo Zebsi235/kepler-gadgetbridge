@@ -27,17 +27,17 @@ import androidx.annotation.Nullable;
 import com.github.mikephil.charting.animation.Easing;
 import com.github.mikephil.charting.charts.Chart;
 import com.github.mikephil.charting.charts.LineChart;
+import com.github.mikephil.charting.components.AxisBase;
 import com.github.mikephil.charting.components.LimitLine;
 import com.github.mikephil.charting.components.XAxis;
 import com.github.mikephil.charting.components.YAxis;
 import com.github.mikephil.charting.data.Entry;
 import com.github.mikephil.charting.data.LineData;
 import com.github.mikephil.charting.data.LineDataSet;
-import com.github.mikephil.charting.formatter.ValueFormatter;
+import com.github.mikephil.charting.formatter.IAxisValueFormatter;
+import com.github.mikephil.charting.utils.ViewPortHandler;
 
 import java.text.SimpleDateFormat;
-import java.time.Instant;
-import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.Calendar;
 import java.util.GregorianCalendar;
@@ -49,17 +49,14 @@ import java.util.List;
 import nodomain.freeyourgadget.gadgetbridge.GBApplication;
 import nodomain.freeyourgadget.gadgetbridge.R;
 import nodomain.freeyourgadget.gadgetbridge.database.DBHandler;
-import nodomain.freeyourgadget.gadgetbridge.database.DBHelper;
 import nodomain.freeyourgadget.gadgetbridge.devices.DeviceCoordinator;
 import nodomain.freeyourgadget.gadgetbridge.devices.TimeSampleProvider;
-import nodomain.freeyourgadget.gadgetbridge.entities.DaoSession;
-import nodomain.freeyourgadget.gadgetbridge.entities.User;
-import nodomain.freeyourgadget.gadgetbridge.entities.UserAttributes;
 import nodomain.freeyourgadget.gadgetbridge.impl.GBDevice;
 import nodomain.freeyourgadget.gadgetbridge.model.ActivityUser;
 import nodomain.freeyourgadget.gadgetbridge.model.WeightSample;
 import nodomain.freeyourgadget.gadgetbridge.model.WeightUnit;
 import nodomain.freeyourgadget.gadgetbridge.util.BodyCompositionCalculator;
+import nodomain.freeyourgadget.gadgetbridge.util.BodyCompositionEstimates;
 import nodomain.freeyourgadget.gadgetbridge.util.DateTimeUtils;
 import nodomain.freeyourgadget.gadgetbridge.util.GBPrefs;
 
@@ -77,6 +74,7 @@ public class WeightChartFragment extends AbstractChartFragment<WeightChartFragme
     private static final String PREF_BODY_COMPOSITION_VALUES = "chart_weight_body_composition";
 
     private TextView textWeightTarget;
+    private TextView textBmi;
     private TextView textBodyFat;
     private TextView textBodyWater;
     private TextView textMuscleMass;
@@ -120,36 +118,14 @@ public class WeightChartFragment extends AbstractChartFragment<WeightChartFragme
         TimeSampleProvider<? extends WeightSample> provider = coordinator.getWeightSampleProvider(device, db.getDaoSession());
         List<? extends WeightSample> samples = provider.getAllSamples(tsStart, tsEnd);
         WeightSample latestSample = provider.getLatestSample();
-        BodyCompositionCalculator.BodyComposition composition = estimateComposition(db.getDaoSession(), latestSample);
-        return createChartsData(samples, latestSample, composition);
-    }
-
-    /**
-     * Estimates the body composition of a measurement from its raw impedance and the user profile
-     * as it was at the time of the measurement (height and age change over the years, so an old
-     * measurement is evaluated against the attributes recorded back then). Nothing is persisted;
-     * the estimate is recomputed whenever it is shown.
-     *
-     * @return the estimate, or null when the sample carries no usable impedance
-     */
-    @Nullable
-    static BodyCompositionCalculator.BodyComposition estimateComposition(final DaoSession session, @Nullable final WeightSample sample) {
-        if (sample == null || sample.getImpedanceOhm() == null) {
-            return null;
-        }
-        final ActivityUser prefsUser = new ActivityUser();
-        final User user = DBHelper.getUser(session);
-        final UserAttributes attributes = DBHelper.getUserAttributesAt(user, sample.getTimestamp());
-        final int heightCm = attributes != null && attributes.getHeightCM() > 0
-                ? attributes.getHeightCM()
-                : prefsUser.getHeightCm();
-        final int age = prefsUser.getAgeAt(Instant.ofEpochMilli(sample.getTimestamp()).atZone(ZoneId.systemDefault()).toLocalDate());
-        return BodyCompositionCalculator.compute(prefsUser.getGender(), age, heightCm, sample.getWeightKg(), sample.getImpedanceOhm());
+        BodyCompositionCalculator.BodyComposition composition = BodyCompositionEstimates.composition(db.getDaoSession(), latestSample);
+        Float bmi = BodyCompositionEstimates.bmi(db.getDaoSession(), latestSample);
+        return createChartsData(samples, latestSample, composition, bmi);
     }
 
     @Override
     protected void renderCharts() {
-        chart.animateX(ANIM_TIME, Easing.EaseInOutQuart);
+        chart.animateX(ANIM_TIME, Easing.INSTANCE.getEaseInOutQuart());
     }
 
     @Override
@@ -159,7 +135,7 @@ public class WeightChartFragment extends AbstractChartFragment<WeightChartFragme
     protected void updateChartsnUIThread(WeightChartsData chartsData) {
         chart.setData(null); // workaround for https://github.com/PhilJay/MPAndroidChart/issues/2317
         chart.getXAxis().setValueFormatter(chartsData.getXValueFormatter());
-        chart.getXAxis().setAvoidFirstLastClipping(true);
+        chart.getXAxis().setAvoidFirstLastClippingEnabled(true);
         chart.setData(chartsData.getData());
         textTimeSpan.setText(DateTimeUtils.formatDaysUntil(totalDays, getTSEnd()));
 
@@ -168,15 +144,19 @@ public class WeightChartFragment extends AbstractChartFragment<WeightChartFragme
             textWeightLatest.setText(formatWeight(weightFromKg(latestSample.getWeightKg())));
 
         textWeightTarget.setText(formatWeight(weightFromKg(weightTargetKg)));
-        updateBodyComposition(latestSample, chartsData.getComposition());
+        updateBodyComposition(latestSample, chartsData.getComposition(), chartsData.getBmi());
     }
 
     private void updateBodyComposition(@Nullable final WeightSample sample,
-                                       @Nullable final BodyCompositionCalculator.BodyComposition composition) {
+                                       @Nullable final BodyCompositionCalculator.BodyComposition composition,
+                                       @Nullable final Float bmi) {
         final Set<String> enabled = GBApplication.getPrefs().getStringSet(
                 PREF_BODY_COMPOSITION_VALUES,
                 new HashSet<>(Arrays.asList(getResources().getStringArray(R.array.pref_chart_weight_body_composition_default)))
         );
+        // BMI only needs the weight and the height, so it does not depend on the impedance below.
+        final boolean showBmi = bmi != null && enabled.contains("bmi");
+        showTile(textBmi, showBmi, showBmi ? getString(R.string.body_composition_bmi_value, bmi) : getString(R.string.stats_empty_value));
         // Without an impedance there is nothing to derive; the values are hidden individually so
         // the remaining ones close ranks in the grid.
         final boolean hasImpedance = sample != null && sample.getImpedanceOhm() != null;
@@ -225,6 +205,7 @@ public class WeightChartFragment extends AbstractChartFragment<WeightChartFragme
         textTimeSpan = rootView.findViewById(R.id.weight_time_span_text);
         textWeightLatest = rootView.findViewById(R.id.weight_latest_text);
         textWeightTarget = rootView.findViewById(R.id.weight_target_text);
+        textBmi = rootView.findViewById(R.id.weight_bmi_text);
         textBodyFat = rootView.findViewById(R.id.weight_body_fat_text);
         textBodyWater = rootView.findViewById(R.id.weight_body_water_text);
         textMuscleMass = rootView.findViewById(R.id.weight_muscle_mass_text);
@@ -239,18 +220,18 @@ public class WeightChartFragment extends AbstractChartFragment<WeightChartFragme
         chart.getAxisRight().setEnabled(false);
         chart.setDoubleTapToZoomEnabled(false);
 
-        LimitLine targetLine = new LimitLine(weightFromKg(weightTargetKg));
+        LimitLine targetLine = new LimitLine(weightFromKg(weightTargetKg), "");
         targetLine.setTextColor(colorSecondaryText);
 
         XAxis xAxis = chart.getXAxis();
         xAxis.setTextColor(colorSecondaryText);
-        xAxis.setDrawLabels(true);
-        xAxis.setDrawLimitLinesBehindData(true);
+        xAxis.setDrawLabelsEnabled(true);
+        xAxis.setDrawLimitLinesBehindDataEnabled(true);
 
         YAxis yAxis = chart.getAxisLeft();
         yAxis.setTextColor(colorSecondaryText);
         yAxis.addLimitLine(targetLine);
-        yAxis.setDrawGridLines(true);
+        yAxis.setDrawGridLinesEnabled(true);
 
         refresh();
 
@@ -258,7 +239,8 @@ public class WeightChartFragment extends AbstractChartFragment<WeightChartFragme
     }
 
     private WeightChartsData createChartsData(List<? extends WeightSample> samples, WeightSample latestSample,
-                                              @Nullable BodyCompositionCalculator.BodyComposition composition) {
+                                              @Nullable BodyCompositionCalculator.BodyComposition composition,
+                                              @Nullable Float bmi) {
         List<Entry> entries = new ArrayList<>();
         TimestampTranslation tsTranslation = new TimestampTranslation();
 
@@ -266,7 +248,7 @@ public class WeightChartFragment extends AbstractChartFragment<WeightChartFragme
             int tsSeconds = (int)(sample.getTimestamp() / 1000L);
             float weight = weightFromKg(sample.getWeightKg());
 
-            entries.add(new Entry(tsTranslation.shorten(tsSeconds), weight));
+            entries.add(new Entry<>(tsTranslation.shorten(tsSeconds), weight, null, null));
         }
 
         LineDataSet dataSet = new LineDataSet(entries, getString(R.string.menuitem_weight));
@@ -274,18 +256,18 @@ public class WeightChartFragment extends AbstractChartFragment<WeightChartFragme
         dataSet.setMode(LineDataSet.Mode.HORIZONTAL_BEZIER);
         dataSet.setCubicIntensity(0.1f);
         dataSet.setCircleRadius(5);
-        dataSet.setDrawCircleHole(false);
-        dataSet.setDrawValues(true);
+        dataSet.setDrawCircleHoleEnabled(false);
+        dataSet.setDrawValuesEnabled(true);
         dataSet.setValueTextSize(10);
         dataSet.setValueTextColor(colorSecondaryText);
-        dataSet.setValueFormatter(new ValueFormatter() {
+        dataSet.setValueFormatter(new DataSetValueFormatter() {
             @Override
-            public String getPointLabel(Entry entry) {
+            public String getFormattedValue(final float value, final Entry<?> entry, final int dataSetIndex, final ViewPortHandler viewPortHandler) {
                 return formatWeight(entry.getY());
             }
         });
 
-        return new WeightChartsData(new LineData(dataSet), tsTranslation, latestSample, composition);
+        return new WeightChartsData(new LineData(dataSet), tsTranslation, latestSample, composition, bmi);
     }
 
     private float weightFromKg(float weight) {
@@ -299,12 +281,19 @@ public class WeightChartFragment extends AbstractChartFragment<WeightChartFragme
     protected static class WeightChartsData extends DefaultChartsData<LineData> {
         private final WeightSample latestSample;
         private final BodyCompositionCalculator.BodyComposition composition;
+        private final Float bmi;
 
         public WeightChartsData(LineData lineData, TimestampTranslation tsTranslation, WeightSample latestSample,
-                                @Nullable BodyCompositionCalculator.BodyComposition composition) {
+                                @Nullable BodyCompositionCalculator.BodyComposition composition, @Nullable Float bmi) {
             super(lineData, new DateFormatter(tsTranslation));
             this.latestSample = latestSample;
             this.composition = composition;
+            this.bmi = bmi;
+        }
+
+        @Nullable
+        private Float getBmi() {
+            return bmi;
         }
 
         private WeightSample getLatestSample() {
@@ -317,7 +306,7 @@ public class WeightChartFragment extends AbstractChartFragment<WeightChartFragme
         }
     }
 
-    private static class DateFormatter extends ValueFormatter {
+    private static class DateFormatter implements IAxisValueFormatter {
         private TimestampTranslation translation;
         private SimpleDateFormat format = new SimpleDateFormat("dd.MM.");
         private Calendar calendar = GregorianCalendar.getInstance();
@@ -327,11 +316,17 @@ public class WeightChartFragment extends AbstractChartFragment<WeightChartFragme
         }
 
         @Override
-        public String getFormattedValue(float value) {
+        public String getFormattedValue(final float value, final AxisBase axis) {
             calendar.clear();
             calendar.setTimeInMillis(translation.toOriginalValue((int)value) * 1000L);
 
             return format.format(calendar.getTime());
         }
+    }
+
+    @Nullable
+    @Override
+    public ChartDataRange getAvailableDataRange(final GBDevice device, final DBHandler db) {
+        return ChartDataRange.ofSamples(device.getDeviceCoordinator().getWeightSampleProvider(device, db.getDaoSession()));
     }
 }

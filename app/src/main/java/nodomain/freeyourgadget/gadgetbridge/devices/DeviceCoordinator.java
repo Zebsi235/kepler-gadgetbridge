@@ -42,10 +42,13 @@ import nodomain.freeyourgadget.gadgetbridge.activities.charts.DeviceChartsProvid
 import nodomain.freeyourgadget.gadgetbridge.activities.devicesettings.DeviceSpecificSettings;
 import nodomain.freeyourgadget.gadgetbridge.activities.devicesettings.DeviceSpecificSettingsCustomizer;
 import nodomain.freeyourgadget.gadgetbridge.activities.devicesettings.dsl.DeviceSettingsSpec;
+import nodomain.freeyourgadget.gadgetbridge.model.workouts.spec.WorkoutTemplateSpec;
 import nodomain.freeyourgadget.gadgetbridge.capabilities.HeartRateCapability;
 import nodomain.freeyourgadget.gadgetbridge.capabilities.loyaltycards.BarcodeFormat;
 import nodomain.freeyourgadget.gadgetbridge.capabilities.password.PasswordCapabilityImpl;
 import nodomain.freeyourgadget.gadgetbridge.capabilities.widgets.WidgetManager;
+import nodomain.freeyourgadget.gadgetbridge.devices.cards.DeviceCardItem;
+import nodomain.freeyourgadget.gadgetbridge.entities.BaseActivitySummary;
 import nodomain.freeyourgadget.gadgetbridge.entities.CyclingSample;
 import nodomain.freeyourgadget.gadgetbridge.entities.DaoSession;
 import nodomain.freeyourgadget.gadgetbridge.entities.Device;
@@ -74,6 +77,7 @@ import nodomain.freeyourgadget.gadgetbridge.model.SleepScoreSample;
 import nodomain.freeyourgadget.gadgetbridge.model.Spo2Sample;
 import nodomain.freeyourgadget.gadgetbridge.model.StressSample;
 import nodomain.freeyourgadget.gadgetbridge.model.TemperatureSample;
+import nodomain.freeyourgadget.gadgetbridge.model.TrainingLoadStatus;
 import nodomain.freeyourgadget.gadgetbridge.model.Vo2MaxSample;
 import nodomain.freeyourgadget.gadgetbridge.model.WeightSample;
 import nodomain.freeyourgadget.gadgetbridge.model.WorkoutLoadSample;
@@ -170,6 +174,7 @@ public interface DeviceCoordinator {
         SCOOTER,
         CAMERA,
         VACUUM,
+        GAMEPAD,
     }
 
     /**
@@ -420,6 +425,11 @@ public interface DeviceCoordinator {
     boolean supportsWeightMeasurement(@NonNull final GBDevice device);
 
     /**
+     * Returns true if storing hydration entries is supported for the device.
+     */
+    boolean supportsHydration(@NonNull final GBDevice device);
+
+    /**
      * Returns the sample provider for the device being supported.
      */
     @Nullable
@@ -477,6 +487,17 @@ public interface DeviceCoordinator {
     @Deprecated
     @Nullable
     TimeSampleProvider<? extends GenericTrainingLoadChronicSample> getTrainingChronicLoadSampleProvider(@NonNull final GBDevice device, @NonNull final DaoSession session);
+
+
+    /**
+     * The latest training-load status the device itself reported at or before {@code untilTs} (in
+     * milliseconds). {@code null} means the device reports no status of its own, and the Load chart
+     * derives one from the acute and chronic load instead.
+     */
+    @Nullable
+    default TrainingLoadStatus getTrainingLoadStatus(@NonNull final GBDevice device, @NonNull final DaoSession session, final long untilTs) {
+        return null;
+    }
 
 
     /**
@@ -553,6 +574,12 @@ public interface DeviceCoordinator {
     @Nullable
     TimeSampleProvider<? extends WeightSample> getWeightSampleProvider(@NonNull final GBDevice device, @NonNull final DaoSession session);
 
+    /**
+     * Returns the sample provider for hydration data, for the device being supported.
+     */
+    @Nullable
+    HydrationSampleProvider getHydrationSampleProvider(@NonNull final GBDevice device, @NonNull final DaoSession session);
+
     /// @deprecated see {@link #getMetricsSampleProvider(GBDevice, DaoSession)} and {@link MetricSample.Metric#GENERIC_RESTING_METABOLIC_RATE}
     @Deprecated
     @Nullable
@@ -578,6 +605,20 @@ public interface DeviceCoordinator {
      * Returns the {@link ActivityTrackProvider} for the device being supported.
      */
     ActivityTrackProvider getActivityTrackProvider(@NonNull final GBDevice device, @NonNull final Context context);
+
+    /**
+     * Returns the raw per-sample file the device sent for a workout, as stored on disk, or null
+     * when there is none. May query the database, so call it off the main thread.
+     */
+    @Nullable
+    File getWorkoutRawDetailsFile(@NonNull final GBDevice device, @NonNull final BaseActivitySummary summary);
+
+    /**
+     * Returns the raw GPS track file for devices that send it apart from the details file, or
+     * null. May query the database, so call it off the main thread.
+     */
+    @Nullable
+    File getWorkoutRawGpsFile(@NonNull final GBDevice device, @NonNull final BaseActivitySummary summary);
 
     /**
      * Returns true if this device/coordinator supports installing files like firmware,
@@ -678,6 +719,11 @@ public interface DeviceCoordinator {
      * @return
      */
     boolean supportsHeartRateMeasurement(@NonNull final GBDevice device);
+
+    /** Maximum gap between heart-rate measurements that chart lines should bridge, in minutes. */
+    default int getMaxHeartRateMeasurementsGapMinutes(@NonNull final GBDevice device) {
+        return nodomain.freeyourgadget.gadgetbridge.activities.HeartRateUtils.MAX_HR_MEASUREMENTS_GAP_MINUTES;
+    }
 
     /**
      * Returns true if the given device supports resting heart rate measurements.
@@ -842,6 +888,14 @@ public interface DeviceCoordinator {
     boolean supportsFindDevice(@NonNull final GBDevice device);
 
     /**
+     * Indicates whether the "find device" function can be sent to a single
+     * earbud, so that the user can choose between each or both of them.
+     */
+    default boolean supportsFindDevicePerEarbud(@NonNull final GBDevice device) {
+        return false;
+    }
+
+    /**
      * Indicates whether the device supports displaying music information
      * like artist, title, album, play state etc.
      */
@@ -981,6 +1035,15 @@ public interface DeviceCoordinator {
     }
 
     /**
+     * The workout template capabilities of this device: sports, step types, durations, targets
+     * and fields.
+     */
+    @Nullable
+    default WorkoutTemplateSpec getWorkoutTemplateSpec(@NonNull final GBDevice device) {
+        return null;
+    }
+
+    /**
      * Returns the device-specific settings supported by this specific device. See
      * {@link DeviceSpecificSettings} for more information
      * @deprecated use {@link #getDeviceSettings} instead
@@ -1047,6 +1110,8 @@ public interface DeviceCoordinator {
     WidgetManager getWidgetManager(@NonNull final GBDevice device);
 
     boolean supportsNavigation(@NonNull final GBDevice device);
+
+    boolean supportsNotifications(@NonNull final GBDevice device);
 
     int getOrderPriority();
 
@@ -1117,7 +1182,18 @@ public interface DeviceCoordinator {
     @StringRes
     int getSecondaryAuthKeyHint();
 
+    /**
+     * @deprecated for new implementations, prefer adding an {@link nodomain.freeyourgadget.gadgetbridge.devices.cards.ActionCardItem}
+     * to {@link #getCardItems}.
+     */
+    @Deprecated
     List<DeviceCardAction> getCustomActions();
+
+    /**
+     * Returns the items to render in the device list card's icon row, in display order. The preset
+     * items are built from the capabilities, and then appended {@link #getCustomActions()}.
+     */
+    List<DeviceCardItem> getCardItems(@NonNull final GBDevice device);
 
     DeviceKind getDeviceKind(@NonNull final GBDevice device);
 

@@ -27,9 +27,11 @@ import android.view.ViewGroup;
 import android.widget.LinearLayout;
 import android.widget.TextView;
 
+import androidx.annotation.Nullable;
 import androidx.appcompat.app.AlertDialog;
 import androidx.core.content.ContextCompat;
 
+import com.github.mikephil.charting.utils.ViewPortHandler;
 import com.google.android.material.floatingactionbutton.FloatingActionButton;
 
 import com.github.mikephil.charting.charts.Chart;
@@ -41,7 +43,6 @@ import com.github.mikephil.charting.components.YAxis;
 import com.github.mikephil.charting.data.Entry;
 import com.github.mikephil.charting.data.LineData;
 import com.github.mikephil.charting.data.LineDataSet;
-import com.github.mikephil.charting.formatter.ValueFormatter;
 import com.github.mikephil.charting.interfaces.datasets.ILineDataSet;
 
 import org.slf4j.Logger;
@@ -57,6 +58,8 @@ import java.util.Locale;
 import nodomain.freeyourgadget.gadgetbridge.GBApplication;
 import nodomain.freeyourgadget.gadgetbridge.R;
 import nodomain.freeyourgadget.gadgetbridge.activities.HeartRateUtils;
+import nodomain.freeyourgadget.gadgetbridge.activities.workouts.StatTileData;
+import nodomain.freeyourgadget.gadgetbridge.activities.workouts.StatTileGridUtilKt;
 import nodomain.freeyourgadget.gadgetbridge.database.DBHandler;
 import nodomain.freeyourgadget.gadgetbridge.devices.DeviceCoordinator;
 import nodomain.freeyourgadget.gadgetbridge.devices.TimeSampleProvider;
@@ -80,10 +83,7 @@ public class BloodPressureChartFragment extends AbstractChartFragment<BloodPress
 
     private TextView mDateView;
     private LineChart mChart;
-    private TextView mSystolicLast;
-    private TextView mDiastolicLast;
-    private TextView mAverage;
-    private TextView mMeasurementCount;
+    private LinearLayout mStatsContainer;
     private LinearLayout mManualMeasurements;
     private LinearLayout mManualMeasurementsList;
     private BloodPressureChartsData currentData;
@@ -103,10 +103,7 @@ public class BloodPressureChartFragment extends AbstractChartFragment<BloodPress
 
         mDateView = rootView.findViewById(R.id.date_view);
         mChart = rootView.findViewById(R.id.blood_pressure_line_chart);
-        mSystolicLast = rootView.findViewById(R.id.bp_systolic_last);
-        mDiastolicLast = rootView.findViewById(R.id.bp_diastolic_last);
-        mAverage = rootView.findViewById(R.id.bp_average);
-        mMeasurementCount = rootView.findViewById(R.id.bp_measurement_count);
+        mStatsContainer = rootView.findViewById(R.id.bp_stats_container);
         mManualMeasurements = rootView.findViewById(R.id.manualMeasurements);
         mManualMeasurementsList = rootView.findViewById(R.id.manualMeasurementsList);
 
@@ -147,17 +144,17 @@ public class BloodPressureChartFragment extends AbstractChartFragment<BloodPress
     protected LineDataSet createDataSet(final List<Entry> values, String label, int color) {
         final LineDataSet lineDataSet = new LineDataSet(values, label);
         lineDataSet.setColor(color);
-        lineDataSet.setDrawCircles(true);
+        lineDataSet.setDrawCirclesEnabled(true);
         lineDataSet.setCircleColor(color);
         lineDataSet.setCircleRadius(3f);
-        lineDataSet.setDrawCircleHole(false);
+        lineDataSet.setDrawCircleHoleEnabled(false);
         lineDataSet.setLineWidth(2.2f);
         lineDataSet.setFillAlpha(255);
         lineDataSet.setValueTextColor(TEXT_COLOR);
         lineDataSet.setAxisDependency(YAxis.AxisDependency.LEFT);
-        lineDataSet.setValueFormatter(new ValueFormatter() {
+        lineDataSet.setValueFormatter(new DataSetValueFormatter() {
             @Override
-            public String getFormattedValue(float value) {
+            public String getFormattedValue(final float value, final Entry<?> entry, final int dataSetIndex, final ViewPortHandler viewPortHandler) {
                 return String.format(Locale.ROOT, "%d", (int) value);
             }
         });
@@ -171,14 +168,17 @@ public class BloodPressureChartFragment extends AbstractChartFragment<BloodPress
         mManualMeasurements.setVisibility(View.GONE);
 
         final String emptyValue = requireContext().getString(R.string.stats_empty_value);
-        mSystolicLast.setText(data.systolicLast > 0 ? String.valueOf(data.systolicLast) : emptyValue);
-        mDiastolicLast.setText(data.diastolicLast > 0 ? String.valueOf(data.diastolicLast) : emptyValue);
-        if (data.systolicAvg > 0 && data.diastolicAvg > 0) {
-            mAverage.setText(getString(R.string.blood_pressure_avg_format, data.systolicAvg, data.diastolicAvg));
-        } else {
-            mAverage.setText(emptyValue);
-        }
-        mMeasurementCount.setText(String.valueOf(data.measurementCount));
+        final String average = (data.systolicAvg > 0 && data.diastolicAvg > 0)
+                ? getString(R.string.blood_pressure_avg_format, data.systolicAvg, data.diastolicAvg)
+                : emptyValue;
+
+        final List<StatTileData> stats = new ArrayList<>();
+        stats.add(new StatTileData(data.systolicLast > 0 ? String.valueOf(data.systolicLast) : emptyValue, getString(R.string.blood_pressure_systolic)));
+        stats.add(new StatTileData(data.diastolicLast > 0 ? String.valueOf(data.diastolicLast) : emptyValue, getString(R.string.blood_pressure_diastolic)));
+        stats.add(new StatTileData(average, getString(R.string.hr_average)));
+        stats.add(new StatTileData(String.valueOf(data.measurementCount), getString(R.string.blood_pressure_measurement_count)));
+        mStatsContainer.removeAllViews();
+        StatTileGridUtilKt.addStatTileGrid(mStatsContainer, requireContext(), stats, 0);
 
         mChart.setData(null); // workaround for https://github.com/PhilJay/MPAndroidChart/issues/2317
         mChart.getAxisLeft().removeAllLimitLines();
@@ -191,7 +191,7 @@ public class BloodPressureChartFragment extends AbstractChartFragment<BloodPress
         final int diastolicColor = ContextCompat.getColor(requireContext(), R.color.blood_pressure_diastolic_color);
         final int heartRateColor = ContextCompat.getColor(requireContext(), R.color.chart_line_heart_rate);
 
-        final List<ILineDataSet> lineDataSets = new ArrayList<>();
+        final List<ILineDataSet<?>> lineDataSets = new ArrayList<>();
         final List<Entry> systolicEntries = new ArrayList<>();
         final List<Entry> diastolicEntries = new ArrayList<>();
         final List<Entry> heartRateEntries = new ArrayList<>();
@@ -201,34 +201,34 @@ public class BloodPressureChartFragment extends AbstractChartFragment<BloodPress
             int tsShorten = tsTranslation.shorten(ts);
 
             if (sample.getBpSystolic() > 0) {
-                systolicEntries.add(new Entry(tsShorten, sample.getBpSystolic()));
+                systolicEntries.add(new Entry<>(tsShorten, sample.getBpSystolic(), null, null));
             }
             if (sample.getBpDiastolic() > 0) {
-                diastolicEntries.add(new Entry(tsShorten, sample.getBpDiastolic()));
+                diastolicEntries.add(new Entry<>(tsShorten, sample.getBpDiastolic(), null, null));
             }
             final int pulseRate = getPulseRate(sample);
             if (pulseRate > 0) {
-                heartRateEntries.add(new Entry(tsShorten, pulseRate));
+                heartRateEntries.add(new Entry<>(tsShorten, pulseRate, null, null));
             }
         }
 
         final List<LegendEntry> legendEntries = new ArrayList<>(3);
         final LegendEntry systolicEntry = new LegendEntry();
-        systolicEntry.label = getString(R.string.blood_pressure_systolic);
-        systolicEntry.formColor = systolicColor;
+        systolicEntry.setLabel(getString(R.string.blood_pressure_systolic));
+        systolicEntry.setFormColor(systolicColor);
         legendEntries.add(systolicEntry);
         final LegendEntry diastolicEntry = new LegendEntry();
-        diastolicEntry.label = getString(R.string.blood_pressure_diastolic);
-        diastolicEntry.formColor = diastolicColor;
+        diastolicEntry.setLabel(getString(R.string.blood_pressure_diastolic));
+        diastolicEntry.setFormColor(diastolicColor);
         legendEntries.add(diastolicEntry);
         if (!heartRateEntries.isEmpty()) {
             final LegendEntry heartRateEntry = new LegendEntry();
-            heartRateEntry.label = getString(R.string.heart_rate);
-            heartRateEntry.formColor = heartRateColor;
+            heartRateEntry.setLabel(getString(R.string.heart_rate));
+            heartRateEntry.setFormColor(heartRateColor);
             legendEntries.add(heartRateEntry);
         }
         mChart.getLegend().setTextColor(LEGEND_TEXT_COLOR);
-        mChart.getLegend().setCustom(legendEntries);
+        mChart.getLegend().setEntries(legendEntries);
 
         if (!systolicEntries.isEmpty()) {
             lineDataSets.add(createDataSet(systolicEntries, getString(R.string.blood_pressure_systolic), systolicColor));
@@ -250,7 +250,7 @@ public class BloodPressureChartFragment extends AbstractChartFragment<BloodPress
         }
 
         if (data.systolicAvg > 0 && GBApplication.getPrefs().getBoolean("charts_show_average", true)) {
-            final LimitLine avgLine = new LimitLine(data.systolicAvg);
+            final LimitLine avgLine = new LimitLine(data.systolicAvg, "");
             avgLine.setLineColor(Color.GRAY);
             avgLine.setLineWidth(1.5f);
             avgLine.enableDashedLine(15f, 10f, 0f);
@@ -291,7 +291,7 @@ public class BloodPressureChartFragment extends AbstractChartFragment<BloodPress
         mChart.getLegend().setTextColor(0xFF000000);
         mChart.invalidate();
 
-        Bitmap bitmap = mChart.getChartBitmap();
+        Bitmap bitmap = mChart.toBitmap();
 
         // Restore original colors
         mChart.setBackgroundColor(BACKGROUND_COLOR);
@@ -311,49 +311,40 @@ public class BloodPressureChartFragment extends AbstractChartFragment<BloodPress
 
         final XAxis xAxisBottom = mChart.getXAxis();
         xAxisBottom.setPosition(XAxis.XAxisPosition.BOTTOM);
-        xAxisBottom.setDrawLabels(true);
-        xAxisBottom.setDrawGridLines(false);
+        xAxisBottom.setDrawLabelsEnabled(true);
+        xAxisBottom.setDrawGridLinesEnabled(false);
         xAxisBottom.setEnabled(true);
-        xAxisBottom.setDrawLimitLinesBehindData(true);
+        xAxisBottom.setDrawLimitLinesBehindDataEnabled(true);
         xAxisBottom.setTextColor(CHART_TEXT_COLOR);
         xAxisBottom.setAxisMinimum(0f);
         xAxisBottom.setAxisMaximum(86400f);
-        xAxisBottom.setLabelCount(7, true);
+        xAxisBottom.setLabelCount(7);
+        xAxisBottom.setForceLabelsEnabled(true);
 
         final int heartRateColor = ContextCompat.getColor(requireContext(), R.color.chart_line_heart_rate);
 
         final YAxis yAxisLeft = mChart.getAxisLeft();
-        yAxisLeft.setDrawGridLines(true);
+        yAxisLeft.setDrawGridLinesEnabled(true);
         yAxisLeft.setAxisMaximum(200f);
         yAxisLeft.setAxisMinimum(40f);
-        yAxisLeft.setDrawTopYLabelEntry(false);
+        yAxisLeft.setDrawTopYLabelEntryEnabled(false);
         yAxisLeft.setTextColor(CHART_TEXT_COLOR);
         yAxisLeft.setEnabled(true);
         final String unitMmHg = getString(R.string.unit_millimetre_of_mercury);
-        yAxisLeft.setValueFormatter(new ValueFormatter() {
-            @Override
-            public String getFormattedValue(float value) {
-                return String.format(Locale.ROOT, "%d " + unitMmHg, (int) value);
-            }
-        });
+        yAxisLeft.setValueFormatter((value, axis) -> String.format(Locale.ROOT, "%d " + unitMmHg, (int) value));
 
         final YAxis yAxisRight = mChart.getAxisRight();
         yAxisRight.setEnabled(true);
-        yAxisRight.setDrawLabels(true);
-        yAxisRight.setDrawGridLines(false);
-        yAxisRight.setDrawAxisLine(true);
-        yAxisRight.setDrawTopYLabelEntry(false);
+        yAxisRight.setDrawLabelsEnabled(true);
+        yAxisRight.setDrawGridLinesEnabled(false);
+        yAxisRight.setDrawAxisLineEnabled(true);
+        yAxisRight.setDrawTopYLabelEntryEnabled(false);
         yAxisRight.setTextColor(heartRateColor);
         yAxisRight.setAxisLineColor(heartRateColor);
         yAxisRight.setAxisMaximum(HeartRateUtils.getInstance().getMaxHeartRate());
         yAxisRight.setAxisMinimum(HeartRateUtils.getInstance().getMinHeartRate());
         final String unitBpm = getString(R.string.bpm);
-        yAxisRight.setValueFormatter(new ValueFormatter() {
-            @Override
-            public String getFormattedValue(float value) {
-                return String.format(Locale.ROOT, "%d " + unitBpm, (int) value);
-            }
-        });
+        yAxisRight.setValueFormatter((value, axis) -> String.format(Locale.ROOT, "%d " + unitBpm, (int) value));
     }
 
     @Override
@@ -414,5 +405,11 @@ public class BloodPressureChartFragment extends AbstractChartFragment<BloodPress
             this.diastolicLast = diastolicLast;
             this.measurementCount = measurementCount;
         }
+    }
+
+    @Nullable
+    @Override
+    public ChartDataRange getAvailableDataRange(final GBDevice device, final DBHandler db) {
+        return ChartDataRange.ofSamples(device.getDeviceCoordinator().getBloodPressureSampleProvider(device, db.getDaoSession()));
     }
 }

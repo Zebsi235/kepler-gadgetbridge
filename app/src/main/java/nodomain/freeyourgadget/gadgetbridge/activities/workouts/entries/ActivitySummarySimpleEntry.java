@@ -71,7 +71,7 @@ public class ActivitySummarySimpleEntry extends ActivitySummaryEntry {
         final TextView valueTextView = new TextView(context);
         valueTextView.setLayoutParams(new LinearLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT));
         valueTextView.setTextSize(20);
-        valueTextView.setText(workoutValueFormatter.formatValue(value, unit));
+        valueTextView.setText(workoutValueFormatter.formatTileValue(value, unit));
         valueTextView.setTextColor(GBApplication.getTextColor(context));
 
         // Label

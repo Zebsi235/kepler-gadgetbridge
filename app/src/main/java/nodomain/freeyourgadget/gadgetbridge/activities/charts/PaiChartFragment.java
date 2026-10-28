@@ -25,6 +25,7 @@ import android.widget.ImageView;
 import android.widget.LinearLayout;
 import android.widget.TextView;
 
+import androidx.annotation.Nullable;
 import androidx.core.content.ContextCompat;
 
 import com.github.mikephil.charting.charts.BarChart;
@@ -37,12 +38,14 @@ import com.github.mikephil.charting.data.BarData;
 import com.github.mikephil.charting.data.BarDataSet;
 import com.github.mikephil.charting.data.BarEntry;
 import com.github.mikephil.charting.data.ChartData;
-import com.github.mikephil.charting.formatter.ValueFormatter;
+import com.github.mikephil.charting.data.Entry;
+import com.github.mikephil.charting.utils.ViewPortHandler;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Calendar;
 import java.util.Date;
 import java.util.List;
@@ -52,6 +55,8 @@ import java.util.Optional;
 import nodomain.freeyourgadget.gadgetbridge.GBApplication;
 import nodomain.freeyourgadget.gadgetbridge.R;
 import nodomain.freeyourgadget.gadgetbridge.activities.dashboard.GaugeDrawer;
+import nodomain.freeyourgadget.gadgetbridge.activities.workouts.StatTileData;
+import nodomain.freeyourgadget.gadgetbridge.activities.workouts.StatTileGridUtilKt;
 import nodomain.freeyourgadget.gadgetbridge.database.DBHandler;
 import nodomain.freeyourgadget.gadgetbridge.devices.DeviceCoordinator;
 import nodomain.freeyourgadget.gadgetbridge.devices.TimeSampleProvider;
@@ -69,17 +74,16 @@ public class PaiChartFragment extends AbstractChartFragment<PaiChartFragment.Pai
     protected ImageView mGoalMinutesGauge;
     protected BarChart mWeekChart;
     protected TextView mDateView;
-    protected TextView mLineToday;
-    protected TextView mLineTotal;
+    protected LinearLayout mSummaryStatsContainer;
     protected TextView mLineLowInc;
     protected TextView mLineLowTime;
     protected TextView mLineModerateInc;
     protected TextView mLineModerateTime;
     protected TextView mLineHighInc;
     protected TextView mLineHighTime;
-    protected LinearLayout mTileLow;
-    protected LinearLayout mTileModerate;
-    protected LinearLayout mTileHigh;
+    protected View mTileLow;
+    protected View mTileModerate;
+    protected View mTileHigh;
 
     protected int BACKGROUND_COLOR;
     protected int DESCRIPTION_COLOR;
@@ -94,7 +98,7 @@ public class PaiChartFragment extends AbstractChartFragment<PaiChartFragment.Pai
     protected void init() {
         BACKGROUND_COLOR = GBApplication.getBackgroundColor(requireContext());
         LEGEND_TEXT_COLOR = DESCRIPTION_COLOR = TEXT_COLOR = GBApplication.getTextColor(requireContext());
-        CHART_TEXT_COLOR = ContextCompat.getColor(requireContext(), R.color.secondarytext);
+        CHART_TEXT_COLOR = GBApplication.getSecondaryTextColor(requireContext());
 
         PAI_TOTAL_COLOR = ContextCompat.getColor(requireContext(), R.color.chart_pai_weekly);
         PAI_DAY_COLOR = ContextCompat.getColor(requireContext(), R.color.chart_pai_today);
@@ -115,8 +119,7 @@ public class PaiChartFragment extends AbstractChartFragment<PaiChartFragment.Pai
         mGoalMinutesGauge = rootView.findViewById(R.id.goal_minutes_gauge);
         mWeekChart = rootView.findViewById(R.id.pai_chart_week);
         mDateView = rootView.findViewById(R.id.pai_date_view);
-        mLineToday = rootView.findViewById(R.id.pai_line_today);
-        mLineTotal = rootView.findViewById(R.id.pai_line_total);
+        mSummaryStatsContainer = rootView.findViewById(R.id.pai_summary_stats_container);
         mLineLowInc = rootView.findViewById(R.id.pai_line_low_inc);
         mLineLowTime = rootView.findViewById(R.id.pai_line_low_time);
         mLineModerateInc = rootView.findViewById(R.id.pai_line_moderate_inc);
@@ -149,34 +152,34 @@ public class PaiChartFragment extends AbstractChartFragment<PaiChartFragment.Pai
         mWeekChart.setBackgroundColor(BACKGROUND_COLOR);
         mWeekChart.getDescription().setTextColor(DESCRIPTION_COLOR);
         mWeekChart.getDescription().setText("");
-        mWeekChart.setFitBars(true);
+        mWeekChart.setFitBarsEnabled(true);
         configureBarLineChartDefaults(mWeekChart);
         mWeekChart.setTouchEnabled(false);
 
         final XAxis x = mWeekChart.getXAxis();
-        x.setDrawLabels(true);
-        x.setDrawGridLines(false);
+        x.setDrawLabelsEnabled(true);
+        x.setDrawGridLinesEnabled(false);
         x.setEnabled(true);
         x.setTextColor(CHART_TEXT_COLOR);
-        x.setDrawLimitLinesBehindData(true);
+        x.setDrawLimitLinesBehindDataEnabled(true);
         x.setPosition(XAxis.XAxisPosition.BOTTOM);
 
         final YAxis y = mWeekChart.getAxisLeft();
-        y.setDrawGridLines(true);
-        y.setDrawTopYLabelEntry(true);
+        y.setDrawGridLinesEnabled(true);
+        y.setDrawTopYLabelEntryEnabled(true);
         y.setTextColor(CHART_TEXT_COLOR);
-        y.setDrawZeroLine(true);
+        y.setDrawZeroLineEnabled(true);
         y.setSpaceBottom(0);
         y.setAxisMinimum(0);
         y.setAxisMaximum(getPaiTarget());
-        y.setValueFormatter(getRoundFormatter());
+        y.setValueFormatter((value, axis) -> String.valueOf(Math.round(value)));
         y.setEnabled(true);
 
         final YAxis yAxisRight = mWeekChart.getAxisRight();
-        yAxisRight.setDrawGridLines(false);
+        yAxisRight.setDrawGridLinesEnabled(false);
         yAxisRight.setEnabled(false);
-        yAxisRight.setDrawLabels(false);
-        yAxisRight.setDrawTopYLabelEntry(false);
+        yAxisRight.setDrawLabelsEnabled(false);
+        yAxisRight.setDrawTopYLabelEntryEnabled(false);
         yAxisRight.setTextColor(CHART_TEXT_COLOR);
     }
 
@@ -247,8 +250,23 @@ public class PaiChartFragment extends AbstractChartFragment<PaiChartFragment.Pai
                 Math.max(pcd.getWeekBeforeData().getMaxPai(), getPaiTarget()) + 20);
 
         mDateView.setText(DateTimeUtils.formatDate(pcd.getDayData().day.getTime()));
-        mLineToday.setText(requireContext().getString(R.string.pai_plus_num, pcd.getDayData().today));
-        mLineTotal.setText(String.valueOf(pcd.getDayData().total));
+
+        final List<StatTileData> summaryStats = new ArrayList<>();
+        summaryStats.add(new StatTileData(
+                requireContext().getString(R.string.pai_plus_num, pcd.getDayData().today),
+                getString(R.string.activity_summary_today),
+                null, null, null, null,
+                PAI_DAY_COLOR
+        ));
+        summaryStats.add(new StatTileData(
+                String.valueOf(pcd.getDayData().total),
+                getString(R.string.weekly_total),
+                null, null, null, null,
+                PAI_TOTAL_COLOR
+        ));
+        mSummaryStatsContainer.removeAllViews();
+        StatTileGridUtilKt.addStatTileGrid(mSummaryStatsContainer, requireContext(), summaryStats, 0);
+
         mLineLowInc.setText(String.valueOf(pcd.getDayData().paiLow));
         mLineLowTime.setText(requireContext().getString(R.string.num_min, pcd.getDayData().minutesLow));
         mLineModerateInc.setText(String.valueOf(pcd.getDayData().paiModerate));
@@ -291,14 +309,14 @@ public class PaiChartFragment extends AbstractChartFragment<PaiChartFragment.Pai
                 final int paiTotal = Math.round(sample.getPaiTotal());
                 maxPai = Math.max(maxPai, paiTotal);
 
-                final float[] paiBar = new float[]{
-                        paiTotal - paiToday,
-                        paiToday
-                };
+                final List<Float> paiBar = Arrays.asList(
+                        (float) (paiTotal - paiToday),
+                        (float) paiToday
+                );
 
-                entries.add(new BarEntry(counter, paiBar));
+                entries.add(new BarEntry<>(counter, paiBar, null, null));
             } else {
-                entries.add(new BarEntry(counter, new float[]{0.0f, 0.0f}));
+                entries.add(new BarEntry<>(counter, Arrays.asList(0.0f, 0.0f), null, null));
             }
             labels.add(getWeeksChartsLabel(day));
             day.add(Calendar.DATE, 1);
@@ -360,10 +378,10 @@ public class PaiChartFragment extends AbstractChartFragment<PaiChartFragment.Pai
         return new DayData(day, segments, today, total, paiLow, paiModerate, paiHigh, minutesLow, minutesModerate, minutesHigh);
     }
 
-    protected ValueFormatter getRoundFormatter() {
-        return new ValueFormatter() {
+    protected DataSetValueFormatter getRoundFormatter() {
+        return new DataSetValueFormatter() {
             @Override
-            public String getFormattedValue(final float value) {
+            public String getFormattedValue(final float value, final Entry<?> entry, final int dataSetIndex, final ViewPortHandler viewPortHandler) {
                 return String.valueOf(Math.round(value));
             }
         };
@@ -374,16 +392,16 @@ public class PaiChartFragment extends AbstractChartFragment<PaiChartFragment.Pai
         List<LegendEntry> legendEntries = new ArrayList<>(2);
 
         LegendEntry lightSleepEntry = new LegendEntry();
-        lightSleepEntry.label = requireContext().getString(R.string.pai_total);
-        lightSleepEntry.formColor = PAI_TOTAL_COLOR;
+        lightSleepEntry.setLabel(requireContext().getString(R.string.pai_total));
+        lightSleepEntry.setFormColor(PAI_TOTAL_COLOR);
         legendEntries.add(lightSleepEntry);
 
         LegendEntry deepSleepEntry = new LegendEntry();
-        deepSleepEntry.label = requireContext().getString(R.string.pai_day);
-        deepSleepEntry.formColor = PAI_DAY_COLOR;
+        deepSleepEntry.setLabel(requireContext().getString(R.string.pai_day));
+        deepSleepEntry.setFormColor(PAI_DAY_COLOR);
         legendEntries.add(deepSleepEntry);
 
-        chart.getLegend().setCustom(legendEntries);
+        chart.getLegend().setEntries(legendEntries);
         chart.getLegend().setTextColor(LEGEND_TEXT_COLOR);
         chart.getLegend().setWordWrapEnabled(true);
         chart.getLegend().setHorizontalAlignment(Legend.LegendHorizontalAlignment.CENTER);
@@ -472,5 +490,11 @@ public class PaiChartFragment extends AbstractChartFragment<PaiChartFragment.Pai
         public WeekChartsData<BarData> getWeekBeforeData() {
             return weekBeforeData;
         }
+    }
+
+    @Nullable
+    @Override
+    public ChartDataRange getAvailableDataRange(final GBDevice device, final DBHandler db) {
+        return ChartDataRange.ofSamples(device.getDeviceCoordinator().getPaiSampleProvider(device, db.getDaoSession()));
     }
 }

@@ -16,6 +16,8 @@
     along with this program.  If not, see <https://www.gnu.org/licenses/>. */
 package nodomain.freeyourgadget.gadgetbridge.activities.charts;
 
+import androidx.annotation.Nullable;
+
 import static nodomain.freeyourgadget.gadgetbridge.model.ActivitySummaryEntries.UNIT_LUX_HOURS_KILO;
 import static nodomain.freeyourgadget.gadgetbridge.model.ActivitySummaryEntries.UNIT_MINUTES;
 import static nodomain.freeyourgadget.gadgetbridge.model.ActivitySummaryEntries.UNIT_PERCENTAGE;
@@ -24,6 +26,7 @@ import android.os.Bundle;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
+import android.widget.LinearLayout;
 import android.widget.TextView;
 
 import com.github.mikephil.charting.charts.Chart;
@@ -34,7 +37,7 @@ import com.github.mikephil.charting.components.YAxis;
 import com.github.mikephil.charting.data.Entry;
 import com.github.mikephil.charting.data.LineData;
 import com.github.mikephil.charting.data.LineDataSet;
-import com.github.mikephil.charting.formatter.ValueFormatter;
+import com.github.mikephil.charting.formatter.IAxisValueFormatter;
 import com.github.mikephil.charting.interfaces.datasets.ILineDataSet;
 
 import org.slf4j.Logger;
@@ -51,6 +54,8 @@ import java.util.TimeZone;
 
 import nodomain.freeyourgadget.gadgetbridge.GBApplication;
 import nodomain.freeyourgadget.gadgetbridge.R;
+import nodomain.freeyourgadget.gadgetbridge.activities.workouts.StatTileData;
+import nodomain.freeyourgadget.gadgetbridge.activities.workouts.StatTileGridUtilKt;
 import nodomain.freeyourgadget.gadgetbridge.activities.workouts.WorkoutValueFormatter;
 import nodomain.freeyourgadget.gadgetbridge.database.DBHandler;
 import nodomain.freeyourgadget.gadgetbridge.devices.DeviceCoordinator;
@@ -62,9 +67,7 @@ public class SolarChargingDailyFragment extends AbstractChartFragment<SolarCharg
     protected static final Logger LOG = LoggerFactory.getLogger(SolarChargingDailyFragment.class);
 
     private TextView mDateView;
-    private TextView solarChargingLuxHours;
-    private TextView solarChargingPeakIntensity;
-    private TextView solarChargingBatteryGain;
+    private LinearLayout solarChargingStatsContainer;
     private LineChart solarChargingChart;
 
     protected int CHART_TEXT_COLOR;
@@ -79,9 +82,7 @@ public class SolarChargingDailyFragment extends AbstractChartFragment<SolarCharg
         });
 
         mDateView = rootView.findViewById(R.id.solar_charging_date_view);
-        solarChargingLuxHours = rootView.findViewById(R.id.solar_charging_lux_hours);
-        solarChargingPeakIntensity = rootView.findViewById(R.id.solar_charging_peak_intensity);
-        solarChargingBatteryGain = rootView.findViewById(R.id.solar_charging_battery_gain);
+        solarChargingStatsContainer = rootView.findViewById(R.id.solar_charging_stats_container);
         solarChargingChart = rootView.findViewById(R.id.solar_charging_chart);
         setupSolarChargingChart();
         refresh();
@@ -160,48 +161,51 @@ public class SolarChargingDailyFragment extends AbstractChartFragment<SolarCharg
                         if (i > 0) {
                             final SolarChargeSample previous = samples.get(i - 1);
                             final float prevX = (float) previous.getTimestamp() / 1000 - (float) referencedTimestamp / 1000;
-                            currentSegment.add(new Entry(prevX, 0f));
+                            currentSegment.add(new Entry<>(prevX, 0f, null, null));
                         }
                     }
-                    currentSegment.add(new Entry(x, sample.getPercent()));
+                    currentSegment.add(new Entry<>(x, sample.getPercent(), null, null));
                 } else {
                     if (currentSegment != null) {
                         // Anchor the segment's end at this zero reading, for the same reason.
-                        currentSegment.add(new Entry(x, 0f));
+                        currentSegment.add(new Entry<>(x, 0f, null, null));
                     }
                     currentSegment = null;
                 }
             }
         }
 
-        final List<ILineDataSet> lineDataSets = new ArrayList<>();
+        final List<ILineDataSet<?>> lineDataSets = new ArrayList<>();
         for (final List<Entry> segment : segments) {
             final LineDataSet lineDataSet = new LineDataSet(segment, getString(R.string.solar_charging_intensity_chart_label));
             lineDataSet.setColor(getResources().getColor(R.color.chart_solar_charging_color));
-            lineDataSet.setDrawCircles(false);
+            lineDataSet.setDrawCirclesEnabled(false);
             lineDataSet.setLineWidth(2f);
             lineDataSet.setAxisDependency(YAxis.AxisDependency.LEFT);
-            lineDataSet.setDrawValues(false);
+            lineDataSet.setDrawValuesEnabled(false);
             lineDataSet.setMode(LineDataSet.Mode.LINEAR);
-            lineDataSet.setDrawFilled(true);
+            lineDataSet.setDrawFilledEnabled(true);
             lineDataSet.setFillAlpha(255);
             lineDataSet.setFillColor(getResources().getColor(R.color.chart_solar_charging_color));
             lineDataSets.add(lineDataSet);
         }
 
         final LegendEntry legendEntry = new LegendEntry();
-        legendEntry.label = getString(R.string.solar_charging_intensity_chart_label);
-        legendEntry.formColor = getResources().getColor(R.color.chart_solar_charging_color);
+        legendEntry.setLabel(getString(R.string.solar_charging_intensity_chart_label));
+        legendEntry.setFormColor(getResources().getColor(R.color.chart_solar_charging_color));
 
         solarChargingChart.getLegend().setTextColor(LEGEND_TEXT_COLOR);
-        solarChargingChart.getLegend().setCustom(Collections.singletonList(legendEntry));
+        solarChargingChart.getLegend().setEntries(Collections.singletonList(legendEntry));
 
         solarChargingChart.setData(new LineData(lineDataSets));
 
         final WorkoutValueFormatter unitFormatter = new WorkoutValueFormatter();
-        solarChargingLuxHours.setText(String.format(Locale.getDefault(), "%.1f%s", totalLuxHours / 1000.0, unitFormatter.getStringResourceByName(UNIT_LUX_HOURS_KILO)));
-        solarChargingPeakIntensity.setText(String.format(Locale.getDefault(), "%.0f%s", peakPercent, unitFormatter.getStringResourceByName(UNIT_PERCENTAGE)));
-        solarChargingBatteryGain.setText(String.format(Locale.getDefault(), "+ %d %s", totalGainMillis / 60000L, unitFormatter.getStringResourceByName(UNIT_MINUTES)));
+        solarChargingStatsContainer.removeAllViews();
+        final List<StatTileData> stats = new ArrayList<>();
+        stats.add(new StatTileData(String.format(Locale.getDefault(), "%.1f%s", totalLuxHours / 1000.0, unitFormatter.getStringResourceByName(UNIT_LUX_HOURS_KILO)), getString(R.string.solar_charging_lux_hours)));
+        stats.add(new StatTileData(String.format(Locale.getDefault(), "+ %d %s", totalGainMillis / 60000L, unitFormatter.getStringResourceByName(UNIT_MINUTES)), getString(R.string.solar_charging_battery_gain)));
+        stats.add(new StatTileData(String.format(Locale.getDefault(), "%.0f%s", peakPercent, unitFormatter.getStringResourceByName(UNIT_PERCENTAGE)), getString(R.string.solar_charging_peak_intensity)));
+        StatTileGridUtilKt.addStatTileGrid(solarChargingStatsContainer, requireContext(), stats, 0);
     }
 
     @Override
@@ -233,47 +237,45 @@ public class SolarChargingDailyFragment extends AbstractChartFragment<SolarCharg
     private void setupSolarChargingChart() {
         solarChargingChart.getDescription().setEnabled(false);
         solarChargingChart.setTouchEnabled(false);
-        solarChargingChart.setPinchZoom(false);
+        solarChargingChart.setPinchZoomEnabled(false);
         solarChargingChart.setDoubleTapToZoomEnabled(false);
 
         final XAxis xAxisBottom = solarChargingChart.getXAxis();
         xAxisBottom.setPosition(XAxis.XAxisPosition.BOTTOM);
-        xAxisBottom.setDrawLabels(true);
-        xAxisBottom.setDrawGridLines(false);
+        xAxisBottom.setDrawLabelsEnabled(true);
+        xAxisBottom.setDrawGridLinesEnabled(false);
         xAxisBottom.setEnabled(true);
-        xAxisBottom.setDrawLimitLinesBehindData(true);
+        xAxisBottom.setDrawLimitLinesBehindDataEnabled(true);
         xAxisBottom.setTextColor(CHART_TEXT_COLOR);
         xAxisBottom.setAxisMinimum(0f);
         xAxisBottom.setAxisMaximum(86400f);
-        xAxisBottom.setLabelCount(7, true);
+        xAxisBottom.setLabelCount(7);
+        xAxisBottom.setForceLabelsEnabled(true);
         xAxisBottom.setValueFormatter(getSolarChargingChartXValueFormatter());
 
         final YAxis yAxisLeft = solarChargingChart.getAxisLeft();
-        yAxisLeft.setDrawGridLines(true);
+        yAxisLeft.setDrawGridLinesEnabled(true);
         yAxisLeft.setAxisMaximum(100);
         yAxisLeft.setAxisMinimum(0);
-        yAxisLeft.setDrawTopYLabelEntry(true);
+        yAxisLeft.setDrawTopYLabelEntryEnabled(true);
         yAxisLeft.setEnabled(true);
         yAxisLeft.setTextColor(CHART_TEXT_COLOR);
 
         final YAxis yAxisRight = solarChargingChart.getAxisRight();
         yAxisRight.setEnabled(true);
-        yAxisRight.setDrawLabels(false);
-        yAxisRight.setDrawGridLines(false);
-        yAxisRight.setDrawAxisLine(true);
+        yAxisRight.setDrawLabelsEnabled(false);
+        yAxisRight.setDrawGridLinesEnabled(false);
+        yAxisRight.setDrawAxisLineEnabled(true);
     }
 
-    ValueFormatter getSolarChargingChartXValueFormatter() {
-        return new ValueFormatter() {
-            @Override
-            public String getFormattedValue(float value) {
-                long timestamp = (long) (value * 1000);
-                Date date = new Date();
-                date.setTime(timestamp);
-                SimpleDateFormat df = new SimpleDateFormat("HH:mm", Locale.getDefault());
-                df.setTimeZone(TimeZone.getTimeZone("UTC"));
-                return df.format(date);
-            }
+    IAxisValueFormatter getSolarChargingChartXValueFormatter() {
+        return (value, axis) -> {
+            long timestamp = (long) (value * 1000);
+            Date date = new Date();
+            date.setTime(timestamp);
+            SimpleDateFormat df = new SimpleDateFormat("HH:mm", Locale.getDefault());
+            df.setTimeZone(TimeZone.getTimeZone("UTC"));
+            return df.format(date);
         };
     }
 
@@ -285,5 +287,11 @@ public class SolarChargingDailyFragment extends AbstractChartFragment<SolarCharg
             this.todaySamples = todaySamples;
             this.dayStartMillis = dayStartMillis;
         }
+    }
+
+    @Nullable
+    @Override
+    public ChartDataRange getAvailableDataRange(final GBDevice device, final DBHandler db) {
+        return ChartDataRange.ofSamples(device.getDeviceCoordinator().getSolarChargeSampleProvider(device, db.getDaoSession()));
     }
 }

@@ -43,6 +43,7 @@ public interface DeviceService extends EventHandler {
     String ACTION_SET_PHONE_VOLUME = PREFIX + ".action.set_phone_volume";
     String ACTION_SET_PHONE_SILENT_MODE = PREFIX + ".action.set_phone_silent_mode";
     String ACTION_SETNAVIGATIONINFO = PREFIX + ".action.setnavigationinfo";
+    String ACTION_SETNAVIGATIONROUTE = PREFIX + ".action.setnavigationroute";
     String ACTION_REQUEST_DEVICEINFO = PREFIX + ".action.request_deviceinfo";
     String ACTION_REQUEST_APPINFO = PREFIX + ".action.request_appinfo";
     String ACTION_REQUEST_SCREENSHOT = PREFIX + ".action.request_screenshot";
@@ -68,6 +69,7 @@ public interface DeviceService extends EventHandler {
     String ACTION_SET_REMINDERS = PREFIX + ".action.set_reminders";
     String ACTION_SET_LOYALTY_CARDS = PREFIX + ".action.set_loyalty_cards";
     String ACTION_SET_WORLD_CLOCKS = PREFIX + ".action.set_world_clocks";
+    String ACTION_SYNC_WORKOUT_TEMPLATE = PREFIX + ".action.sync_workout_template";
     String ACTION_SET_CONTACTS = PREFIX + ".action.set_contacts";
     String ACTION_ENABLE_REALTIME_STEPS = PREFIX + ".action.enable_realtime_steps";
     String ACTION_REALTIME_SAMPLES = PREFIX + ".action.realtime_samples";
@@ -97,6 +99,7 @@ public interface DeviceService extends EventHandler {
     String EXTRA_NOTIFICATION_SPEC = "notification_spec";
     String EXTRA_NOTIFICATION_ID = "notification_id";
     String EXTRA_FIND_START = "find_start";
+    String EXTRA_FIND_TARGET = "find_target";
     String EXTRA_VIBRATION_INTENSITY = "vibration_intensity";
     String EXTRA_CALL_SPEC = "call_spec";
     String EXTRA_CANNEDMESSAGES_SPEC = "cannedmessages_spec";
@@ -104,6 +107,7 @@ public interface DeviceService extends EventHandler {
     String EXTRA_MUSIC_STATE_SPEC = "music_state_spec";
     String EXTRA_PHONE_VOLUME = "phone_volume";
     String EXTRA_PHONE_RINGER_MODE = "ringer_mode";
+    String EXTRA_NAVIGATION_ROUTE_SPEC = "navigation_route_spec";
     String EXTRA_NAVIGATION_INSTRUCTION = "navigation_instruction";
     String EXTRA_NAVIGATION_DISTANCE_TO_TURN = "navigation_distance_to_turn";
     String EXTRA_NAVIGATION_DISTANCE_TO_TARGET = "navigation_distance_to_target";
@@ -122,6 +126,7 @@ public interface DeviceService extends EventHandler {
     String EXTRA_REMINDERS = "reminders";
     String EXTRA_LOYALTY_CARDS = "loyalty_cards";
     String EXTRA_WORLD_CLOCKS = "world_clocks";
+    String EXTRA_WORKOUT_TEMPLATE_ID = "workout_template_id";
     String EXTRA_CONTACTS = "contacts";
     String EXTRA_CONNECT_FIRST_TIME = "connect_first_time";
     String EXTRA_BOOLEAN_ENABLE = "enable_realtime_steps";
@@ -136,11 +141,6 @@ public interface DeviceService extends EventHandler {
     String EXTRA_REALTIME_SAMPLE = "realtime_sample";
     String EXTRA_TIMESTAMP = "timestamp";
 
-    /**
-     * Use EXTRA_REALTIME_SAMPLE instead
-     */
-    @Deprecated
-    String EXTRA_HEART_RATE_VALUE = "hr_value";
     String EXTRA_CALENDAREVENT_SPEC = "calendarevent_spec";
     String EXTRA_CALENDAREVENT_ID = "calendarevent_id";
     String EXTRA_CALENDAREVENT_TYPE = "calendarevent_type";

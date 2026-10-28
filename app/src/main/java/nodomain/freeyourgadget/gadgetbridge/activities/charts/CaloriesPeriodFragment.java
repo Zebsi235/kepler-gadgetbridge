@@ -5,6 +5,7 @@ import android.os.Bundle;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
+import android.widget.LinearLayout;
 import android.widget.TextView;
 
 import com.github.mikephil.charting.charts.BarChart;
@@ -15,7 +16,7 @@ import com.github.mikephil.charting.components.YAxis;
 import com.github.mikephil.charting.data.BarData;
 import com.github.mikephil.charting.data.BarDataSet;
 import com.github.mikephil.charting.data.BarEntry;
-import com.github.mikephil.charting.formatter.ValueFormatter;
+import com.github.mikephil.charting.formatter.IAxisValueFormatter;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -29,6 +30,8 @@ import java.util.Locale;
 
 import nodomain.freeyourgadget.gadgetbridge.GBApplication;
 import nodomain.freeyourgadget.gadgetbridge.R;
+import nodomain.freeyourgadget.gadgetbridge.activities.workouts.StatTileData;
+import nodomain.freeyourgadget.gadgetbridge.activities.workouts.StatTileGridUtilKt;
 import nodomain.freeyourgadget.gadgetbridge.database.DBHandler;
 import nodomain.freeyourgadget.gadgetbridge.impl.GBDevice;
 import nodomain.freeyourgadget.gadgetbridge.model.ActivityUser;
@@ -38,10 +41,7 @@ public class CaloriesPeriodFragment extends CaloriesFragment<CaloriesPeriodFragm
     protected static final Logger LOG = LoggerFactory.getLogger(CaloriesPeriodFragment.class);
 
     private TextView mDateView;
-    private TextView activeCaloriesAvg;
-    private TextView activeCaloriesTotal;
-    private TextView restingCaloriesAvg;
-    private TextView restingCaloriesTotal;
+    private LinearLayout caloriesStatsContainer;
     private BarChart caloriesChart;
 
     private TextView mBalanceView;
@@ -82,10 +82,7 @@ public class CaloriesPeriodFragment extends CaloriesFragment<CaloriesPeriodFragm
 
         mDateView = rootView.findViewById(R.id.calories_date_view);
         caloriesChart = rootView.findViewById(R.id.calories_chart);
-        activeCaloriesAvg = rootView.findViewById(R.id.active_calories_avg);
-        activeCaloriesTotal = rootView.findViewById(R.id.active_calories_total);
-        restingCaloriesAvg = rootView.findViewById(R.id.resting_calories_avg);
-        restingCaloriesTotal = rootView.findViewById(R.id.resting_calories_total);
+        caloriesStatsContainer = rootView.findViewById(R.id.calories_period_stats_container);
         CALORIES_GOAL = GBApplication.getPrefs().getInt(ActivityUser.PREF_USER_CALORIES_BURNT, ActivityUser.defaultUserCaloriesBurntGoal);
 
         mBalanceView = rootView.findViewById(R.id.balance);
@@ -100,26 +97,26 @@ public class CaloriesPeriodFragment extends CaloriesFragment<CaloriesPeriodFragm
         caloriesChart.getDescription().setEnabled(false);
         if (TOTAL_DAYS <= 7) {
             caloriesChart.setTouchEnabled(false);
-            caloriesChart.setPinchZoom(false);
+            caloriesChart.setPinchZoomEnabled(false);
         }
         caloriesChart.setDoubleTapToZoomEnabled(false);
         caloriesChart.getLegend().setEnabled(false);
 
         final XAxis xAxisBottom = caloriesChart.getXAxis();
         xAxisBottom.setPosition(XAxis.XAxisPosition.BOTTOM);
-        xAxisBottom.setDrawLabels(true);
-        xAxisBottom.setDrawGridLines(false);
+        xAxisBottom.setDrawLabelsEnabled(true);
+        xAxisBottom.setDrawGridLinesEnabled(false);
         xAxisBottom.setEnabled(true);
-        xAxisBottom.setDrawLimitLinesBehindData(true);
+        xAxisBottom.setDrawLimitLinesBehindDataEnabled(true);
         xAxisBottom.setTextColor(CHART_TEXT_COLOR);
 
         final YAxis yAxisLeft = caloriesChart.getAxisLeft();
-        yAxisLeft.setDrawGridLines(true);
-        yAxisLeft.setDrawTopYLabelEntry(true);
+        yAxisLeft.setDrawGridLinesEnabled(true);
+        yAxisLeft.setDrawTopYLabelEntryEnabled(true);
         yAxisLeft.setEnabled(true);
         yAxisLeft.setTextColor(CHART_TEXT_COLOR);
         yAxisLeft.setAxisMinimum(0f);
-        final LimitLine goalLine = new LimitLine(CALORIES_GOAL);
+        final LimitLine goalLine = new LimitLine(CALORIES_GOAL, "");
         goalLine.setLineColor(getResources().getColor(R.color.calories_color));
         goalLine.setLineWidth(1.5f);
         goalLine.enableDashedLine(15f, 10f, 0f);
@@ -127,9 +124,9 @@ public class CaloriesPeriodFragment extends CaloriesFragment<CaloriesPeriodFragm
 
         final YAxis yAxisRight = caloriesChart.getAxisRight();
         yAxisRight.setEnabled(true);
-        yAxisRight.setDrawLabels(false);
-        yAxisRight.setDrawGridLines(false);
-        yAxisRight.setDrawAxisLine(true);
+        yAxisRight.setDrawLabelsEnabled(false);
+        yAxisRight.setDrawGridLinesEnabled(false);
+        yAxisRight.setDrawAxisLineEnabled(true);
     }
 
     @Override
@@ -161,11 +158,11 @@ public class CaloriesPeriodFragment extends CaloriesFragment<CaloriesPeriodFragm
         List<BarEntry> entries = new ArrayList<>();
         int counter = 0;
         for (CaloriesDay day : caloriesData.days) {
-            entries.add(new BarEntry(counter, day.activeCalories));
+            entries.add(new BarEntry<>(counter, day.activeCalories, null, null));
             counter++;
         }
         BarDataSet set = new BarDataSet(entries, "Calories");
-        set.setDrawValues(true);
+        set.setDrawValuesEnabled(true);
         set.setColors(getResources().getColor(R.color.calories_color));
         final XAxis x = caloriesChart.getXAxis();
         x.setValueFormatter(getCaloriesChartDayValueFormatter(caloriesData));
@@ -178,23 +175,24 @@ public class CaloriesPeriodFragment extends CaloriesFragment<CaloriesPeriodFragm
             caloriesChart.setRenderer(new AngledLabelsChartRenderer(caloriesChart, caloriesChart.getAnimator(), caloriesChart.getViewPortHandler()));
         }
         caloriesChart.setData(barData);
-        activeCaloriesAvg.setText(String.format(String.valueOf(caloriesData.activeCaloriesDailyAvg)));
-        activeCaloriesTotal.setText(String.format(String.valueOf(caloriesData.totalActiveCalories)));
-        restingCaloriesAvg.setText(String.format(String.valueOf(caloriesData.restingCaloriesDailyAvg)));
-        restingCaloriesTotal.setText(String.format(String.valueOf(caloriesData.totalRestingCalories)));
+
+        final List<StatTileData> stats = new ArrayList<>();
+        stats.add(new StatTileData(String.format(String.valueOf(caloriesData.activeCaloriesDailyAvg)), getString(R.string.active_calories_avg)));
+        stats.add(new StatTileData(String.format(String.valueOf(caloriesData.totalActiveCalories)), getString(R.string.active_calories_total)));
+        stats.add(new StatTileData(String.format(String.valueOf(caloriesData.restingCaloriesDailyAvg)), getString(R.string.metabolic_rate)));
+        stats.add(new StatTileData(String.format(String.valueOf(caloriesData.totalRestingCalories)), getString(R.string.resting_calories_total)));
+        caloriesStatsContainer.removeAllViews();
+        StatTileGridUtilKt.addStatTileGrid(caloriesStatsContainer, requireContext(), stats, 0);
 
         mBalanceView.setText(caloriesData.getBalanceMessage(getContext(), CALORIES_GOAL));
     }
 
-    ValueFormatter getCaloriesChartDayValueFormatter(CaloriesPeriodFragment.CaloriesData caloriesData) {
-        return new ValueFormatter() {
-            @Override
-            public String getFormattedValue(float value) {
-                CaloriesPeriodFragment.CaloriesDay day = caloriesData.days.get((int) value);
-                String pattern = TOTAL_DAYS > 7 ? "dd" : "EEE";
-                SimpleDateFormat formatLetterDay = new SimpleDateFormat(pattern, Locale.getDefault());
-                return formatLetterDay.format(new Date(day.day.getTimeInMillis()));
-            }
+    IAxisValueFormatter getCaloriesChartDayValueFormatter(CaloriesPeriodFragment.CaloriesData caloriesData) {
+        return (value, axis) -> {
+            CaloriesPeriodFragment.CaloriesDay day = caloriesData.days.get((int) value);
+            String pattern = TOTAL_DAYS > 7 ? "dd" : "EEE";
+            SimpleDateFormat formatLetterDay = new SimpleDateFormat(pattern, Locale.getDefault());
+            return formatLetterDay.format(new Date(day.day.getTimeInMillis()));
         };
     }
 
