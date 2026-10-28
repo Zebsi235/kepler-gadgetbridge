@@ -251,7 +251,10 @@ public class F91KeplerSupport extends AbstractBTLESingleDeviceSupport {
         // weather refresh -- so without this a reconnect leaves the slot empty
         // until the next refresh. No-op if GB has no weather yet.
         addWeather(builder);
-        // Likewise re-push the notification history (also volatile on the watch).
+        // Likewise re-push the notification history (also volatile on the watch),
+        // and the face's notification mark with it: a notification dismissed on
+        // the phone while the link was down would otherwise leave the mark lit.
+        builder.write(F91KeplerConstants.UUID_CHAR_NOTIFICATION_BAR, notificationTracker.bitmask());
         addRecentNotifications(builder);
         // And the uploaded image -- but that one is 28 writes, so ask the watch
         // what it is holding first instead of re-sending it on every reconnect.
