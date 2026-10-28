@@ -39,6 +39,7 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 import java.util.TimeZone;
 import java.util.concurrent.ConcurrentHashMap;
 
@@ -105,6 +106,10 @@ public class F91KeplerSupport extends AbstractBTLESingleDeviceSupport {
     private final BatteryInfoProfile<F91KeplerSupport> batteryInfoProfile;
     private final DeviceInfoProfile<F91KeplerSupport> deviceInfoProfile;
     private final F91KeplerNotificationTracker notificationTracker = new F91KeplerNotificationTracker();
+    // Ids that came from NotificationListener, the only source whose removals
+    // can be checked again after a disconnect (an SMS from SMSReceiver is never
+    // removed by anything, so it must not be dropped as "gone from the phone").
+    private final Set<Integer> listenerNotificationIds = ConcurrentHashMap.newKeySet();
 
     /** Recent notifications for the watch's Notifications mode, newest first,
      *  capped at the firmware's ring size. GB owns the active set; the watch is
@@ -256,7 +261,7 @@ public class F91KeplerSupport extends AbstractBTLESingleDeviceSupport {
         // and the face's notification mark with it: a notification dismissed on
         // the phone while the link was down would otherwise leave the mark lit.
         // GB drops removals for a device that is not connected, so first forget
-        // what the phone no longer shows.
+        // the notifications the phone no longer shows.
         dropInactiveNotifications();
         builder.write(F91KeplerConstants.UUID_CHAR_NOTIFICATION_BAR, notificationTracker.bitmask());
         addRecentNotifications(builder);
@@ -871,6 +876,9 @@ public class F91KeplerSupport extends AbstractBTLESingleDeviceSupport {
         final F91KeplerNotificationTracker.Category category = categorize(notificationSpec);
         notificationTracker.add(notificationSpec.getId(), category);
         addRecent(notificationSpec);
+        if (NotificationListener.isNotificationActive(notificationSpec.getId())) {
+            listenerNotificationIds.add(notificationSpec.getId());
+        }
 
         final TransactionBuilder builder = createTransactionBuilder("notification");
         builder.write(F91KeplerConstants.UUID_CHAR_NOTIFICATION_BAR, notificationTracker.bitmask());
@@ -895,6 +903,7 @@ public class F91KeplerSupport extends AbstractBTLESingleDeviceSupport {
     public void onDeleteNotification(final int id) {
         notificationTracker.remove(id);
         removeRecent(id);
+        listenerNotificationIds.remove(id);
         final TransactionBuilder builder = createTransactionBuilder("delete notification");
         builder.write(F91KeplerConstants.UUID_CHAR_NOTIFICATION_BAR, notificationTracker.bitmask());
         addRecentNotifications(builder);   // reflect the dismissal in the history list
@@ -914,13 +923,11 @@ public class F91KeplerSupport extends AbstractBTLESingleDeviceSupport {
     }
 
     private void dropInactiveNotifications() {
-        final List<Integer> activeIds = NotificationListener.getActiveNotificationIds();
-        if (activeIds == null) {
-            return;
-        }
-        notificationTracker.retainAll(activeIds);
-        for (final Iterator<RecentNotif> it = recent.iterator(); it.hasNext(); ) {
-            if (!activeIds.contains(it.next().id)) {
+        for (final Iterator<Integer> it = listenerNotificationIds.iterator(); it.hasNext(); ) {
+            final int id = it.next();
+            if (!NotificationListener.isNotificationActive(id)) {
+                notificationTracker.remove(id);
+                removeRecent(id);
                 it.remove();
             }
         }

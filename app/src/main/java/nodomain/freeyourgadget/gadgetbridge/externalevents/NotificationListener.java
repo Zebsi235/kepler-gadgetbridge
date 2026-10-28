@@ -69,7 +69,6 @@ import java.io.FileOutputStream;
 import java.io.InputStream;
 import java.time.LocalTime;
 import java.util.ArrayList;
-import java.util.ConcurrentModificationException;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -152,18 +151,12 @@ public class NotificationListener extends NotificationListenerService {
     private static final ArrayList<Integer> notificationsActive = new ArrayList<>();
 
     /**
-     * A copy of the ids of the notifications that are still showing on the phone,
-     * or null if it could not be taken (the list is changed on the main thread).
-     * A device that was disconnected misses the removals made meanwhile and can
-     * compare its own state against this on reconnect.
+     * Whether this listener posted the notification with this id and it is still
+     * showing on the phone. A device that was disconnected misses the removals
+     * made meanwhile and can check the ids it got from here on reconnect.
      */
-    @Nullable
-    public static List<Integer> getActiveNotificationIds() {
-        try {
-            return new ArrayList<>(notificationsActive);
-        } catch (final ConcurrentModificationException e) {
-            return null;
-        }
+    public static boolean isNotificationActive(final int id) {
+        return notificationsActive.contains(id);
     }
 
     private static final Set<String> supportedPictureMimeTypes = new HashSet<>() {{
