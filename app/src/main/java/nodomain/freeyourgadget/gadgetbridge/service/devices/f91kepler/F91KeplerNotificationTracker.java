@@ -16,6 +16,7 @@
     along with this program.  If not, see <https://www.gnu.org/licenses/>. */
 package nodomain.freeyourgadget.gadgetbridge.service.devices.f91kepler;
 
+import java.util.Collection;
 import java.util.HashSet;
 import java.util.Set;
 
@@ -62,6 +63,13 @@ class F91KeplerNotificationTracker {
     synchronized void remove(final int id) {
         for (final Set<Integer> set : active) {
             set.remove(id);
+        }
+    }
+
+    /** Forget every notification whose id is not in {@code ids}. */
+    synchronized void retainAll(final Collection<Integer> ids) {
+        for (final Set<Integer> set : active) {
+            set.retainAll(ids);
         }
     }
 

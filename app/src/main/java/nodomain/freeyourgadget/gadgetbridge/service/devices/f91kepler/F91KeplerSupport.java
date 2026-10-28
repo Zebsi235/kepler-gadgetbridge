@@ -56,6 +56,7 @@ import nodomain.freeyourgadget.gadgetbridge.devices.f91kepler.F91KeplerFirmware;
 import nodomain.freeyourgadget.gadgetbridge.devices.f91kepler.F91KeplerImageCodec;
 import nodomain.freeyourgadget.gadgetbridge.devices.f91kepler.F91KeplerImageStore;
 import nodomain.freeyourgadget.gadgetbridge.devices.f91kepler.F91KeplerModes;
+import nodomain.freeyourgadget.gadgetbridge.externalevents.NotificationListener;
 import nodomain.freeyourgadget.gadgetbridge.impl.GBDevice;
 import nodomain.freeyourgadget.gadgetbridge.model.Alarm;
 import nodomain.freeyourgadget.gadgetbridge.model.CallSpec;
@@ -254,6 +255,9 @@ public class F91KeplerSupport extends AbstractBTLESingleDeviceSupport {
         // Likewise re-push the notification history (also volatile on the watch),
         // and the face's notification mark with it: a notification dismissed on
         // the phone while the link was down would otherwise leave the mark lit.
+        // GB drops removals for a device that is not connected, so first forget
+        // what the phone no longer shows.
+        dropInactiveNotifications();
         builder.write(F91KeplerConstants.UUID_CHAR_NOTIFICATION_BAR, notificationTracker.bitmask());
         addRecentNotifications(builder);
         // And the uploaded image -- but that one is 28 writes, so ask the watch
@@ -906,6 +910,19 @@ public class F91KeplerSupport extends AbstractBTLESingleDeviceSupport {
         recent.add(0, new RecentNotif(spec.getId(), app, sender));   // newest first
         while (recent.size() > F91_RECENT_MAX) {
             recent.remove(recent.size() - 1);
+        }
+    }
+
+    private void dropInactiveNotifications() {
+        final List<Integer> activeIds = NotificationListener.getActiveNotificationIds();
+        if (activeIds == null) {
+            return;
+        }
+        notificationTracker.retainAll(activeIds);
+        for (final Iterator<RecentNotif> it = recent.iterator(); it.hasNext(); ) {
+            if (!activeIds.contains(it.next().id)) {
+                it.remove();
+            }
         }
     }
 
