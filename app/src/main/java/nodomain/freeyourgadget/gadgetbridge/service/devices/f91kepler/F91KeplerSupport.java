@@ -106,7 +106,7 @@ public class F91KeplerSupport extends AbstractBTLESingleDeviceSupport {
     private final BatteryInfoProfile<F91KeplerSupport> batteryInfoProfile;
     private final DeviceInfoProfile<F91KeplerSupport> deviceInfoProfile;
     private final F91KeplerNotificationTracker notificationTracker = new F91KeplerNotificationTracker();
-    // Ids that came from NotificationListener (they carry a key), the only source
+    // Ids that came from NotificationListener, the only source
     // whose removals can be checked again after a disconnect (an SMS from
     // SMSReceiver is never removed by anything, so it must not be dropped as
     // "gone from the phone").
@@ -875,10 +875,10 @@ public class F91KeplerSupport extends AbstractBTLESingleDeviceSupport {
     @Override
     public void onNotification(final NotificationSpec notificationSpec) {
         final F91KeplerNotificationTracker.Category category = categorize(notificationSpec);
-        // Only NotificationListener sets a key. Its notification may already be
-        // gone again (dismissed while a cached copy waited for the reconnect):
-        // then it still pops up, but leaves no mark and no history entry behind.
-        final boolean fromListener = notificationSpec.getKey() != null;
+        // A NotificationListener notification may already be gone again
+        // (dismissed while a cached copy waited for the reconnect): then it
+        // still pops up, but leaves no mark and no history entry behind.
+        final boolean fromListener = NotificationListener.isPostedNotification(notificationSpec.getId());
         if (!fromListener || NotificationListener.isNotificationActive(notificationSpec.getId())) {
             notificationTracker.add(notificationSpec.getId(), category);
             addRecent(notificationSpec);

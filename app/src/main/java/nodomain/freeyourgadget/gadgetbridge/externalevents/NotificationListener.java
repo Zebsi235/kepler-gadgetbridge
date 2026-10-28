@@ -69,8 +69,10 @@ import java.io.FileOutputStream;
 import java.io.InputStream;
 import java.time.LocalTime;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
@@ -157,6 +159,16 @@ public class NotificationListener extends NotificationListenerService {
      */
     public static boolean isNotificationActive(final int id) {
         return notificationsActive.contains(id);
+    }
+
+    // The ids this listener posted lately, active or not, so a device can tell
+    // them from notifications of other sources (SMS, intents, the debug screen).
+    private static final int POSTED_IDS_MAX = 256;
+    private static final Set<Integer> notificationsPosted = Collections.synchronizedSet(new LinkedHashSet<>());
+
+    /** Whether this listener posted the notification with this id (recently). */
+    public static boolean isPostedNotification(final int id) {
+        return notificationsPosted.contains(id);
     }
 
     private static final Set<String> supportedPictureMimeTypes = new HashSet<>() {{
@@ -626,6 +638,12 @@ public class NotificationListener extends NotificationListenerService {
             notificationOldRepeatPrevention.put(source, notification.when);
         }
         notificationsActive.add(notificationSpec.getId());
+        synchronized (notificationsPosted) {
+            notificationsPosted.add(notificationSpec.getId());
+            if (notificationsPosted.size() > POSTED_IDS_MAX) {
+                notificationsPosted.remove(notificationsPosted.iterator().next());   // oldest
+            }
+        }
         // NOTE for future developers: this call goes to implementations of DeviceService.onNotification(NotificationSpec), like in GBDeviceService
         // this does NOT directly go to implementations of DeviceSupport.onNotification(NotificationSpec)!
         GBApplication.deviceService().onNotification(notificationSpec);
