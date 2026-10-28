@@ -106,9 +106,10 @@ public class F91KeplerSupport extends AbstractBTLESingleDeviceSupport {
     private final BatteryInfoProfile<F91KeplerSupport> batteryInfoProfile;
     private final DeviceInfoProfile<F91KeplerSupport> deviceInfoProfile;
     private final F91KeplerNotificationTracker notificationTracker = new F91KeplerNotificationTracker();
-    // Ids that came from NotificationListener, the only source whose removals
-    // can be checked again after a disconnect (an SMS from SMSReceiver is never
-    // removed by anything, so it must not be dropped as "gone from the phone").
+    // Ids that came from NotificationListener (they carry a key), the only source
+    // whose removals can be checked again after a disconnect (an SMS from
+    // SMSReceiver is never removed by anything, so it must not be dropped as
+    // "gone from the phone").
     private final Set<Integer> listenerNotificationIds = ConcurrentHashMap.newKeySet();
 
     /** Recent notifications for the watch's Notifications mode, newest first,
@@ -874,10 +875,16 @@ public class F91KeplerSupport extends AbstractBTLESingleDeviceSupport {
     @Override
     public void onNotification(final NotificationSpec notificationSpec) {
         final F91KeplerNotificationTracker.Category category = categorize(notificationSpec);
-        notificationTracker.add(notificationSpec.getId(), category);
-        addRecent(notificationSpec);
-        if (NotificationListener.isNotificationActive(notificationSpec.getId())) {
-            listenerNotificationIds.add(notificationSpec.getId());
+        // Only NotificationListener sets a key. Its notification may already be
+        // gone again (dismissed while a cached copy waited for the reconnect):
+        // then it still pops up, but leaves no mark and no history entry behind.
+        final boolean fromListener = notificationSpec.getKey() != null;
+        if (!fromListener || NotificationListener.isNotificationActive(notificationSpec.getId())) {
+            notificationTracker.add(notificationSpec.getId(), category);
+            addRecent(notificationSpec);
+            if (fromListener) {
+                listenerNotificationIds.add(notificationSpec.getId());
+            }
         }
 
         final TransactionBuilder builder = createTransactionBuilder("notification");
