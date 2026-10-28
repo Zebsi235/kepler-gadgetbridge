@@ -45,6 +45,7 @@ import nodomain.freeyourgadget.gadgetbridge.service.devices.garmin.http.intercep
 import nodomain.freeyourgadget.gadgetbridge.service.devices.garmin.http.interceptors.ContactsInterceptor;
 import nodomain.freeyourgadget.gadgetbridge.service.devices.garmin.http.interceptors.FirewallInterceptor;
 import nodomain.freeyourgadget.gadgetbridge.service.devices.garmin.http.interceptors.HttpInterceptor;
+import nodomain.freeyourgadget.gadgetbridge.service.devices.garmin.http.interceptors.HydrationInterceptor;
 import nodomain.freeyourgadget.gadgetbridge.service.devices.garmin.http.interceptors.ImageServiceInterceptor;
 import nodomain.freeyourgadget.gadgetbridge.service.devices.garmin.http.interceptors.OauthInterceptor;
 import nodomain.freeyourgadget.gadgetbridge.service.devices.garmin.http.interceptors.WeatherInterceptor;
@@ -62,6 +63,7 @@ public class HttpHandler {
                 new ImageServiceInterceptor(deviceSupport),
                 new ContactsInterceptor(deviceSupport),
                 new OauthInterceptor(deviceSupport),
+                new HydrationInterceptor(deviceSupport),
                 // Should always be the last one
                 new FirewallInterceptor(deviceSupport)
         );
@@ -84,8 +86,8 @@ public class HttpHandler {
                         .build();
             }
             return null;
-        } else if (httpService.hasShowURLRequest()) {
-            return handleShowURLRequest(httpService.getShowURLRequest(), messageRequestId);
+        } else if (httpService.hasShowURLNotification()) {
+            return handleShowURLRequest(httpService.getShowURLNotification(), messageRequestId);
         }
 
         LOG.warn("Unsupported http service request {}", httpService);
@@ -212,13 +214,13 @@ public class HttpHandler {
                 .build();
     }
 
-    public GdiHttpService.HttpService handleShowURLRequest(final GdiHttpService.HttpService.ShowURLRequest showURLRequest,
+    public GdiHttpService.HttpService handleShowURLRequest(final GdiHttpService.HttpService.ShowURLNotification showURLNotification,
                                                            final int messageRequestId) {
-        LOG.warn("Got unsupported ShowUrlRequest {}: {} {} {}",
+        LOG.warn("Got unsupported ShowUrlNotification {}: {} {} {}",
                 messageRequestId,
-                showURLRequest.hasUrl() ? showURLRequest.getUrl() : null,
-                showURLRequest.hasParameters() ? showURLRequest.getParameters() : null,
-                showURLRequest.hasApp() ? showURLRequest.getApp() : null);
+                showURLNotification.hasUrl() ? showURLNotification.getUrl() : null,
+                showURLNotification.hasParameters() ? showURLNotification.getParameters() : null,
+                showURLNotification.hasApp() ? showURLNotification.getApp() : null);
         // TODO: ask the user if they want to open the web page
         return null;
     }

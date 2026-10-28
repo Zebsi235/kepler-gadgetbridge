@@ -17,10 +17,6 @@
 package nodomain.freeyourgadget.gadgetbridge.util.maps;
 
 import android.content.Context;
-import android.net.Uri;
-
-import androidx.core.content.ContextCompat;
-import androidx.documentfile.provider.DocumentFile;
 
 import org.mapsforge.core.graphics.Paint;
 import org.mapsforge.core.graphics.Style;
@@ -31,25 +27,18 @@ import org.mapsforge.core.util.LatLongUtils;
 import org.mapsforge.map.android.graphics.AndroidGraphicFactory;
 import org.mapsforge.map.android.util.AndroidUtil;
 import org.mapsforge.map.android.view.MapView;
-import org.mapsforge.map.datastore.MultiMapDataStore;
 import org.mapsforge.map.layer.cache.TileCache;
 import org.mapsforge.map.layer.overlay.Polyline;
 import org.mapsforge.map.layer.renderer.TileRendererLayer;
-import org.mapsforge.map.reader.MapFile;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.io.FileInputStream;
-import java.io.IOException;
 import java.util.List;
-import java.util.Locale;
 import java.util.stream.Collectors;
 
 import nodomain.freeyourgadget.gadgetbridge.GBApplication;
-import nodomain.freeyourgadget.gadgetbridge.R;
 import nodomain.freeyourgadget.gadgetbridge.model.GPSCoordinate;
 import nodomain.freeyourgadget.gadgetbridge.util.Accumulator;
-import nodomain.freeyourgadget.gadgetbridge.util.GBPrefs;
 
 public final class MapsManager {
     private static final Logger LOG = LoggerFactory.getLogger(MapsManager.class);
@@ -57,9 +46,14 @@ public final class MapsManager {
     public static final String PREF_MAPS_FOLDER = "maps_folder";
     public static final String PREF_TRACK_COLOR = "maps_track_color";
     public static final String PREF_MAP_THEME = "maps_theme";
+    /** Theme value that uses the user-picked theme file instead of a bundled theme. */
+    public static final String MAP_THEME_VALUE_CUSTOM = "custom";
+    /** Content URI of the user-picked render theme, used when the theme is custom. */
+    public static final String PREF_MAP_THEME_CUSTOM_URI = "maps_theme_custom_uri";
 
     private final Context mContext;
     private final MapView mapView;
+    private final MapDataLoader mapDataLoader;
     private Polyline polyline;
 
     private TileRendererLayer tileRendererLayer;
@@ -70,6 +64,7 @@ public final class MapsManager {
     public MapsManager(final Context context, final MapView mapView) {
         this.mContext = context;
         this.mapView = mapView;
+        this.mapDataLoader = new MapDataLoader(context);
     }
 
     public void loadMaps() {
@@ -85,44 +80,9 @@ public final class MapsManager {
         isMapLoaded = false;
 
         AndroidGraphicFactory.createInstance(GBApplication.app());
-        final GBPrefs prefs = GBApplication.getPrefs();
 
-        final DocumentFile[] documentFiles;
-        final String folderUri = prefs.getString(PREF_MAPS_FOLDER, "");
-        if (!folderUri.isEmpty()) {
-            final DocumentFile folder = DocumentFile.fromTreeUri(mContext, Uri.parse(folderUri));
-            documentFiles = folder != null ? folder.listFiles() : new DocumentFile[0];
-        } else {
-            documentFiles = new DocumentFile[0];
-        }
-
-        LOG.debug("Got {} map files", documentFiles.length);
-
-        final MultiMapDataStore multiMapDataStore = new MultiMapDataStore(MultiMapDataStore.DataPolicy.RETURN_ALL);
-
-        for (final DocumentFile documentFile : documentFiles) {
-            if (!documentFile.canRead()) {
-                continue;
-            }
-            assert documentFile.getName() != null;
-            if (!documentFile.getName().endsWith(".map")) {
-                continue;
-            }
-
-            LOG.debug("Loading {}", documentFile.getName());
-
-            try {
-                final FileInputStream inputStream = (FileInputStream) mContext.getContentResolver().openInputStream(documentFile.getUri());
-                if (inputStream == null) {
-                    throw new IOException("Failed to open input stream for " + documentFile.getName());
-                }
-                final MapFile mapFile = new MapFile(inputStream, 0, null);
-                multiMapDataStore.addMapDataStore(mapFile, true, true);
-                isMapLoaded = true;
-            } catch (final Exception e) {
-                LOG.error("Failed to load map file", e);
-            }
-        }
+        final MapLoadResult loadResult = mapDataLoader.loadMultiMapDataStore();
+        isMapLoaded = loadResult.getAnyLoaded();
 
         final TileCache tileCache = AndroidUtil.createTileCache(
                 mContext,
@@ -134,7 +94,7 @@ public final class MapsManager {
 
         tileRendererLayer = new TileRendererLayer(
                 tileCache,
-                multiMapDataStore,
+                loadResult.getDataStore(),
                 mapView.getModel().mapViewPosition,
                 true,
                 false,
@@ -142,15 +102,7 @@ public final class MapsManager {
                 AndroidGraphicFactory.INSTANCE
         );
 
-        final String themePrefValue = prefs.getString(PREF_MAP_THEME, "default").toUpperCase(Locale.ROOT);
-        MapTheme theme;
-        try {
-            theme = MapTheme.valueOf(themePrefValue);
-        } catch (final Exception e) {
-            LOG.error("Failed to find theme {}", themePrefValue, e);
-            theme = MapTheme.DEFAULT;
-        }
-        tileRendererLayer.setXmlRenderTheme(theme);
+        tileRendererLayer.setXmlRenderTheme(mapDataLoader.resolveTheme());
         // Do not add the tile renderer layer before setting the bounding box in setTrack,
         // otherwise we load the entire map to memory and might crash with OOM
     }
@@ -213,7 +165,7 @@ public final class MapsManager {
 
         if (polyline == null) {
             final Paint paint = AndroidGraphicFactory.INSTANCE.createPaint();
-            final int trackColor = GBApplication.getPrefs().getInt(MapsManager.PREF_TRACK_COLOR, ContextCompat.getColor(mContext, R.color.map_track_default));
+            final int trackColor = mapDataLoader.resolveTrackColor();
             paint.setColor(trackColor);
             paint.setStrokeWidth(8);
             paint.setStyle(Style.STROKE);
@@ -240,7 +192,7 @@ public final class MapsManager {
 
     public void reload() {
         if (polyline != null) {
-            final int trackColor = GBApplication.getPrefs().getInt(MapsManager.PREF_TRACK_COLOR, ContextCompat.getColor(mContext, R.color.map_track_default));
+            final int trackColor = mapDataLoader.resolveTrackColor();
             polyline.getPaintStroke().setColor(trackColor);
             polyline.requestRedraw();
         }

@@ -16,6 +16,8 @@
     along with this program.  If not, see <https://www.gnu.org/licenses/>. */
 package nodomain.freeyourgadget.gadgetbridge.activities.charts;
 
+import androidx.annotation.Nullable;
+
 import android.graphics.Color;
 import android.os.Bundle;
 import android.view.LayoutInflater;
@@ -31,8 +33,8 @@ import com.github.mikephil.charting.components.YAxis;
 import com.github.mikephil.charting.data.Entry;
 import com.github.mikephil.charting.data.LineData;
 import com.github.mikephil.charting.data.LineDataSet;
-import com.github.mikephil.charting.formatter.ValueFormatter;
 import com.github.mikephil.charting.interfaces.datasets.ILineDataSet;
+import com.github.mikephil.charting.utils.ViewPortHandler;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -46,6 +48,8 @@ import java.util.Locale;
 
 import nodomain.freeyourgadget.gadgetbridge.GBApplication;
 import nodomain.freeyourgadget.gadgetbridge.R;
+import nodomain.freeyourgadget.gadgetbridge.activities.workouts.StatTileData;
+import nodomain.freeyourgadget.gadgetbridge.activities.workouts.StatTileGridUtilKt;
 import nodomain.freeyourgadget.gadgetbridge.database.DBHandler;
 import nodomain.freeyourgadget.gadgetbridge.databinding.FragmentSpo2Binding;
 import nodomain.freeyourgadget.gadgetbridge.devices.DeviceCoordinator;
@@ -109,18 +113,18 @@ public class Spo2ChartFragment extends AbstractChartFragment<Spo2ChartFragment.S
     protected LineDataSet createDataSet(final List<Entry> values, boolean manualPoints) {
         final LineDataSet lineDataSet = new LineDataSet(values, getString(R.string.pref_header_spo2));
         lineDataSet.setColor(getResources().getColor(R.color.spo2_color));
-        lineDataSet.setDrawCircles(false);
+        lineDataSet.setDrawCirclesEnabled(false);
         lineDataSet.setLineWidth(2.2f);
         lineDataSet.setFillAlpha(255);
         lineDataSet.setValueTextColor(TEXT_COLOR);
         lineDataSet.setAxisDependency(YAxis.AxisDependency.LEFT);
         if (manualPoints) {
-            lineDataSet.setDrawCircles(true);
+            lineDataSet.setDrawCirclesEnabled(true);
             lineDataSet.enableDashedLine(0f,1f,0f);
         }
-        lineDataSet.setValueFormatter(new ValueFormatter() {
+        lineDataSet.setValueFormatter(new DataSetValueFormatter() {
             @Override
-            public String getFormattedValue(float value) {
+            public String getFormattedValue(final float value, final Entry<?> entry, final int dataSetIndex, final ViewPortHandler viewPortHandler) {
                 return String.format(Locale.ROOT, "%d", (int) value);
             }
         });
@@ -133,25 +137,39 @@ public class Spo2ChartFragment extends AbstractChartFragment<Spo2ChartFragment.S
         binding.manualMeasurements.setVisibility(View.GONE);
         final String emptyValue = requireContext().getString(R.string.stats_empty_value);
         binding.dateView.setText(data.formattedDate);
-        binding.spo2Minimum.setText(data.minimum > 0 ? getString(R.string.battery_percentage_str, String.valueOf(data.minimum)) : emptyValue);
-        binding.spo2Maximum.setText(data.maximum > 0 ? getString(R.string.battery_percentage_str, String.valueOf(data.maximum)) : emptyValue);
-        binding.spo2Average.setText(data.average > 0 ? getString(R.string.battery_percentage_str, String.valueOf(data.average)) : emptyValue);
+
+        final List<StatTileData> stats = new ArrayList<>();
+        stats.add(new StatTileData(
+                data.minimum > 0 ? getString(R.string.battery_percentage_str, String.valueOf(data.minimum)) : emptyValue,
+                getString(R.string.hr_minimum)
+        ));
+        stats.add(new StatTileData(
+                data.maximum > 0 ? getString(R.string.battery_percentage_str, String.valueOf(data.maximum)) : emptyValue,
+                getString(R.string.hr_maximum)
+        ));
+        stats.add(new StatTileData(
+                data.average > 0 ? getString(R.string.battery_percentage_str, String.valueOf(data.average)) : emptyValue,
+                getString(R.string.hr_average)
+        ));
+        binding.spo2DailyStatsContainer.removeAllViews();
+        StatTileGridUtilKt.addStatTileGrid(binding.spo2DailyStatsContainer, requireContext(), stats, 0);
+
         binding.spo2LineChart.setData(null); // workaround for https://github.com/PhilJay/MPAndroidChart/issues/2317
         binding.spo2LineChart.getAxisLeft().removeAllLimitLines();
 
         final List<LegendEntry> legendEntries = new ArrayList<>(1);
         final LegendEntry spo2RateEntry = new LegendEntry();
-        spo2RateEntry.label = getString(R.string.pref_header_spo2);
-        spo2RateEntry.formColor = getResources().getColor(R.color.spo2_color);
+        spo2RateEntry.setLabel(getString(R.string.pref_header_spo2));
+        spo2RateEntry.setFormColor(getResources().getColor(R.color.spo2_color));
         legendEntries.add(spo2RateEntry);
         final LegendEntry spo2RateAvg = new LegendEntry();
-        spo2RateAvg.label = getString(R.string.stress_average);
-        spo2RateAvg.formColor = Color.GRAY;
+        spo2RateAvg.setLabel(getString(R.string.stress_average));
+        spo2RateAvg.setFormColor(Color.GRAY);
         legendEntries.add(spo2RateAvg);
         binding.spo2LineChart.getLegend().setTextColor(LEGEND_TEXT_COLOR);
-        binding.spo2LineChart.getLegend().setCustom(legendEntries);
+        binding.spo2LineChart.getLegend().setEntries(legendEntries);
 
-        final List<ILineDataSet> lineDataSets = new ArrayList<>();
+        final List<ILineDataSet<?>> lineDataSets = new ArrayList<>();
         List<Entry> measurementsEntries = new ArrayList<>();
         List<Entry> manualMeasurementsEntries = new ArrayList<>();
         List<Spo2Sample> manualMeasurementSamples = new ArrayList<Spo2Sample>();
@@ -160,12 +178,12 @@ public class Spo2ChartFragment extends AbstractChartFragment<Spo2ChartFragment.S
             int ts = (int) (sample.getTimestamp() / 1000L);
             int tsShorten = tsTranslation.shorten(ts);
             if (sample.getType() == Spo2Sample.Type.MANUAL) {
-                manualMeasurementsEntries.add(new Entry(tsShorten, sample.getSpo2()));
+                manualMeasurementsEntries.add(new Entry<>(tsShorten, sample.getSpo2(), null, null));
                 manualMeasurementSamples.add(sample);
                 continue;
             }
             if (lastTsShorten == 0 || (tsShorten - lastTsShorten) <= 300) {
-                measurementsEntries.add(new Entry(tsShorten, sample.getSpo2()));
+                measurementsEntries.add(new Entry<>(tsShorten, sample.getSpo2(), null, null));
             } else {
                 if (!measurementsEntries.isEmpty()) {
                     List<Entry> clone = new ArrayList<>(measurementsEntries.size());
@@ -175,7 +193,7 @@ public class Spo2ChartFragment extends AbstractChartFragment<Spo2ChartFragment.S
                 }
             }
             lastTsShorten = tsShorten;
-            measurementsEntries.add(new Entry(tsShorten, sample.getSpo2()));
+            measurementsEntries.add(new Entry<>(tsShorten, sample.getSpo2(), null, null));
         }
 
         if (!measurementsEntries.isEmpty()) {
@@ -190,7 +208,7 @@ public class Spo2ChartFragment extends AbstractChartFragment<Spo2ChartFragment.S
         final LineData lineData = new LineData(lineDataSets);
 
         if (data.average > 0 && GBApplication.getPrefs().getBoolean("charts_show_average", true)) {
-            final LimitLine averageLine = new LimitLine(data.average);
+            final LimitLine averageLine = new LimitLine(data.average, "");
             averageLine.setLineColor(Color.GRAY);
             averageLine.setLineWidth(1.5f);
             averageLine.enableDashedLine(15f, 10f, 0f);
@@ -227,28 +245,29 @@ public class Spo2ChartFragment extends AbstractChartFragment<Spo2ChartFragment.S
 
         final XAxis xAxisBottom = binding.spo2LineChart.getXAxis();
         xAxisBottom.setPosition(XAxis.XAxisPosition.BOTTOM);
-        xAxisBottom.setDrawLabels(true);
-        xAxisBottom.setDrawGridLines(false);
+        xAxisBottom.setDrawLabelsEnabled(true);
+        xAxisBottom.setDrawGridLinesEnabled(false);
         xAxisBottom.setEnabled(true);
-        xAxisBottom.setDrawLimitLinesBehindData(true);
+        xAxisBottom.setDrawLimitLinesBehindDataEnabled(true);
         xAxisBottom.setTextColor(CHART_TEXT_COLOR);
         xAxisBottom.setAxisMinimum(0f);
         xAxisBottom.setAxisMaximum(86400f);
-        xAxisBottom.setLabelCount(7, true);
+        xAxisBottom.setLabelCount(7);
+        xAxisBottom.setForceLabelsEnabled(true);
 
         final YAxis yAxisLeft = binding.spo2LineChart.getAxisLeft();
-        yAxisLeft.setDrawGridLines(true);
+        yAxisLeft.setDrawGridLinesEnabled(true);
         yAxisLeft.setAxisMaximum(100.5f);
         yAxisLeft.setAxisMinimum(65f);
-        yAxisLeft.setDrawTopYLabelEntry(false);
+        yAxisLeft.setDrawTopYLabelEntryEnabled(false);
         yAxisLeft.setTextColor(CHART_TEXT_COLOR);
         yAxisLeft.setEnabled(true);
 
         final YAxis yAxisRight = binding.spo2LineChart.getAxisRight();
         yAxisRight.setEnabled(true);
-        yAxisRight.setDrawLabels(false);
-        yAxisRight.setDrawGridLines(false);
-        yAxisRight.setDrawAxisLine(true);
+        yAxisRight.setDrawLabelsEnabled(false);
+        yAxisRight.setDrawGridLinesEnabled(false);
+        yAxisRight.setDrawAxisLineEnabled(true);
     }
 
     @Override
@@ -308,4 +327,9 @@ public class Spo2ChartFragment extends AbstractChartFragment<Spo2ChartFragment.S
         }
     }
 
+    @Nullable
+    @Override
+    public ChartDataRange getAvailableDataRange(final GBDevice device, final DBHandler db) {
+        return ChartDataRange.ofSamples(device.getDeviceCoordinator().getSpo2SampleProvider(device, db.getDaoSession()));
+    }
 }

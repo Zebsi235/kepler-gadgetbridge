@@ -21,8 +21,10 @@ import android.os.Bundle;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
+import android.widget.LinearLayout;
 import android.widget.TextView;
 
+import androidx.annotation.Nullable;
 import androidx.core.content.ContextCompat;
 
 import com.github.mikephil.charting.charts.Chart;
@@ -47,6 +49,8 @@ import java.util.Locale;
 import lineageos.weather.util.TemperatureUtils;
 import nodomain.freeyourgadget.gadgetbridge.GBApplication;
 import nodomain.freeyourgadget.gadgetbridge.R;
+import nodomain.freeyourgadget.gadgetbridge.activities.workouts.StatTileData;
+import nodomain.freeyourgadget.gadgetbridge.activities.workouts.StatTileGridUtilKt;
 import nodomain.freeyourgadget.gadgetbridge.database.DBHandler;
 import nodomain.freeyourgadget.gadgetbridge.devices.DeviceCoordinator;
 import nodomain.freeyourgadget.gadgetbridge.devices.TimeSampleProvider;
@@ -66,9 +70,7 @@ public class TemperatureDailyFragment extends AbstractChartFragment<TemperatureD
     protected int LEGEND_TEXT_COLOR;
 
     private TextView dateView;
-    private TextView tempAverage;
-    private TextView tempMinimum;
-    private TextView tempMaximum;
+    private LinearLayout statsContainer;
     private LineChart tempLineChart;
 
     private final TemperatureUnit temperatureUnit = GBApplication.getPrefs().getTemperatureUnit();
@@ -83,9 +85,7 @@ public class TemperatureDailyFragment extends AbstractChartFragment<TemperatureD
 
         dateView = rootView.findViewById(R.id.temp_date_view);
         tempLineChart = rootView.findViewById(R.id.temp_line_chart);
-        tempAverage = rootView.findViewById(R.id.temp_average);
-        tempMinimum = rootView.findViewById(R.id.temp_minimum);
-        tempMaximum = rootView.findViewById(R.id.temp_maximum);
+        statsContainer = rootView.findViewById(R.id.temp_stats_container);
 
         setupChart();
         refresh();
@@ -132,11 +132,11 @@ public class TemperatureDailyFragment extends AbstractChartFragment<TemperatureD
 
 
         XAxis x = tempLineChart.getXAxis();
-        x.setDrawLabels(true);
-        x.setDrawGridLines(false);
+        x.setDrawLabelsEnabled(true);
+        x.setDrawGridLinesEnabled(false);
         x.setEnabled(true);
         x.setTextColor(CHART_TEXT_COLOR);
-        x.setDrawLimitLinesBehindData(true);
+        x.setDrawLimitLinesBehindDataEnabled(true);
         x.setPosition(XAxis.XAxisPosition.BOTTOM);
         x.setAxisMinimum(0f);
         x.setAxisMaximum(86400f);
@@ -146,17 +146,17 @@ public class TemperatureDailyFragment extends AbstractChartFragment<TemperatureD
         final float defaultAxisMaximum = isMetric ? 45f : (float) TemperatureUtils.celsiusToFahrenheit(45d);
 
         YAxis y = tempLineChart.getAxisLeft();
-        y.setDrawGridLines(false);
-        y.setDrawTopYLabelEntry(true);
+        y.setDrawGridLinesEnabled(false);
+        y.setDrawTopYLabelEntryEnabled(true);
         y.setTextColor(CHART_TEXT_COLOR);
         y.setEnabled(true);
         y.setAxisMaximum(defaultAxisMaximum);
         y.setAxisMinimum(defaultAxisMinimum);
 
         YAxis yAxisRight = tempLineChart.getAxisRight();
-        yAxisRight.setDrawGridLines(false);
-        yAxisRight.setDrawLabels(true);
-        yAxisRight.setDrawTopYLabelEntry(true);
+        yAxisRight.setDrawGridLinesEnabled(false);
+        yAxisRight.setDrawLabelsEnabled(true);
+        yAxisRight.setDrawTopYLabelEntryEnabled(true);
         yAxisRight.setTextColor(CHART_TEXT_COLOR);
         yAxisRight.setAxisMaximum(defaultAxisMaximum);
         yAxisRight.setAxisMinimum(defaultAxisMinimum);
@@ -168,18 +168,18 @@ public class TemperatureDailyFragment extends AbstractChartFragment<TemperatureD
     protected void setupLegend(Chart<?> chart) {
         List<LegendEntry> legendEntries = new ArrayList<>(1);
         LegendEntry dataEntry = new LegendEntry();
-        dataEntry.label = getTitle();
-        dataEntry.formColor = TEMPERATURE_COLOR;
+        dataEntry.setLabel(getTitle());
+        dataEntry.setFormColor(TEMPERATURE_COLOR);
         legendEntries.add(dataEntry);
 
         if (GBApplication.getPrefs().getBoolean("charts_show_average", true)) {
             LegendEntry dataAverageEntry = new LegendEntry();
-            dataAverageEntry.label = getString(R.string.hr_average);
-            dataAverageEntry.formColor = Color.CYAN;
+            dataAverageEntry.setLabel(getString(R.string.hr_average));
+            dataAverageEntry.setFormColor(Color.CYAN);
             legendEntries.add(dataAverageEntry);
         }
 
-        chart.getLegend().setCustom(legendEntries);
+        chart.getLegend().setEntries(legendEntries);
         chart.getLegend().setTextColor(LEGEND_TEXT_COLOR);
         chart.getLegend().setWordWrapEnabled(true);
     }
@@ -201,7 +201,7 @@ public class TemperatureDailyFragment extends AbstractChartFragment<TemperatureD
             final float temperatureValue = temperatureUnit == TemperatureUnit.CELSIUS ?
                     sample.getTemperature() :
                     (float) TemperatureUtils.celsiusToFahrenheit(sample.getTemperature());
-            lineEntries.add(new Entry(tsTranslation.shorten(timestamp_in_seconds), temperatureValue));
+            lineEntries.add(new Entry<>(tsTranslation.shorten(timestamp_in_seconds), temperatureValue, null, null));
             accumulator.add(temperatureValue);
         }
 
@@ -209,8 +209,8 @@ public class TemperatureDailyFragment extends AbstractChartFragment<TemperatureD
         dataSet.setLineWidth(1.5f);
         dataSet.setMode(LineDataSet.Mode.HORIZONTAL_BEZIER);
         dataSet.setCubicIntensity(0.1f);
-        dataSet.setDrawCircles(false);
-        dataSet.setDrawValues(true);
+        dataSet.setDrawCirclesEnabled(false);
+        dataSet.setDrawValuesEnabled(true);
         dataSet.setAxisDependency(YAxis.AxisDependency.RIGHT);
         dataSet.setColor(TEMPERATURE_COLOR);
         dataSet.setValueTextColor(CHART_TEXT_COLOR);
@@ -220,9 +220,12 @@ public class TemperatureDailyFragment extends AbstractChartFragment<TemperatureD
         final double maximum = accumulator.getCount() > 0 ? accumulator.getMax() : -1;
 
         final String unit = getString(temperatureUnit == TemperatureUnit.CELSIUS ? R.string.unit_celsius : R.string.unit_fahrenheit);
-        tempAverage.setText(average > 0 ? String.format(Locale.ROOT, "%.1f %s", average, unit) : "-");
-        tempMinimum.setText(minimum > 0 ? String.format(Locale.ROOT, "%.1f %s", minimum, unit) : "-");
-        tempMaximum.setText(maximum > 0 ? String.format(Locale.ROOT, "%.1f %s", maximum, unit) : "-");
+        final List<StatTileData> stats = new ArrayList<>();
+        stats.add(new StatTileData(formatTemperature(minimum, unit), getString(R.string.hr_minimum)));
+        stats.add(new StatTileData(formatTemperature(maximum, unit), getString(R.string.hr_maximum)));
+        stats.add(new StatTileData(formatTemperature(average, unit), getString(R.string.hr_average)));
+        statsContainer.removeAllViews();
+        StatTileGridUtilKt.addStatTileGrid(statsContainer, requireContext(), stats, 0);
 
         final int axisGap = (temperatureUnit == TemperatureUnit.CELSIUS ? 3 : 6);
         if (minimum > 0) {
@@ -241,7 +244,7 @@ public class TemperatureDailyFragment extends AbstractChartFragment<TemperatureD
         tempLineChart.getAxisLeft().removeAllLimitLines();
 
         if (average > 0 && GBApplication.getPrefs().getBoolean("charts_show_average", true)) {
-            final LimitLine averageLine = new LimitLine((float) average);
+            final LimitLine averageLine = new LimitLine((float) average, "");
             averageLine.setLineWidth(1.5f);
             averageLine.enableDashedLine(15f, 10f, 0f);
             averageLine.setLineColor(Color.CYAN);
@@ -250,11 +253,21 @@ public class TemperatureDailyFragment extends AbstractChartFragment<TemperatureD
 
     }
 
+    private String formatTemperature(final double value, final String unit) {
+        return value > 0 ? String.format(Locale.ROOT, "%.1f %s", value, unit) : getString(R.string.stats_empty_value);
+    }
+
     protected static class TemperatureChartData extends ChartsData {
         public List<? extends TemperatureSample> samples;
 
         protected TemperatureChartData(List<? extends TemperatureSample> samples) {
             this.samples = samples;
         }
+    }
+
+    @Nullable
+    @Override
+    public ChartDataRange getAvailableDataRange(final GBDevice device, final DBHandler db) {
+        return ChartDataRange.ofSamples(device.getDeviceCoordinator().getTemperatureSampleProvider(device, db.getDaoSession()));
     }
 }

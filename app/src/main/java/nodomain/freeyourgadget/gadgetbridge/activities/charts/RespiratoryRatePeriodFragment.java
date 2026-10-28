@@ -4,6 +4,7 @@ import android.os.Bundle;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
+import android.widget.LinearLayout;
 import android.widget.TextView;
 
 import com.github.mikephil.charting.charts.Chart;
@@ -14,7 +15,7 @@ import com.github.mikephil.charting.components.YAxis;
 import com.github.mikephil.charting.data.Entry;
 import com.github.mikephil.charting.data.LineData;
 import com.github.mikephil.charting.data.LineDataSet;
-import com.github.mikephil.charting.formatter.ValueFormatter;
+import com.github.mikephil.charting.formatter.IAxisValueFormatter;
 import com.github.mikephil.charting.interfaces.datasets.ILineDataSet;
 
 import org.slf4j.Logger;
@@ -28,6 +29,8 @@ import java.util.List;
 import java.util.Locale;
 
 import nodomain.freeyourgadget.gadgetbridge.R;
+import nodomain.freeyourgadget.gadgetbridge.activities.workouts.StatTileData;
+import nodomain.freeyourgadget.gadgetbridge.activities.workouts.StatTileGridUtilKt;
 import nodomain.freeyourgadget.gadgetbridge.database.DBHandler;
 import nodomain.freeyourgadget.gadgetbridge.impl.GBDevice;
 import nodomain.freeyourgadget.gadgetbridge.util.DateTimeUtils;
@@ -36,8 +39,7 @@ public class RespiratoryRatePeriodFragment extends RespiratoryRateFragment<Respi
     protected static final Logger LOG = LoggerFactory.getLogger(RespiratoryRatePeriodFragment.class);
 
     private TextView mDateView;
-    private TextView sleepAvg;
-    private TextView awakeAvg;
+    private LinearLayout statsContainer;
     private LineChart respiratoryRateChart;
 
     @Override
@@ -68,8 +70,7 @@ public class RespiratoryRatePeriodFragment extends RespiratoryRateFragment<Respi
         });
 
         mDateView = rootView.findViewById(R.id.rr_date_view);
-        sleepAvg = rootView.findViewById(R.id.sleep_avg);
-        awakeAvg = rootView.findViewById(R.id.awake_avg);
+        statsContainer = rootView.findViewById(R.id.respiratory_rate_period_stats_container);
         respiratoryRateChart = rootView.findViewById(R.id.respiratory_rate_line_chart);
         setupRespiratoryRateChart();
         refresh();
@@ -81,7 +82,7 @@ public class RespiratoryRatePeriodFragment extends RespiratoryRateFragment<Respi
         respiratoryRateChart.getDescription().setEnabled(false);
         if (TOTAL_DAYS <= 7) {
             respiratoryRateChart.setTouchEnabled(false);
-            respiratoryRateChart.setPinchZoom(false);
+            respiratoryRateChart.setPinchZoomEnabled(false);
         }
 
         respiratoryRateChart.getDescription().setEnabled(false);
@@ -89,28 +90,29 @@ public class RespiratoryRatePeriodFragment extends RespiratoryRateFragment<Respi
 
         final XAxis xAxisBottom = respiratoryRateChart.getXAxis();
         xAxisBottom.setPosition(XAxis.XAxisPosition.BOTTOM);
-        xAxisBottom.setDrawLabels(true);
-        xAxisBottom.setDrawGridLines(false);
+        xAxisBottom.setDrawLabelsEnabled(true);
+        xAxisBottom.setDrawGridLinesEnabled(false);
         xAxisBottom.setEnabled(true);
-        xAxisBottom.setDrawLimitLinesBehindData(true);
+        xAxisBottom.setDrawLimitLinesBehindDataEnabled(true);
         xAxisBottom.setTextColor(CHART_TEXT_COLOR);
-        xAxisBottom.setLabelCount(7, true);
+        xAxisBottom.setLabelCount(7);
+        xAxisBottom.setForceLabelsEnabled(true);
         xAxisBottom.setAxisMinimum(0);
         xAxisBottom.setAxisMaximum(TOTAL_DAYS - 1);
 
         final YAxis yAxisLeft = respiratoryRateChart.getAxisLeft();
-        yAxisLeft.setDrawGridLines(true);
+        yAxisLeft.setDrawGridLinesEnabled(true);
         yAxisLeft.setAxisMinimum(0);
         yAxisLeft.setAxisMaximum(20);
-        yAxisLeft.setDrawTopYLabelEntry(true);
+        yAxisLeft.setDrawTopYLabelEntryEnabled(true);
         yAxisLeft.setEnabled(true);
         yAxisLeft.setTextColor(CHART_TEXT_COLOR);
 
         final YAxis yAxisRight = respiratoryRateChart.getAxisRight();
         yAxisRight.setEnabled(true);
-        yAxisRight.setDrawLabels(false);
-        yAxisRight.setDrawGridLines(false);
-        yAxisRight.setDrawAxisLine(true);
+        yAxisRight.setDrawLabelsEnabled(false);
+        yAxisRight.setDrawGridLinesEnabled(false);
+        yAxisRight.setDrawAxisLineEnabled(true);
     }
 
         @Override
@@ -132,16 +134,16 @@ public class RespiratoryRatePeriodFragment extends RespiratoryRateFragment<Respi
     protected LineDataSet createDataSet(final List<Entry> values, String label, int color) {
         final LineDataSet lineDataSet = new LineDataSet(values, label);
         lineDataSet.setColor(getResources().getColor(color));
-        lineDataSet.setDrawCircles(false);
+        lineDataSet.setDrawCirclesEnabled(false);
         lineDataSet.setLineWidth(2f);
         lineDataSet.setFillAlpha(255);
         lineDataSet.setCircleRadius(5f);
-        lineDataSet.setDrawCircles(true);
-        lineDataSet.setDrawCircleHole(false);
+        lineDataSet.setDrawCirclesEnabled(true);
+        lineDataSet.setDrawCircleHoleEnabled(false);
         lineDataSet.setValueTextSize(TEXT_COLOR);
         lineDataSet.setCircleColor(getResources().getColor(color));
         lineDataSet.setAxisDependency(YAxis.AxisDependency.LEFT);
-        lineDataSet.setDrawValues(false);
+        lineDataSet.setDrawValuesEnabled(false);
         return lineDataSet;
     }
 
@@ -150,54 +152,60 @@ public class RespiratoryRatePeriodFragment extends RespiratoryRateFragment<Respi
         respiratoryRateChart.setData(null);
         mDateView.setText(respiratoryRateData.formattedDate);
         final String emptyValue = requireContext().getString(R.string.stats_empty_value);
-        sleepAvg.setText(respiratoryRateData.sleepRateAvg > 0 ? String.valueOf(respiratoryRateData.sleepRateAvg) : emptyValue);
-        awakeAvg.setText(respiratoryRateData.awakeRateAvg > 0 ? String.valueOf(respiratoryRateData.awakeRateAvg) : emptyValue);
+        final List<StatTileData> stats = new ArrayList<>();
+        stats.add(new StatTileData(
+                respiratoryRateData.awakeRateAvg > 0 ? String.valueOf(respiratoryRateData.awakeRateAvg) : emptyValue,
+                getString(R.string.sleep_colored_stats_awake_avg)
+        ));
+        stats.add(new StatTileData(
+                respiratoryRateData.sleepRateAvg > 0 ? String.valueOf(respiratoryRateData.sleepRateAvg) : emptyValue,
+                getString(R.string.sleep_avg)
+        ));
+        statsContainer.removeAllViews();
+        StatTileGridUtilKt.addStatTileGrid(statsContainer, requireContext(), stats, 0);
 
         List<Entry> lineAwakeRateAvgEntries = new ArrayList<>();
         List<Entry> lineSleepRateEntries = new ArrayList<>();
         for (int i = 0; i < TOTAL_DAYS; i++) {
             RespiratoryRateDay day = respiratoryRateData.days.get(i);
             if (day.awakeRateAvg > 0) {
-                lineAwakeRateAvgEntries.add(new Entry(i, day.awakeRateAvg));
+                lineAwakeRateAvgEntries.add(new Entry<>(i, day.awakeRateAvg, null, null));
             }
             if (day.sleepRateAvg > 0) {
-                lineSleepRateEntries.add(new Entry(i, day.sleepRateAvg));
+                lineSleepRateEntries.add(new Entry<>(i, day.sleepRateAvg, null, null));
             }
         }
 
         LineDataSet awakeDataSet = createDataSet(lineAwakeRateAvgEntries, getString(R.string.sleep_colored_stats_awake_avg), R.color.respiratory_rate_color);
         LineDataSet sleepDataSet = createDataSet(lineSleepRateEntries, getString(R.string.sleep_avg), R.color.chart_light_sleep_light);
 
-        final List<ILineDataSet> lineDataSets = new ArrayList<>();
+        final List<ILineDataSet<?>> lineDataSets = new ArrayList<>();
         lineDataSets.add(awakeDataSet);
         lineDataSets.add(sleepDataSet);
 
         List<LegendEntry> legendEntries = new ArrayList<>(1);
         LegendEntry awakeEntry = new LegendEntry();
-        awakeEntry.label = getString(R.string.sleep_colored_stats_awake_avg);
-        awakeEntry.formColor = getResources().getColor(R.color.respiratory_rate_color);
+        awakeEntry.setLabel(getString(R.string.sleep_colored_stats_awake_avg));
+        awakeEntry.setFormColor(getResources().getColor(R.color.respiratory_rate_color));
         LegendEntry sleepEntry = new LegendEntry();
-        sleepEntry.label = getString(R.string.sleep_avg);
-        sleepEntry.formColor = getResources().getColor(R.color.chart_light_sleep_light);
+        sleepEntry.setLabel(getString(R.string.sleep_avg));
+        sleepEntry.setFormColor(getResources().getColor(R.color.chart_light_sleep_light));
         legendEntries.add(awakeEntry);
         legendEntries.add(sleepEntry);
         respiratoryRateChart.getLegend().setTextColor(LEGEND_TEXT_COLOR);
-        respiratoryRateChart.getLegend().setCustom(legendEntries);
+        respiratoryRateChart.getLegend().setEntries(legendEntries);
         final LineData lineData = new LineData(lineDataSets);
         respiratoryRateChart.setData(lineData);
         final XAxis x = respiratoryRateChart.getXAxis();
         x.setValueFormatter(getRespiratoryRateChartDayValueFormatter(respiratoryRateData));
     }
 
-    ValueFormatter getRespiratoryRateChartDayValueFormatter(RespiratoryRateData RespiratoryRateData) {
-        return new ValueFormatter() {
-            @Override
-            public String getFormattedValue(float value) {
-                RespiratoryRateFragment.RespiratoryRateDay day = RespiratoryRateData.days.get((int) value);
-                String pattern = TOTAL_DAYS > 7 ? "dd" : "EEE";
-                SimpleDateFormat formatLetterDay = new SimpleDateFormat(pattern, Locale.getDefault());
-                return formatLetterDay.format(new Date(day.day.getTimeInMillis()));
-            }
+    IAxisValueFormatter getRespiratoryRateChartDayValueFormatter(RespiratoryRateData RespiratoryRateData) {
+        return (value, axis) -> {
+            RespiratoryRateFragment.RespiratoryRateDay day = RespiratoryRateData.days.get((int) value);
+            String pattern = TOTAL_DAYS > 7 ? "dd" : "EEE";
+            SimpleDateFormat formatLetterDay = new SimpleDateFormat(pattern, Locale.getDefault());
+            return formatLetterDay.format(new Date(day.day.getTimeInMillis()));
         };
     }
 

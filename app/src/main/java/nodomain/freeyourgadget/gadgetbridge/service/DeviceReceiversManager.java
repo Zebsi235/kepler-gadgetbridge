@@ -48,6 +48,7 @@ import java.util.Set;
 import java.util.Stack;
 
 import nodomain.freeyourgadget.gadgetbridge.GBApplication;
+import nodomain.freeyourgadget.gadgetbridge.util.Prefs;
 import nodomain.freeyourgadget.gadgetbridge.devices.DeviceCoordinator;
 import nodomain.freeyourgadget.gadgetbridge.externalevents.AlarmClockReceiver;
 import nodomain.freeyourgadget.gadgetbridge.externalevents.BluetoothPairingRequestReceiver;
@@ -73,6 +74,7 @@ import nodomain.freeyourgadget.gadgetbridge.externalevents.TinyWeatherForecastGe
 import nodomain.freeyourgadget.gadgetbridge.externalevents.VolumeChangeReceiver;
 import nodomain.freeyourgadget.gadgetbridge.externalevents.comaps.CoMapsNavigationReceiver;
 import nodomain.freeyourgadget.gadgetbridge.externalevents.comaps.CoMapsNavigationReceiverFactory;
+import nodomain.freeyourgadget.gadgetbridge.externalevents.comaps.CoMapsNavigationRouteReceiver;
 import nodomain.freeyourgadget.gadgetbridge.externalevents.gps.GBLocationService;
 import nodomain.freeyourgadget.gadgetbridge.externalevents.sleepasandroid.SleepAsAndroidReceiver;
 import nodomain.freeyourgadget.gadgetbridge.impl.GBDevice;
@@ -153,6 +155,7 @@ class DeviceReceiversManager {
 
     private OsmandEventReceiver mOsmandAidlHelper = null;
     private final List<CoMapsNavigationReceiver> mCoMapsNavigationReceivers = new ArrayList<>();
+    private final List<CoMapsNavigationRouteReceiver> mCoMapsNavigationRouteReceivers = new ArrayList<>();
     private HandlerThread mCoMapsHandlerThread = null;
 
     private SleepAsAndroidReceiver mSleepAsAndroidReceiver = null;
@@ -225,6 +228,8 @@ class DeviceReceiversManager {
 
         mReceiversEnabled = enable;
         mCurrentFeatureSet = features;
+
+        updateSleepAsAndroidReceiver();
 
         if (enable && initialized && features.supports(Feature.CALENDAR)) {
             for (final GBDevice deviceWithCalendar : devicesWithCalendar) {
@@ -350,13 +355,6 @@ class DeviceReceiversManager {
                 }
             }
 
-            if (features.supports(Feature.SLEEP_AS_ANDROID)) {
-                if (mSleepAsAndroidReceiver == null) {
-                    mSleepAsAndroidReceiver = new SleepAsAndroidReceiver();
-                    ContextCompat.registerReceiver(service, mSleepAsAndroidReceiver, mSleepAsAndroidReceiver.getIntentFilter(), ContextCompat.RECEIVER_EXPORTED);
-                }
-            }
-
             if (features.supports(Feature.DATA_FETCHING) && mGBAutoFetchReceiver == null) {
                 mGBAutoFetchReceiver = new GBAutoFetchReceiver();
                 ContextCompat.registerReceiver(service, mGBAutoFetchReceiver, new IntentFilter("android.intent.action.USER_PRESENT"), ContextCompat.RECEIVER_EXPORTED);
@@ -430,16 +428,40 @@ class DeviceReceiversManager {
                 service.unregisterReceiver(mGBAutoFetchReceiver);
                 mGBAutoFetchReceiver = null;
             }
-            if (mSleepAsAndroidReceiver != null) {
-                service.unregisterReceiver(mSleepAsAndroidReceiver);
-                mSleepAsAndroidReceiver = null;
-            }
         }
     }
 
-    @SuppressWarnings("SwitchStatementWithTooFewBranches")
+    /**
+     * Sleep as Android can start tracking while every device is disconnected, and the receiver is
+     * how the connect gets triggered, so it stays registered independently of the connection state
+     * and of the feature set, which only covers connected devices. Support is still enforced
+     * elsewhere: only coordinators that support the integration can be picked in the settings, and
+     * DeviceActionHandler re-checks it before the action reaches the device.
+     *
+     * @param serviceRunning false while the service is tearing down, when nothing may stay
+     *                       registered regardless of the preferences
+     */
+    static boolean shouldRegisterSleepAsAndroidReceiver(final Prefs prefs, final boolean serviceRunning) {
+        return serviceRunning
+                && prefs.getBoolean(GBPrefs.SLEEP_AS_ANDROID_ENABLED, false)
+                && !prefs.getString(GBPrefs.SLEEP_AS_ANDROID_DEVICE, "").isEmpty();
+    }
+
+    private void updateSleepAsAndroidReceiver() {
+        final boolean wanted = shouldRegisterSleepAsAndroidReceiver(GBApplication.getPrefs(), mCurrentFeatureSet != null);
+
+        if (wanted && mSleepAsAndroidReceiver == null) {
+            mSleepAsAndroidReceiver = new SleepAsAndroidReceiver();
+            ContextCompat.registerReceiver(service, mSleepAsAndroidReceiver, mSleepAsAndroidReceiver.getIntentFilter(), ContextCompat.RECEIVER_EXPORTED);
+        } else if (!wanted && mSleepAsAndroidReceiver != null) {
+            service.unregisterReceiver(mSleepAsAndroidReceiver);
+            mSleepAsAndroidReceiver = null;
+        }
+    }
+
     public void onSharedPreferenceChanged(SharedPreferences sharedPreferences, String key) {
         switch (key) {
+            case GBPrefs.SLEEP_AS_ANDROID_ENABLED, GBPrefs.SLEEP_AS_ANDROID_DEVICE -> updateSleepAsAndroidReceiver();
             case GBPrefs.NAVIGATION_APP_COMAPS -> {
                 if (mReceiversEnabled && mCurrentFeatureSet != null && mCurrentFeatureSet.supports(Feature.NAVIGATION)) {
                     boolean enable = sharedPreferences.getBoolean(GBPrefs.NAVIGATION_APP_COMAPS, false);
@@ -469,11 +491,21 @@ class DeviceReceiversManager {
             service.getContentResolver().registerContentObserver(pair.first, false, pair.second);
             mCoMapsNavigationReceivers.add(pair.second);
         }
+
+        for (Pair<Uri, CoMapsNavigationRouteReceiver> pair :
+                CoMapsNavigationReceiverFactory.createCoMapsNavigationRouteReceiversForApplication(
+                        service.getApplication(), handler)) {
+            service.getContentResolver().registerContentObserver(pair.first, false, pair.second);
+            mCoMapsNavigationRouteReceivers.add(pair.second);
+        }
     }
 
     private void disableCoMapsReceivers() {
         mCoMapsNavigationReceivers.forEach(service.getContentResolver()::unregisterContentObserver);
         mCoMapsNavigationReceivers.clear();
+
+        mCoMapsNavigationRouteReceivers.forEach(service.getContentResolver()::unregisterContentObserver);
+        mCoMapsNavigationRouteReceivers.clear();
 
         if (mCoMapsHandlerThread != null) {
             mCoMapsHandlerThread.quitSafely();

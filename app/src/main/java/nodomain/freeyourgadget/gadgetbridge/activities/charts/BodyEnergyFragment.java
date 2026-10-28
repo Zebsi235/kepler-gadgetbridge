@@ -10,9 +10,11 @@ import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.ImageView;
+import android.widget.LinearLayout;
 import android.widget.TextView;
 
 import androidx.annotation.ColorInt;
+import androidx.annotation.Nullable;
 
 import com.github.mikephil.charting.charts.Chart;
 import com.github.mikephil.charting.charts.LineChart;
@@ -22,7 +24,7 @@ import com.github.mikephil.charting.components.YAxis;
 import com.github.mikephil.charting.data.Entry;
 import com.github.mikephil.charting.data.LineData;
 import com.github.mikephil.charting.data.LineDataSet;
-import com.github.mikephil.charting.formatter.ValueFormatter;
+import com.github.mikephil.charting.formatter.IAxisValueFormatter;
 import com.github.mikephil.charting.interfaces.datasets.ILineDataSet;
 
 import org.slf4j.Logger;
@@ -39,6 +41,8 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 import nodomain.freeyourgadget.gadgetbridge.GBApplication;
 import nodomain.freeyourgadget.gadgetbridge.R;
+import nodomain.freeyourgadget.gadgetbridge.activities.workouts.StatTileData;
+import nodomain.freeyourgadget.gadgetbridge.activities.workouts.StatTileGridUtilKt;
 import nodomain.freeyourgadget.gadgetbridge.database.DBHandler;
 import nodomain.freeyourgadget.gadgetbridge.devices.DeviceCoordinator;
 import nodomain.freeyourgadget.gadgetbridge.devices.TimeSampleProvider;
@@ -51,8 +55,7 @@ public class BodyEnergyFragment extends AbstractChartFragment<BodyEnergyFragment
 
     private TextView mDateView;
     private ImageView bodyEnergyGauge;
-    private TextView bodyEnergyGained;
-    private TextView bodyEnergyLost;
+    private LinearLayout bodyEnergyStatsContainer;
     private LineChart bodyEnergyChart;
 
     protected int CHART_TEXT_COLOR;
@@ -75,8 +78,7 @@ public class BodyEnergyFragment extends AbstractChartFragment<BodyEnergyFragment
 
         mDateView = rootView.findViewById(R.id.body_energy_date_view);
         bodyEnergyGauge = rootView.findViewById(R.id.body_energy_gauge);
-        bodyEnergyGained = rootView.findViewById(R.id.body_energy_gained);
-        bodyEnergyLost = rootView.findViewById(R.id.body_energy_lost);
+        bodyEnergyStatsContainer = rootView.findViewById(R.id.body_energy_stats_container);
         bodyEnergyChart = rootView.findViewById(R.id.body_energy_chart);
         setupBodyEnergyLevelChart();
         refresh();
@@ -114,7 +116,7 @@ public class BodyEnergyFragment extends AbstractChartFragment<BodyEnergyFragment
 
         List<Entry> lineEntries = new ArrayList<>();
         List<Entry> averageLineEntries = new ArrayList<>();
-        final List<ILineDataSet> lineDataSets = new ArrayList<>();
+        final List<ILineDataSet<?>> lineDataSets = new ArrayList<>();
         final AtomicInteger gainedValue = new AtomicInteger(0);
         final AtomicInteger drainedValue = new AtomicInteger(0);
         int newestValue = 0;
@@ -133,7 +135,7 @@ public class BodyEnergyFragment extends AbstractChartFragment<BodyEnergyFragment
                 }
                 lastValue[0].set(sample.getEnergy());
                 float x = (float) sample.getTimestamp() / 1000 - (float) referencedTimestamp / 1000;
-                lineEntries.add(new Entry(x, sample.getEnergy()));
+                lineEntries.add(new Entry<>(x, sample.getEnergy(), null, null));
             });
         }
 
@@ -146,9 +148,9 @@ public class BodyEnergyFragment extends AbstractChartFragment<BodyEnergyFragment
             final LineDataSet averageLineDataSet = new LineDataSet(averageLineEntries, getString(R.string.body_energy_legend_average));
             averageLineDataSet.setColor(AVERAGE_LINE_COLOR);
             averageLineDataSet.setLineWidth(1.5f);
-            averageLineDataSet.setDrawCircles(false);
-            averageLineDataSet.setDrawValues(false);
-            averageLineDataSet.setDrawFilled(true);
+            averageLineDataSet.setDrawCirclesEnabled(false);
+            averageLineDataSet.setDrawValuesEnabled(false);
+            averageLineDataSet.setDrawFilledEnabled(true);
             averageLineDataSet.setFillColor(AVERAGE_LINE_COLOR);
             averageLineDataSet.setFillAlpha(40);
             averageLineDataSet.setAxisDependency(YAxis.AxisDependency.LEFT);
@@ -162,14 +164,14 @@ public class BodyEnergyFragment extends AbstractChartFragment<BodyEnergyFragment
         // Create the current day line dataset
         final LineDataSet lineDataSet = new LineDataSet(lineEntries, getString(R.string.body_energy_legend_level));
         lineDataSet.setColor(getResources().getColor(R.color.body_energy_level_color));
-        lineDataSet.setDrawCircles(false);
+        lineDataSet.setDrawCirclesEnabled(false);
         lineDataSet.setLineWidth(2f);
-        lineDataSet.setDrawCircles(false);
+        lineDataSet.setDrawCirclesEnabled(false);
         lineDataSet.setCircleColor(getResources().getColor(R.color.body_energy_level_color));
         lineDataSet.setAxisDependency(YAxis.AxisDependency.LEFT);
-        lineDataSet.setDrawValues(false);
+        lineDataSet.setDrawValuesEnabled(false);
         lineDataSet.setMode(LineDataSet.Mode.HORIZONTAL_BEZIER);
-        lineDataSet.setDrawFilled(true);
+        lineDataSet.setDrawFilledEnabled(true);
         lineDataSet.setFillAlpha(70);
         lineDataSet.setFillColor(getResources().getColor(R.color.body_energy_level_color));
 
@@ -180,20 +182,20 @@ public class BodyEnergyFragment extends AbstractChartFragment<BodyEnergyFragment
         List<LegendEntry> legendEntries = new ArrayList<>(2);
 
         LegendEntry activityEntry = new LegendEntry();
-        activityEntry.label = getString(R.string.body_energy_legend_level);
-        activityEntry.formColor = getResources().getColor(R.color.body_energy_level_color);
+        activityEntry.setLabel(getString(R.string.body_energy_legend_level));
+        activityEntry.setFormColor(getResources().getColor(R.color.body_energy_level_color));
         legendEntries.add(activityEntry);
 
         // Add average legend entry if we have average data
         if (!averageLineEntries.isEmpty()) {
             LegendEntry averageEntry = new LegendEntry();
-            averageEntry.label = getString(R.string.body_energy_legend_average);
-            averageEntry.formColor = AVERAGE_LINE_COLOR;
+            averageEntry.setLabel(getString(R.string.body_energy_legend_average));
+            averageEntry.setFormColor(AVERAGE_LINE_COLOR);
             legendEntries.add(averageEntry);
         }
 
         bodyEnergyChart.getLegend().setTextColor(LEGEND_TEXT_COLOR);
-        bodyEnergyChart.getLegend().setCustom(legendEntries);
+        bodyEnergyChart.getLegend().setEntries(legendEntries);
 
         final LineData lineData = new LineData(lineDataSets);
         bodyEnergyChart.setData(lineData);
@@ -211,8 +213,11 @@ public class BodyEnergyFragment extends AbstractChartFragment<BodyEnergyFragment
                 newestValue,
                 100
         ));
-        bodyEnergyGained.setText(String.format("+ %s", gainedValue.intValue()));
-        bodyEnergyLost.setText(String.format("- %s", drainedValue));
+        final List<StatTileData> stats = new ArrayList<>();
+        stats.add(new StatTileData(String.format("+ %s", gainedValue.intValue()), getString(R.string.body_energy_gained)));
+        stats.add(new StatTileData(String.format("- %s", drainedValue), getString(R.string.body_energy_lost)));
+        bodyEnergyStatsContainer.removeAllViews();
+        StatTileGridUtilKt.addStatTileGrid(bodyEnergyStatsContainer, requireContext(), stats, 0);
     }
 
     @Override
@@ -308,14 +313,14 @@ public class BodyEnergyFragment extends AbstractChartFragment<BodyEnergyFragment
             if (count[bin] != 0) {
                 float x = bin * (float) binSizeSeconds; // seconds from local midnight
                 float avg = (float) sum[bin] / count[bin];
-                avgEntries.add(new Entry(x, avg));
+                avgEntries.add(new Entry<>(x, avg, null, null));
             }
         }
 
         // Add one extra entry to make the graph wrap at the end of the day
         float x = binsPerDay * (float) binSizeSeconds;
         float avg = (float) sum[0] / count[0];
-        avgEntries.add(new Entry(x, avg));
+        avgEntries.add(new Entry<>(x, avg, null, null));
 
         return avgEntries;
     }
@@ -379,49 +384,47 @@ public class BodyEnergyFragment extends AbstractChartFragment<BodyEnergyFragment
     private void setupBodyEnergyLevelChart() {
         bodyEnergyChart.getDescription().setEnabled(false);
         bodyEnergyChart.setTouchEnabled(false);
-        bodyEnergyChart.setPinchZoom(false);
+        bodyEnergyChart.setPinchZoomEnabled(false);
         bodyEnergyChart.setDoubleTapToZoomEnabled(false);
 
 
         final XAxis xAxisBottom = bodyEnergyChart.getXAxis();
         xAxisBottom.setPosition(XAxis.XAxisPosition.BOTTOM);
-        xAxisBottom.setDrawLabels(true);
-        xAxisBottom.setDrawGridLines(false);
+        xAxisBottom.setDrawLabelsEnabled(true);
+        xAxisBottom.setDrawGridLinesEnabled(false);
         xAxisBottom.setEnabled(true);
-        xAxisBottom.setDrawLimitLinesBehindData(true);
+        xAxisBottom.setDrawLimitLinesBehindDataEnabled(true);
         xAxisBottom.setTextColor(CHART_TEXT_COLOR);
         xAxisBottom.setAxisMinimum(0f);
         xAxisBottom.setAxisMaximum(86400f);
-        xAxisBottom.setLabelCount(7, true);
+        xAxisBottom.setLabelCount(7);
+        xAxisBottom.setForceLabelsEnabled(true);
         xAxisBottom.setValueFormatter(getBodyEnergyChartXValueFormatter());
 
         final YAxis yAxisLeft = bodyEnergyChart.getAxisLeft();
-        yAxisLeft.setDrawGridLines(true);
+        yAxisLeft.setDrawGridLinesEnabled(true);
         yAxisLeft.setAxisMaximum(100);
         yAxisLeft.setAxisMinimum(0);
-        yAxisLeft.setDrawTopYLabelEntry(true);
+        yAxisLeft.setDrawTopYLabelEntryEnabled(true);
         yAxisLeft.setEnabled(true);
         yAxisLeft.setTextColor(CHART_TEXT_COLOR);
 
         final YAxis yAxisRight = bodyEnergyChart.getAxisRight();
         yAxisRight.setEnabled(true);
-        yAxisRight.setDrawLabels(false);
-        yAxisRight.setDrawGridLines(false);
-        yAxisRight.setDrawAxisLine(true);
+        yAxisRight.setDrawLabelsEnabled(false);
+        yAxisRight.setDrawGridLinesEnabled(false);
+        yAxisRight.setDrawAxisLineEnabled(true);
 
     }
 
-    ValueFormatter getBodyEnergyChartXValueFormatter() {
-        return new ValueFormatter() {
-            @Override
-            public String getFormattedValue(float value) {
-                long timestamp = (long) (value * 1000);
-                Date date = new Date ();
-                date.setTime(timestamp);
-                SimpleDateFormat df = new SimpleDateFormat("HH:mm", Locale.getDefault());
-                df.setTimeZone(TimeZone.getTimeZone("UTC"));
-                return df.format(date);
-            }
+    IAxisValueFormatter getBodyEnergyChartXValueFormatter() {
+        return (value, axis) -> {
+            long timestamp = (long) (value * 1000);
+            Date date = new Date ();
+            date.setTime(timestamp);
+            SimpleDateFormat df = new SimpleDateFormat("HH:mm", Locale.getDefault());
+            df.setTimeZone(TimeZone.getTimeZone("UTC"));
+            return df.format(date);
         };
     }
 
@@ -433,5 +436,11 @@ public class BodyEnergyFragment extends AbstractChartFragment<BodyEnergyFragment
             this.todaySamples = todaySamples;
             this.historicalData = historicalData;
         }
+    }
+
+    @Nullable
+    @Override
+    public ChartDataRange getAvailableDataRange(final GBDevice device, final DBHandler db) {
+        return ChartDataRange.ofSamples(device.getDeviceCoordinator().getBodyEnergySampleProvider(device, db.getDaoSession()));
     }
 }

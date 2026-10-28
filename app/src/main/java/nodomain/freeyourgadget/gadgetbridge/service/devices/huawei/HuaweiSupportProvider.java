@@ -138,6 +138,8 @@ import nodomain.freeyourgadget.gadgetbridge.service.devices.huawei.datasync.Huaw
 import nodomain.freeyourgadget.gadgetbridge.service.devices.huawei.datasync.HuaweiDataSyncGoals;
 import nodomain.freeyourgadget.gadgetbridge.service.devices.huawei.datasync.HuaweiDataSyncArterialStiffnessDetection;
 import nodomain.freeyourgadget.gadgetbridge.service.devices.huawei.datasync.HuaweiDataSyncSleepApnea;
+import nodomain.freeyourgadget.gadgetbridge.service.devices.huawei.datasync.HuaweiDataSyncSyncDeviceService;
+import nodomain.freeyourgadget.gadgetbridge.service.devices.huawei.datasync.HuaweiDataSyncWheelchairService;
 import nodomain.freeyourgadget.gadgetbridge.service.devices.huawei.p2p.HuaweiP2PAppIcon;
 import nodomain.freeyourgadget.gadgetbridge.service.devices.huawei.p2p.HuaweiP2PBatteryService;
 import nodomain.freeyourgadget.gadgetbridge.service.devices.huawei.p2p.HuaweiP2PCalendarService;
@@ -323,6 +325,10 @@ public class HuaweiSupportProvider {
     private HuaweiDataSyncEcg huaweiDataSyncEcg = null;
 
     private HuaweiDataSyncArterialStiffnessDetection huaweiDataSyncArterialStiffnessDetection = null;
+
+    private HuaweiDataSyncWheelchairService huaweiDataSyncWheelchairService = null;
+
+    private HuaweiDataSyncSyncDeviceService huaweiDataSyncSyncDeviceService = null;
 
     protected HuaweiOTAManager huaweiOTAManager = new HuaweiOTAManager(this);
 
@@ -1025,6 +1031,19 @@ public class HuaweiSupportProvider {
             if (getDeviceState().supportsArterialStiffnessDetection()) {
                 huaweiDataSyncArterialStiffnessDetection = new HuaweiDataSyncArterialStiffnessDetection(HuaweiSupportProvider.this);
             }
+            if (getDeviceState().supportsWheelchairMode()) {
+                huaweiDataSyncWheelchairService = new HuaweiDataSyncWheelchairService(HuaweiSupportProvider.this);
+                huaweiDataSyncSyncDeviceService = new HuaweiDataSyncSyncDeviceService(HuaweiSupportProvider.this);
+                if (!huaweiDataSyncSyncDeviceService.requestConfigurationSync()) {
+                    LOG.error("Failed to request wheelchair mode sync");
+                }
+                final boolean wheelchairModeEnabled = GBApplication
+                        .getDeviceSpecificSharedPrefs(getDevice().getAddress())
+                        .getBoolean(HuaweiConstants.PREF_HUAWEI_WHEELCHAIR_MODE, false);
+                if (!huaweiDataSyncWheelchairService.requestWheelchairModeStatus(wheelchairModeEnabled)) {
+                    LOG.error("Failed to request wheelchair mode status");
+                }
+            }
 
             // All of the below check that they are supported and otherwise they skip themselves
             final List<Request> initRequestQueue = new ArrayList<>();
@@ -1421,6 +1440,9 @@ public class HuaweiSupportProvider {
                     break;
                 case HuaweiConstants.PREF_HUAWEI_ARTERIAL_STIFFNESS_DETECTION_SWITCH:
                     setArterialStiffnessDetection();
+                    break;
+                case HuaweiConstants.PREF_HUAWEI_WHEELCHAIR_MODE:
+                    setWheelchairMode();
                     break;
                 case DeviceSettingsPreferenceConst.PREF_FORCE_ENABLE_SMART_ALARM:
                     getAlarms();
@@ -2414,6 +2436,20 @@ public class HuaweiSupportProvider {
         }
     }
 
+    private void setWheelchairMode() {
+        if (huaweiDataSyncWheelchairService == null) {
+            LOG.warn("DataSync wheelchair service is not registered");
+            return;
+        }
+
+        final boolean enabled = GBApplication
+                .getDeviceSpecificSharedPrefs(getDevice().getAddress())
+                .getBoolean(HuaweiConstants.PREF_HUAWEI_WHEELCHAIR_MODE, false);
+        if (!huaweiDataSyncWheelchairService.setWheelchairMode(enabled)) {
+            LOG.error("Failed to set wheelchair mode");
+        }
+    }
+
     void setArterialStiffnessDetection() {
         boolean ecgEnabled = GBApplication
                 .getDeviceSpecificSharedPrefs(getDevice().getAddress())
@@ -3119,6 +3155,8 @@ public class HuaweiSupportProvider {
 
                         if (fileRequest.getData().length == 0) {
                             LOG.debug("GPS file empty");
+                            // Indoor / empty GPS: still auto-export FIT (track from HuaweiActivityTrackProvider).
+                            autoExportWorkout(fileRequest.getDatabaseId());
                             syncState.stopWorkoutGpsDownload();
                             return;
                         }
@@ -3154,43 +3192,13 @@ public class HuaweiSupportProvider {
 
                         if (points.length == 0) {
                             LOG.debug("No GPS points returned");
+                            // Indoor / empty GPS: still auto-export FIT (track from HuaweiActivityTrackProvider).
+                            autoExportWorkout(databaseId);
                             syncState.stopWorkoutGpsDownload();
                             return;
                         }
 
-                        ActivityTrack track = new ActivityTrack();
-
-                        track.setName("Workout " + fileRequest.getWorkoutId());
-                        track.setBaseTime(DateTimeUtils.parseTimeStamp(points[0].timestamp));
-
-                        try (DBHandler db = GBApplication.acquireDB()) {
-                            track.setUser(DBHelper.getUser(db.getDaoSession()));
-                            track.setDevice(DBHelper.getDevice(gbDevice, db.getDaoSession()));
-                        } catch (Exception e) {
-                            LOG.error("Cannot acquire DB, set user, or set device for Activity track, continuing anyway");
-                        }
-
-                        for (HuaweiGpsParser.GpsPoint point : points) {
-                            GPSCoordinate coordinate;
-                            if (point.altitudeSupported)
-                                coordinate = new GPSCoordinate(point.longitude, point.latitude, point.altitude);
-                            else
-                                coordinate = new GPSCoordinate(point.longitude, point.latitude);
-
-                            ActivityPoint activityPoint = new ActivityPoint();
-                            activityPoint.setTime(DateTimeUtils.parseTimeStamp(point.timestamp));
-                            activityPoint.setLocation(coordinate);
-
-                            track.addTrackPoint(activityPoint);
-                        }
-
-                        final BaseActivitySummary summary = new HuaweiWorkoutGbParser(getDevice(), getContext())
-                                .parseWorkout(databaseId);
-
-                        if (summary != null) {
-                            AutoGpxExporter.doExport(getContext(), getDevice(), summary, track);
-                            AutoFitExporter.doExport(getContext(), getDevice(), summary, track);
-                        }
+                        autoExportWorkout(databaseId);
 
                         LOG.debug("Completed workout GPS parsing and inserting");
                         syncState.stopWorkoutGpsDownload();
@@ -3207,6 +3215,29 @@ public class HuaweiSupportProvider {
         ), true);
     }
 
+    /** Auto-export after workout sync. */
+    private void autoExportWorkout(@Nullable final Long workoutId) {
+        if (workoutId == null) {
+            LOG.warn("Cannot auto-export workout: missing workout id");
+            return;
+        }
+
+        final BaseActivitySummary summary = new HuaweiWorkoutGbParser(getDevice(), getContext())
+                .parseWorkout(workoutId);
+        if (summary == null) {
+            LOG.warn("Cannot auto-export workout {}: summary not found", workoutId);
+            return;
+        }
+
+        final ActivityTrack exportTrack = new HuaweiActivityTrackProvider(getDevice()).getActivityTrack(summary);
+
+        if (exportTrack != null && exportTrack.getAllPoints().stream().anyMatch(p -> p.getLocation() != null)) {
+            // GPX needs at least one GPS-valid point; FIT can be emitted regardless.
+            AutoGpxExporter.doExport(getContext(), getDevice(), summary, exportTrack);
+        }
+        AutoFitExporter.doExport(getContext(), getDevice(), summary, exportTrack);
+    }
+
     /**
      * Called when there are no more files left to download
      */
@@ -3214,7 +3245,7 @@ public class HuaweiSupportProvider {
         syncState.updateState(needSync);
     }
 
-    public void onTestNewFunction() {
+    public void onTestNewFunction(@Nullable Bundle options) {
 
         AsyncTask.execute(() -> {
             long startTime = System.nanoTime();

@@ -5,8 +5,10 @@ import android.os.Bundle;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
+import android.widget.LinearLayout;
 import android.widget.TextView;
 
+import androidx.annotation.Nullable;
 import androidx.core.content.ContextCompat;
 
 import com.github.mikephil.charting.charts.CandleStickChart;
@@ -17,7 +19,7 @@ import com.github.mikephil.charting.components.YAxis;
 import com.github.mikephil.charting.data.CandleData;
 import com.github.mikephil.charting.data.CandleDataSet;
 import com.github.mikephil.charting.data.CandleEntry;
-import com.github.mikephil.charting.formatter.ValueFormatter;
+import com.github.mikephil.charting.formatter.IAxisValueFormatter;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -31,6 +33,8 @@ import java.util.Locale;
 
 import nodomain.freeyourgadget.gadgetbridge.GBApplication;
 import nodomain.freeyourgadget.gadgetbridge.R;
+import nodomain.freeyourgadget.gadgetbridge.activities.workouts.StatTileData;
+import nodomain.freeyourgadget.gadgetbridge.activities.workouts.StatTileGridUtilKt;
 import nodomain.freeyourgadget.gadgetbridge.database.DBHandler;
 import nodomain.freeyourgadget.gadgetbridge.devices.DeviceCoordinator;
 import nodomain.freeyourgadget.gadgetbridge.devices.TimeSampleProvider;
@@ -51,8 +55,7 @@ public class BodyEnergyPeriodFragment extends AbstractChartFragment<BodyEnergyPe
     private int BODY_ENERGY_COLOR;
 
     private TextView mDateView;
-    private TextView bodyEnergyMinimum;
-    private TextView bodyEnergyMaximum;
+    private LinearLayout bodyEnergyStatsContainer;
     private CandleStickChart bodyEnergyChart;
     private int TOTAL_DAYS;
 
@@ -92,8 +95,7 @@ public class BodyEnergyPeriodFragment extends AbstractChartFragment<BodyEnergyPe
         });
 
         mDateView = rootView.findViewById(R.id.date_view);
-        bodyEnergyMinimum = rootView.findViewById(R.id.body_energy_minimum);
-        bodyEnergyMaximum = rootView.findViewById(R.id.body_energy_maximum);
+        bodyEnergyStatsContainer = rootView.findViewById(R.id.body_energy_period_stats_container);
         bodyEnergyChart = rootView.findViewById(R.id.body_energy_chart);
 
         setupChart();
@@ -167,7 +169,7 @@ public class BodyEnergyPeriodFragment extends AbstractChartFragment<BodyEnergyPe
             if (dayData.minimum > 0 && dayData.maximum > 0) {
                 minAccumulator.add(dayData.minimum);
                 maxAccumulator.add(dayData.maximum);
-                candleEntries.add(new CandleEntry(i, dayData.maximum, dayData.minimum, dayData.minimum, dayData.maximum));
+                candleEntries.add(new CandleEntry<>(i, dayData.maximum, dayData.minimum, dayData.minimum, dayData.maximum, null, null));
             }
         }
 
@@ -175,28 +177,28 @@ public class BodyEnergyPeriodFragment extends AbstractChartFragment<BodyEnergyPe
         final int minimum = minAccumulator.getCount() > 0 ? (int) Math.round(minAccumulator.getMin()) : DATA_INVALID;
         final int maximum = maxAccumulator.getCount() > 0 ? (int) Math.round(maxAccumulator.getMax()) : DATA_INVALID;
 
-        bodyEnergyMinimum.setText(minimum > 0 ? String.valueOf(minimum) : emptyValue);
-        bodyEnergyMaximum.setText(maximum > 0 ? String.valueOf(maximum) : emptyValue);
+        bodyEnergyStatsContainer.removeAllViews();
+        final List<StatTileData> stats = new ArrayList<>();
+        stats.add(new StatTileData(minimum > 0 ? String.valueOf(minimum) : emptyValue, getString(R.string.hr_minimum)));
+        stats.add(new StatTileData(maximum > 0 ? String.valueOf(maximum) : emptyValue, getString(R.string.hr_maximum)));
+        StatTileGridUtilKt.addStatTileGrid(bodyEnergyStatsContainer, requireContext(), stats, 0);
 
         final String fmt = TOTAL_DAYS == 7 ? "EEE" : "dd";
         SimpleDateFormat formatDay = new SimpleDateFormat(fmt, Locale.getDefault());
-        ValueFormatter formatter = new ValueFormatter() {
-            @Override
-            public String getFormattedValue(float value) {
-                int dayIndex = Math.round(value);
-                if (dayIndex < 0 || dayIndex >= TOTAL_DAYS) {
-                    return "";
-                }
-                int ts = startTs + SEC_PER_DAY * dayIndex;
-                return formatDay.format(new Date(ts * 1000L));
+        IAxisValueFormatter formatter = (value, axis) -> {
+            int dayIndex = Math.round(value);
+            if (dayIndex < 0 || dayIndex >= TOTAL_DAYS) {
+                return "";
             }
+            int ts = startTs + SEC_PER_DAY * dayIndex;
+            return formatDay.format(new Date(ts * 1000L));
         };
         bodyEnergyChart.getXAxis().setValueFormatter(formatter);
 
         if (!candleEntries.isEmpty()) {
             CandleDataSet candleDataSet = new CandleDataSet(candleEntries, getString(R.string.body_energy));
-            candleDataSet.setDrawValues(false);
-            candleDataSet.setDrawIcons(false);
+            candleDataSet.setDrawValuesEnabled(false);
+            candleDataSet.setDrawIconsEnabled(false);
             candleDataSet.setAxisDependency(YAxis.AxisDependency.LEFT);
             candleDataSet.setShadowColor(BODY_ENERGY_COLOR);
             candleDataSet.setShadowWidth(2f);
@@ -222,16 +224,16 @@ public class BodyEnergyPeriodFragment extends AbstractChartFragment<BodyEnergyPe
 
         if (TOTAL_DAYS <= 7) {
             bodyEnergyChart.setTouchEnabled(false);
-            bodyEnergyChart.setPinchZoom(false);
+            bodyEnergyChart.setPinchZoomEnabled(false);
         }
         bodyEnergyChart.setDoubleTapToZoomEnabled(false);
 
         final XAxis xAxisBottom = bodyEnergyChart.getXAxis();
         xAxisBottom.setPosition(XAxis.XAxisPosition.BOTTOM);
-        xAxisBottom.setDrawLabels(true);
-        xAxisBottom.setDrawGridLines(false);
+        xAxisBottom.setDrawLabelsEnabled(true);
+        xAxisBottom.setDrawGridLinesEnabled(false);
         xAxisBottom.setEnabled(true);
-        xAxisBottom.setDrawLimitLinesBehindData(true);
+        xAxisBottom.setDrawLimitLinesBehindDataEnabled(true);
         xAxisBottom.setTextColor(CHART_TEXT_COLOR);
         xAxisBottom.setGranularity(1f);
         xAxisBottom.setGranularityEnabled(true);
@@ -239,10 +241,10 @@ public class BodyEnergyPeriodFragment extends AbstractChartFragment<BodyEnergyPe
         xAxisBottom.setAxisMaximum(TOTAL_DAYS - 0.5f);
 
         final YAxis yAxisLeft = bodyEnergyChart.getAxisLeft();
-        yAxisLeft.setDrawGridLines(true);
+        yAxisLeft.setDrawGridLinesEnabled(true);
         yAxisLeft.setAxisMaximum(100f);
         yAxisLeft.setAxisMinimum(0f);
-        yAxisLeft.setDrawTopYLabelEntry(true);
+        yAxisLeft.setDrawTopYLabelEntryEnabled(true);
         yAxisLeft.setTextColor(CHART_TEXT_COLOR);
         yAxisLeft.setEnabled(true);
         yAxisLeft.setGranularity(10f);
@@ -250,9 +252,9 @@ public class BodyEnergyPeriodFragment extends AbstractChartFragment<BodyEnergyPe
 
         final YAxis yAxisRight = bodyEnergyChart.getAxisRight();
         yAxisRight.setEnabled(true);
-        yAxisRight.setDrawLabels(false);
-        yAxisRight.setDrawGridLines(false);
-        yAxisRight.setDrawAxisLine(true);
+        yAxisRight.setDrawLabelsEnabled(false);
+        yAxisRight.setDrawGridLinesEnabled(false);
+        yAxisRight.setDrawAxisLineEnabled(true);
     }
 
     @Override
@@ -260,11 +262,11 @@ public class BodyEnergyPeriodFragment extends AbstractChartFragment<BodyEnergyPe
         List<LegendEntry> legendEntries = new ArrayList<>(1);
 
         LegendEntry rangeEntry = new LegendEntry();
-        rangeEntry.label = getString(R.string.body_energy);
-        rangeEntry.formColor = BODY_ENERGY_COLOR;
+        rangeEntry.setLabel(getString(R.string.body_energy));
+        rangeEntry.setFormColor(BODY_ENERGY_COLOR);
         legendEntries.add(rangeEntry);
 
-        bodyEnergyChart.getLegend().setCustom(legendEntries);
+        bodyEnergyChart.getLegend().setEntries(legendEntries);
         bodyEnergyChart.getLegend().setTextColor(LEGEND_TEXT_COLOR);
         bodyEnergyChart.getLegend().setWordWrapEnabled(true);
     }
@@ -293,5 +295,10 @@ public class BodyEnergyPeriodFragment extends AbstractChartFragment<BodyEnergyPe
             this.maximum = maximum;
         }
     }
-}
 
+    @Nullable
+    @Override
+    public ChartDataRange getAvailableDataRange(final GBDevice device, final DBHandler db) {
+        return ChartDataRange.ofSamples(device.getDeviceCoordinator().getBodyEnergySampleProvider(device, db.getDaoSession()));
+    }
+}

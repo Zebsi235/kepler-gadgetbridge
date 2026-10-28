@@ -26,12 +26,6 @@ import nodomain.freeyourgadget.gadgetbridge.impl.GBDevice;
 
 public class C20ProCoordinator extends AbstractMoyoungDeviceCoordinator {
     @Override
-    public boolean isExperimental() {
-        // alarms do not work,
-        return true;
-    }
-
-    @Override
     protected Pattern getSupportedDeviceName() {
         return Pattern.compile("^C20_Pro$");
     }
@@ -64,7 +58,11 @@ public class C20ProCoordinator extends AbstractMoyoungDeviceCoordinator {
 
     @Override
     public int getAlarmSlotCount(final GBDevice device) {
-        // FIXME it supports alarms, but setting them is not working
-        return 0;
+        return 8;
+    }
+
+    @Override
+    public boolean newAlarmProtocol() {
+        return true;
     }
 }

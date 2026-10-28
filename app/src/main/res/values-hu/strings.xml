@@ -4539,4 +4539,7 @@
     <string name="sony_voice_assistant_function">Hangsegéd-funkció</string>
     <string name="sony_voice_assistant_mobile_device">Hangsegéd (hordozható eszköz)</string>
     <string name="sony_service_link">Szolgáltatás hivatkozása</string>
+    <string name="controlcenter_get_spo2_measurement">Véroxigén szint mérés indítása</string>
+    <string name="appmanager_app_store">App áruház</string>
+    <string name="refresh">Frissítés</string>
 </resources>

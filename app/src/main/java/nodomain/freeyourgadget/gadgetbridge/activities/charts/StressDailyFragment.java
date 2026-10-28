@@ -26,6 +26,7 @@ import android.text.style.RelativeSizeSpan;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
+import android.widget.LinearLayout;
 import android.widget.TextView;
 
 import com.github.mikephil.charting.animation.Easing;
@@ -42,8 +43,9 @@ import com.github.mikephil.charting.data.LineDataSet;
 import com.github.mikephil.charting.data.PieData;
 import com.github.mikephil.charting.data.PieDataSet;
 import com.github.mikephil.charting.data.PieEntry;
-import com.github.mikephil.charting.formatter.ValueFormatter;
+import com.github.mikephil.charting.formatter.IAxisValueFormatter;
 import com.github.mikephil.charting.interfaces.datasets.ILineDataSet;
+import com.github.mikephil.charting.utils.ViewPortHandler;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -60,6 +62,8 @@ import java.util.concurrent.TimeUnit;
 
 import nodomain.freeyourgadget.gadgetbridge.GBApplication;
 import nodomain.freeyourgadget.gadgetbridge.R;
+import nodomain.freeyourgadget.gadgetbridge.activities.workouts.StatTileData;
+import nodomain.freeyourgadget.gadgetbridge.activities.workouts.StatTileGridUtilKt;
 import nodomain.freeyourgadget.gadgetbridge.database.DBHandler;
 import nodomain.freeyourgadget.gadgetbridge.impl.GBDevice;
 import nodomain.freeyourgadget.gadgetbridge.model.StressSample;
@@ -71,10 +75,7 @@ public class StressDailyFragment extends StressFragment<StressDailyFragment.Stre
 
     private LineChart mStressChart;
     private PieChart mStressLevelsPieChart;
-    private TextView stressChartRelaxedTime;
-    private TextView stressChartMildTime;
-    private TextView stressChartModerateTime;
-    private TextView stressChartHighTime;
+    private LinearLayout mStatsContainer;
     private TextView stressDate;
 
     private String STRESS_AVERAGE_LABEL;
@@ -114,27 +115,37 @@ public class StressDailyFragment extends StressFragment<StressDailyFragment.Stre
     protected LineDataSet createDataSet(final StressType stressType, final List<Entry> values) {
         final LineDataSet lineDataSet = new LineDataSet(values, stressType.getLabel(requireContext()));
         lineDataSet.setColor(stressType.getColor(requireContext()));
-        lineDataSet.setDrawFilled(true);
-        lineDataSet.setDrawCircles(false);
+        lineDataSet.setDrawFilledEnabled(true);
+        lineDataSet.setDrawCirclesEnabled(false);
         lineDataSet.setFillColor(stressType.getColor(requireContext()));
         lineDataSet.setFillAlpha(255);
-        lineDataSet.setDrawValues(false);
+        lineDataSet.setDrawValuesEnabled(false);
         lineDataSet.setValueTextColor(CHART_TEXT_COLOR);
         lineDataSet.setAxisDependency(YAxis.AxisDependency.LEFT);
         return lineDataSet;
     }
 
-    private void setZoneValue(TextView tv, Integer value, long totalStressTime) {
-        if(showStressLevelInPercents) {
-            int valuePercent = (value == null || totalStressTime == 0)? 0: (int) Math.round(((double) value / totalStressTime) * 100);
-            tv.setText(String.format(Locale.ROOT,"%d%%", valuePercent));
-        } else {
-            if (value != null && value > 0) {
-                tv.setText(DateTimeUtils.formatDurationHoursMinutes(value, TimeUnit.SECONDS));
-            } else {
-                tv.setText(R.string.stats_empty_value);
-            }
+    private String formatZoneValue(Integer value, long totalStressTime) {
+        if (showStressLevelInPercents) {
+            int valuePercent = (value == null || totalStressTime == 0) ? 0 : (int) Math.round(((double) value / totalStressTime) * 100);
+            return String.format(Locale.ROOT, "%d%%", valuePercent);
         }
+        if (value != null && value > 0) {
+            return DateTimeUtils.formatDurationHoursMinutes(value, TimeUnit.SECONDS);
+        }
+        return getString(R.string.stats_empty_value);
+    }
+
+    private StatTileData buildZoneTile(StressType stressType, Integer value, long totalStressTime) {
+        return new StatTileData(
+                formatZoneValue(value, totalStressTime),
+                stressType.getLabel(requireContext()),
+                null,
+                null,
+                null,
+                null,
+                stressType.getColor(requireContext())
+        );
     }
 
     @Override
@@ -146,10 +157,13 @@ public class StressDailyFragment extends StressFragment<StressDailyFragment.Stre
         stressDate.setText(formattedDate);
 
         Map<StressType, Integer> stressZoneTimes = stressData.getStressZoneTimes();
-        setZoneValue(stressChartRelaxedTime, stressZoneTimes.get(StressType.RELAXED), stressData.getTotalStressTime());
-        setZoneValue(stressChartMildTime, stressZoneTimes.get(StressType.MILD), stressData.getTotalStressTime());
-        setZoneValue(stressChartModerateTime, stressZoneTimes.get(StressType.MODERATE), stressData.getTotalStressTime());
-        setZoneValue(stressChartHighTime, stressZoneTimes.get(StressType.HIGH), stressData.getTotalStressTime());
+        final List<StatTileData> stats = new ArrayList<>();
+        stats.add(buildZoneTile(StressType.RELAXED, stressZoneTimes.get(StressType.RELAXED), stressData.getTotalStressTime()));
+        stats.add(buildZoneTile(StressType.MILD, stressZoneTimes.get(StressType.MILD), stressData.getTotalStressTime()));
+        stats.add(buildZoneTile(StressType.MODERATE, stressZoneTimes.get(StressType.MODERATE), stressData.getTotalStressTime()));
+        stats.add(buildZoneTile(StressType.HIGH, stressZoneTimes.get(StressType.HIGH), stressData.getTotalStressTime()));
+        mStatsContainer.removeAllViews();
+        StatTileGridUtilKt.addStatTileGrid(mStatsContainer, requireContext(), stats, 0);
 
         if (stressData.getAverage() > 0) {
             int noc = String.valueOf(stressData.getAverage()).length();
@@ -174,7 +188,7 @@ public class StressDailyFragment extends StressFragment<StressDailyFragment.Stre
         mStressChart.getAxisRight().removeAllLimitLines();
 
         if (stressData.getAverage() > 0) {
-            final LimitLine averageLine = new LimitLine(stressData.getAverage());
+            final LimitLine averageLine = new LimitLine(stressData.getAverage(), "");
             averageLine.setLineColor(Color.GRAY);
             averageLine.setLineWidth(1.5f);
             averageLine.enableDashedLine(15f, 10f, 0f);
@@ -192,10 +206,7 @@ public class StressDailyFragment extends StressFragment<StressDailyFragment.Stre
 
         mStressChart = rootView.findViewById(R.id.stress_line_chart);
         mStressLevelsPieChart = rootView.findViewById(R.id.stress_pie_chart);
-        stressChartRelaxedTime = rootView.findViewById(R.id.stress_chart_relaxed_time);
-        stressChartMildTime = rootView.findViewById(R.id.stress_chart_mild_time);
-        stressChartModerateTime = rootView.findViewById(R.id.stress_chart_moderate_time);
-        stressChartHighTime = rootView.findViewById(R.id.stress_chart_high_time);
+        mStatsContainer = rootView.findViewById(R.id.stress_stats_container);
         stressDate = rootView.findViewById(R.id.stress_date);
 
         setupLineChart();
@@ -213,12 +224,13 @@ public class StressDailyFragment extends StressFragment<StressDailyFragment.Stre
         mStressLevelsPieChart.setEntryLabelColor(DESCRIPTION_COLOR);
         mStressLevelsPieChart.getDescription().setText("");
         mStressLevelsPieChart.setNoDataText("");
+        mStressLevelsPieChart.setNoDataIconEnabled(false);
         mStressLevelsPieChart.setTouchEnabled(false);
         mStressLevelsPieChart.setCenterTextColor(GBApplication.getTextColor(getContext()));
         mStressLevelsPieChart.setCenterTextSize(18f);
         mStressLevelsPieChart.setHoleColor(requireContext().getResources().getColor(R.color.transparent));
         mStressLevelsPieChart.setHoleRadius(85);
-        mStressLevelsPieChart.setDrawEntryLabels(false);
+        mStressLevelsPieChart.setDrawEntryLabelsEnabled(false);
         mStressLevelsPieChart.getLegend().setEnabled(false);
     }
 
@@ -228,27 +240,27 @@ public class StressDailyFragment extends StressFragment<StressDailyFragment.Stre
         configureBarLineChartDefaults(mStressChart);
 
         final XAxis x = mStressChart.getXAxis();
-        x.setDrawLabels(true);
-        x.setDrawGridLines(false);
+        x.setDrawLabelsEnabled(true);
+        x.setDrawGridLinesEnabled(false);
         x.setEnabled(true);
         x.setTextColor(CHART_TEXT_COLOR);
-        x.setDrawLimitLinesBehindData(true);
+        x.setDrawLimitLinesBehindDataEnabled(true);
         x.setAxisMinimum(0f);
         x.setAxisMaximum(86400f);
 
         final YAxis yAxisLeft = mStressChart.getAxisLeft();
-        yAxisLeft.setDrawGridLines(true);
+        yAxisLeft.setDrawGridLinesEnabled(true);
         yAxisLeft.setAxisMaximum(100f);
         yAxisLeft.setAxisMinimum(0);
-        yAxisLeft.setDrawTopYLabelEntry(false);
+        yAxisLeft.setDrawTopYLabelEntryEnabled(false);
         yAxisLeft.setTextColor(CHART_TEXT_COLOR);
         yAxisLeft.setEnabled(true);
 
         final YAxis yAxisRight = mStressChart.getAxisRight();
-        yAxisRight.setDrawGridLines(false);
+        yAxisRight.setDrawGridLinesEnabled(false);
         yAxisRight.setEnabled(true);
-        yAxisRight.setDrawLabels(false);
-        yAxisRight.setDrawTopYLabelEntry(true);
+        yAxisRight.setDrawLabelsEnabled(false);
+        yAxisRight.setDrawTopYLabelEntryEnabled(true);
         yAxisRight.setTextColor(CHART_TEXT_COLOR);
         yAxisRight.setAxisMaximum(100f);
         yAxisRight.setAxisMinimum(0);
@@ -260,18 +272,18 @@ public class StressDailyFragment extends StressFragment<StressDailyFragment.Stre
 
         if (SHOW_CHARTS_AVERAGE) {
             final LegendEntry averageEntry = new LegendEntry();
-            averageEntry.label = STRESS_AVERAGE_LABEL;
-            averageEntry.formColor = Color.GRAY;
+            averageEntry.setLabel(STRESS_AVERAGE_LABEL);
+            averageEntry.setFormColor(Color.GRAY);
             legendEntries.add(averageEntry);
         }
 
-        chart.getLegend().setCustom(legendEntries);
+        chart.getLegend().setEntries(legendEntries);
         chart.getLegend().setTextColor(LEGEND_TEXT_COLOR);
     }
 
     @Override
     protected void renderCharts() {
-        mStressChart.animateX(ANIM_TIME, Easing.EaseInOutQuart);
+        mStressChart.animateX(ANIM_TIME, Easing.INSTANCE.getEaseInOutQuart());
         mStressLevelsPieChart.invalidate();
     }
 
@@ -394,9 +406,9 @@ public class StressDailyFragment extends StressFragment<StressDailyFragment.Stre
         private void set(final int ts, final StressType stressType, final int stress) {
             for (final Map.Entry<StressType, List<Entry>> stressTypeListEntry : lineEntriesPerLevel.entrySet()) {
                 if (stressTypeListEntry.getKey() == stressType) {
-                    stressTypeListEntry.getValue().add(new Entry(ts, stress));
+                    stressTypeListEntry.getValue().add(new Entry<>(ts, stress, null, null));
                 } else {
-                    stressTypeListEntry.getValue().add(new Entry(ts, 0));
+                    stressTypeListEntry.getValue().add(new Entry<>(ts, 0, null, null));
                 }
             }
         }
@@ -404,7 +416,7 @@ public class StressDailyFragment extends StressFragment<StressDailyFragment.Stre
         public StressChartsData build() {
             processSamples();
 
-            final List<ILineDataSet> lineDataSets = new ArrayList<>();
+            final List<ILineDataSet<?>> lineDataSets = new ArrayList<>();
             final List<PieEntry> pieEntries = new ArrayList<>();
             final List<Integer> pieColors = new ArrayList<>();
             final Map<StressType, Integer> stressZoneTimes = new HashMap<>();
@@ -419,20 +431,20 @@ public class StressDailyFragment extends StressFragment<StressDailyFragment.Stre
 
                 if (stressType != StressType.UNKNOWN && stressTime != null && stressTime != 0) {
                     totalStressTime += stressTime;
-                    pieEntries.add(new PieEntry(stressTime, stressType.getLabel(requireContext())));
+                    pieEntries.add(new PieEntry<>(stressTime, stressType.getLabel(requireContext()), null, null));
                     pieColors.add(stressType.getColor(requireContext()));
                 }
             }
 
             if (pieEntries.isEmpty()) {
-                pieEntries.add(new PieEntry(1));
+                pieEntries.add(new PieEntry<>(1, null, null, null));
                 pieColors.add(getResources().getColor(R.color.gauge_line_color));
             }
 
             final PieDataSet pieDataSet = new PieDataSet(pieEntries, "");
-            pieDataSet.setValueFormatter(new ValueFormatter() {
+            pieDataSet.setValueFormatter(new DataSetValueFormatter() {
                 @Override
-                public String getFormattedValue(float value) {
+                public String getFormattedValue(final float value, final Entry<?> entry, final int dataSetIndex, final ViewPortHandler viewPortHandler) {
                     return DateTimeUtils.formatDurationHoursMinutes((long) value, TimeUnit.SECONDS);
                 }
             });
@@ -441,12 +453,12 @@ public class StressDailyFragment extends StressFragment<StressDailyFragment.Stre
             pieDataSet.setValueTextSize(13f);
             pieDataSet.setXValuePosition(PieDataSet.ValuePosition.OUTSIDE_SLICE);
             pieDataSet.setYValuePosition(PieDataSet.ValuePosition.OUTSIDE_SLICE);
-            pieDataSet.setDrawValues(false);
+            pieDataSet.setDrawValuesEnabled(false);
             pieDataSet.setSliceSpace(2f);
             final PieData pieData = new PieData(pieDataSet);
 
             final LineData lineData = new LineData(lineDataSets);
-            final ValueFormatter xValueFormatter = new SampleXLabelFormatter(tsTranslation, "HH:mm");
+            final IAxisValueFormatter xValueFormatter = new SampleXLabelFormatter(tsTranslation, "HH:mm");
             final DefaultChartsData<LineData> chartsData = new DefaultChartsData<>(lineData, xValueFormatter);
             return new StressChartsData(pieData, chartsData, Math.round((float) averageSum / averageNumSamples), stressZoneTimes, totalStressTime);
         }
