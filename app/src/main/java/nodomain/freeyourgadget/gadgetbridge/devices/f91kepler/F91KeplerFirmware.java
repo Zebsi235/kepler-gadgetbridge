@@ -82,6 +82,11 @@ public final class F91KeplerFirmware {
     public static final int[] MIN_32 = {3, 2, 0};
     /** The lost-phone alert: 3.2.1 can beep falsely ~90 s after the radio comes back on. */
     public static final int[] MIN_LOST_ALERT = {3, 2, 2};
+    /**
+     * TimeZone B2F2 also takes a 4-byte int32 (UTC+14..UTC-12), FW91
+     * fix/timezone-range, 3.3.2. Before it only int16 (+-9 h 06 min) fits.
+     */
+    public static final int[] MIN_WIDE_TZ = {3, 3, 2};
 
     private static final Pattern VERSION = Pattern.compile("^\\s*v?(\\d+)\\.(\\d+)\\.(\\d+)");
 

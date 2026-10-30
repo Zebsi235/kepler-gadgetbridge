@@ -48,10 +48,15 @@ final class F91KeplerProtocol {
                 .array();
     }
 
+    /** Range the firmware accepts in a 4-byte TimeZone write (3.3.2): UTC+14 .. UTC-12, inclusive. */
+    static final int TZ_WEST_MIN = -50400;
+    static final int TZ_WEST_MAX = 43200;
+
     /**
      * TimeZone characteristic: signed seconds WEST of UTC as int16 little-endian
      * (2 bytes). East-of-UTC zones are negative (Berlin/CET = -3600). Clamped to
-     * the int16 range, which covers every real offset except UTC+12/13/14.
+     * the int16 range, +-32767 s = +-9 h 06 min: UTC+10 and further east and
+     * UTC-10 and further west do not fit (see {@link #timezoneWestWide}).
      */
     static byte[] timezoneWest(final int secondsWest) {
         final int clamped = Math.max(Short.MIN_VALUE, Math.min(Short.MAX_VALUE, secondsWest));
@@ -59,6 +64,24 @@ final class F91KeplerProtocol {
                 .order(ByteOrder.LITTLE_ENDIAN)
                 .putShort((short) clamped)
                 .array();
+    }
+
+    /**
+     * TimeZone characteristic, wide form (firmware 3.3.2+): signed seconds WEST
+     * of UTC as int32 little-endian (4 bytes). Clamped to the range the firmware
+     * accepts; anything outside it would be refused with an ATT error.
+     */
+    static byte[] timezoneWestWide(final int secondsWest) {
+        final int clamped = Math.max(TZ_WEST_MIN, Math.min(TZ_WEST_MAX, secondsWest));
+        return ByteBuffer.allocate(4)
+                .order(ByteOrder.LITTLE_ENDIAN)
+                .putInt(clamped)
+                .array();
+    }
+
+    /** True when the offset fits the legacy 2-byte form unclamped. */
+    static boolean timezoneFitsInt16(final int secondsWest) {
+        return secondsWest >= Short.MIN_VALUE && secondsWest <= Short.MAX_VALUE;
     }
 
     /** Time mode characteristic: 0x00 = 12-hour, 0x01 = 24-hour. */
