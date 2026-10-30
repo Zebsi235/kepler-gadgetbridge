@@ -188,6 +188,17 @@ android {
                 keyPassword System.getProperty("kepler_key_password")
             }
         }
+        // Kepler fork: the same key for a non-debuggable release build, so a release
+        // APK installs over the debug-built ones users already have. Prepared, not yet
+        // published by CI; see docs/KEPLER_RELEASE_BUILD.md.
+        keplerRelease {
+            if (System.getProperty("kepler_store_file") != null) {
+                storeFile file(System.getProperty("kepler_store_file"))
+                storePassword System.getProperty("kepler_store_password")
+                keyAlias System.getProperty("kepler_key_alias")
+                keyPassword System.getProperty("kepler_key_password")
+            }
+        }
     }
 
     flavorDimensions += "device_type"
@@ -238,6 +249,12 @@ android {
         release {
             minifyEnabled true
             proguardFiles getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro"
+
+            // Kepler fork: sign with the Kepler key only when it is supplied;
+            // otherwise the release APK stays unsigned, as upstream builds it.
+            if (System.getProperty("kepler_store_file") != null) {
+                signingConfig = signingConfigs.keplerRelease
+            }
         }
 
         nightly {

@@ -16,6 +16,13 @@ on:
     tags: [ "v*" ]
   pull_request:
   workflow_dispatch:
+    inputs:
+      release_build:
+        # Opt-in check of the prepared non-debuggable build (docs/KEPLER_RELEASE_BUILD.md).
+        # Uploaded as a workflow artifact only, never as a GitHub Release.
+        description: "Also build the mainline release APK (artifact only)"
+        type: boolean
+        default: false
 
 permissions:
   contents: write   # create releases + upload assets on tag builds
@@ -113,6 +120,28 @@ jobs:
         with:
           name: kepler-mainline-debug
           path: ${{ steps.apk.outputs.path }}
+          if-no-files-found: error
+
+      - name: Build mainline release APK (opt-in)
+        if: ${{ github.event_name == 'workflow_dispatch' && inputs.release_build }}
+        id: release_apk
+        run: |
+          ./gradlew :app:assembleMainlineRelease --stacktrace
+          SRC=$(find app/build/outputs/apk/mainline/release -name "*.apk" | head -1)
+          if [ -z "$SRC" ]; then echo "No release APK produced" >&2; exit 1; fi
+          VER=$(grep -oE 'versionName "[0-9.]+"' app/build.gradle | grep -oE '[0-9.]+')
+          CODE=$(grep -oE 'versionCode [0-9]+' app/build.gradle | grep -oE '[0-9]+')
+          OUT="Gadgetbridge-Kepler-${VER}-vc${CODE}-release.apk"
+          cp "$SRC" "$OUT"
+          echo "path=$OUT" >> "$GITHUB_OUTPUT"
+          echo "Built $OUT from $SRC (signed=${{ steps.signing.outputs.signed }})"
+
+      - name: Upload release APK artifact (opt-in)
+        if: ${{ github.event_name == 'workflow_dispatch' && inputs.release_build }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: kepler-mainline-release
+          path: ${{ steps.release_apk.outputs.path }}
           if-no-files-found: error
 
       - name: Publish GitHub Release
