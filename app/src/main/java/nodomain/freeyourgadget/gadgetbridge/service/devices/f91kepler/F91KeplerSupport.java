@@ -68,6 +68,7 @@ import nodomain.freeyourgadget.gadgetbridge.model.WeatherSpec;
 import nodomain.freeyourgadget.gadgetbridge.model.weather.Weather;
 import nodomain.freeyourgadget.gadgetbridge.util.AlarmUtils;
 import nodomain.freeyourgadget.gadgetbridge.util.GB;
+import nodomain.freeyourgadget.gadgetbridge.util.notifications.GBProgressNotification;
 import nodomain.freeyourgadget.gadgetbridge.service.btle.AbstractBTLESingleDeviceSupport;
 import nodomain.freeyourgadget.gadgetbridge.service.btle.GattService;
 import nodomain.freeyourgadget.gadgetbridge.service.btle.TransactionBuilder;
@@ -122,10 +123,15 @@ public class F91KeplerSupport extends AbstractBTLESingleDeviceSupport {
     /** Uploads spent on the current frame; reset once the watch confirms it.
      *  Touched from both the service thread and the GATT callback thread. */
     private volatile int imageAttempts;
-    /** Set when a round ran out of attempts, so a watch that keeps refusing the
-     *  image is not re-uploaded to (and re-toasted about) on every reconnect.
-     *  Cleared when the user sends an image again. */
-    private volatile boolean imageGaveUp;
+    /** The frame a round ran out of attempts on, so a watch that keeps refusing
+     *  it is not re-uploaded to (and re-toasted about) on every reconnect. A
+     *  different stored frame (a new image, also one saved while the watch was
+     *  away) or a new Send clears it. */
+    private volatile byte[] gaveUpFrame;
+    /** An upload is on the air: a second Send waits for it instead of queueing
+     *  another 28 writes whose trailing reads would confuse the first. */
+    private volatile boolean imageUploading;
+    private GBProgressNotification imageNotification;
 
     /**
      * Firmware 3.1 alarm read-back: the five slots as the watch holds them,
@@ -394,6 +400,9 @@ public class F91KeplerSupport extends AbstractBTLESingleDeviceSupport {
     @Override
     public void dispose() {
         stuckHandler.removeCallbacksAndMessages(null);
+        if (imageNotification != null) {
+            imageNotification.finish();
+        }
         super.dispose();
     }
 
@@ -410,6 +419,12 @@ public class F91KeplerSupport extends AbstractBTLESingleDeviceSupport {
             bondWatch().onLinkUp();
         } else if (newState == BluetoothProfile.STATE_DISCONNECTED) {
             stuckHandler.removeCallbacksAndMessages(null);
+            if (imageUploading) {
+                // The queue is dropped without write callbacks, so nothing else
+                // would tell the user; the stored frame goes on the next connect.
+                LOG.info("F91 link dropped during an image upload, it is sent again on reconnect");
+                endImageUpload(F91KeplerConstants.IMAGE_STATE_INTERRUPTED);
+            }
             final boolean bonded = gatt.getDevice().getBondState() == BluetoothDevice.BOND_BONDED;
             final boolean offer = bondWatch().onLinkDown(status, bonded);
             LOG.info("F91 link down: status {} bonded {} failed links in a row {}",
@@ -1334,7 +1349,8 @@ public class F91KeplerSupport extends AbstractBTLESingleDeviceSupport {
      */
     private void addImageCheck(final TransactionBuilder builder) {
         imageAttempts = 0;
-        if (imageGaveUp || F91KeplerImageStore.load(getDevice()) == null) {
+        final byte[] frame = F91KeplerImageStore.load(getDevice());
+        if (frame == null || java.util.Arrays.equals(frame, gaveUpFrame)) {
             return;
         }
         builder.read(F91KeplerConstants.UUID_CHAR_IMAGE_CONTROL);
@@ -1366,14 +1382,17 @@ public class F91KeplerSupport extends AbstractBTLESingleDeviceSupport {
                 LOG.debug("F91 watch already holds the stored image, skipping the upload");
             }
             imageAttempts = 0;
+            // Also when it was already there: a screen waiting for the watch learns it is done.
+            endImageUpload(F91KeplerConstants.IMAGE_STATE_DONE);
             return;
         }
         if (imageAttempts >= IMAGE_MAX_ATTEMPTS) {
             LOG.warn("F91 image not confirmed after {} upload attempts, giving up", imageAttempts);
             imageAttempts = 0;
-            imageGaveUp = true;
+            gaveUpFrame = frame;
             GB.toast(getContext(), getContext().getString(R.string.f91_image_upload_failed),
                      Toast.LENGTH_LONG, GB.ERROR);
+            endImageUpload(F91KeplerConstants.IMAGE_STATE_FAILED);
             return;
         }
         imageAttempts++;
@@ -1395,15 +1414,71 @@ public class F91KeplerSupport extends AbstractBTLESingleDeviceSupport {
      * instead.
      */
     private void sendImage(final byte[] frame) {
+        final byte[][] chunks = F91KeplerProtocol.imageChunks(frame);
+        // begin + chunks + commit; the trailing read is the confirmation, not progress.
+        final int total = chunks.length + 2;
+        startImageUpload(total);
         final TransactionBuilder builder = createTransactionBuilder("send image");
         builder.write(F91KeplerConstants.UUID_CHAR_IMAGE_CONTROL, F91KeplerProtocol.imageBegin());
-        for (final byte[] chunk : F91KeplerProtocol.imageChunks(frame)) {
-            builder.write(F91KeplerConstants.UUID_CHAR_IMAGE_CHUNK, chunk);
+        for (int i = 0; i < chunks.length; i++) {
+            builder.write(F91KeplerConstants.UUID_CHAR_IMAGE_CHUNK, chunks[i]);
+            final int done = i + 2;
+            builder.run(() -> reportImageProgress(done, total));
         }
         builder.write(F91KeplerConstants.UUID_CHAR_IMAGE_CONTROL,
                       F91KeplerProtocol.imageCommit(F91KeplerImageCodec.xor8(frame)));
+        builder.run(() -> reportImageProgress(total, total));
         builder.read(F91KeplerConstants.UUID_CHAR_IMAGE_CONTROL);
         builder.queue();
+    }
+
+    /** Device card shows "busy", a progress notification starts, an open image screen hears 0 %. */
+    private void startImageUpload(final int total) {
+        imageUploading = true;
+        if (!getDevice().isBusy()) {
+            getDevice().setBusyTask(R.string.f91_image_sending, getContext());
+            getDevice().sendDeviceUpdateIntent(getContext());
+        }
+        if (imageNotification == null) {
+            imageNotification = new GBProgressNotification(getContext(), GB.NOTIFICATION_CHANNEL_ID_TRANSFER);
+        }
+        imageNotification.start(R.string.f91_image_notification_title, R.string.f91_image_sending, total);
+        broadcastImageState(F91KeplerConstants.IMAGE_STATE_SENDING, 0);
+    }
+
+    private void reportImageProgress(final int done, final int total) {
+        if (!imageUploading) {
+            return;
+        }
+        if (imageNotification != null) {
+            imageNotification.setTotalProgress(done);
+        }
+        broadcastImageState(F91KeplerConstants.IMAGE_STATE_SENDING,
+                            F91KeplerProtocol.imageProgressPercent(done, total));
+    }
+
+    /** End of an upload (or of waiting for one): clear "busy" and say how it went. */
+    private void endImageUpload(final int state) {
+        final boolean wasUploading = imageUploading;
+        imageUploading = false;
+        if (wasUploading) {
+            if (getContext().getString(R.string.f91_image_sending).equals(getDevice().getBusyTask())) {
+                getDevice().unsetBusyTask();
+                getDevice().sendDeviceUpdateIntent(getContext());
+            }
+            if (imageNotification != null) {
+                imageNotification.finish();
+            }
+        }
+        broadcastImageState(state, state == F91KeplerConstants.IMAGE_STATE_DONE ? 100 : 0);
+    }
+
+    private void broadcastImageState(final int state, final int percent) {
+        final Intent intent = new Intent(F91KeplerConstants.ACTION_IMAGE_STATUS)
+                .putExtra(F91KeplerConstants.EXTRA_IMAGE_ADDRESS, getDevice().getAddress())
+                .putExtra(F91KeplerConstants.EXTRA_IMAGE_STATE, state)
+                .putExtra(F91KeplerConstants.EXTRA_IMAGE_PERCENT, percent);
+        LocalBroadcastManager.getInstance(getContext()).sendBroadcast(intent);
     }
 
     // --- Settings -----------------------------------------------------------
@@ -1524,7 +1599,18 @@ public class F91KeplerSupport extends AbstractBTLESingleDeviceSupport {
                     break;
                 }
                 // An explicit send is also the way out of a given-up round.
-                imageGaveUp = false;
+                gaveUpFrame = null;
+                if (!getDevice().isInitialized()) {
+                    // The connect check sends the stored frame.
+                    broadcastImageState(F91KeplerConstants.IMAGE_STATE_WAITING, 0);
+                    break;
+                }
+                if (imageUploading) {
+                    // Its trailing read compares against the newest stored frame,
+                    // and a mismatch spends the retry on it.
+                    LOG.debug("F91 image upload already running, not starting a second one");
+                    break;
+                }
                 imageAttempts = 1;
                 sendImage(frame);
                 break;

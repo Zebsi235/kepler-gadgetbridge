@@ -83,6 +83,11 @@
     <string name="f91_image_store_failed">Bild konnte nicht gespeichert werden</string>
     <string name="f91_image_load_failed">Dieses Bild konnte nicht gelesen werden</string>
     <string name="f91_image_no_device">Dem Bildschirm wurde keine Uhr übergeben</string>
+    <string name="f91_image_notification_title">Bild für die Kepler Watch</string>
+    <string name="f91_image_sending_percent">Bild wird an die Uhr gesendet … %1$d %%</string>
+    <string name="f91_image_failed_retry">Die Uhr hat das Bild nicht bestätigt. Tippe auf „Erneut versuchen“.</string>
+    <string name="f91_image_retry">Erneut versuchen</string>
+    <string name="f91_image_interrupted">Die Verbindung zur Uhr ist abgebrochen. Das Bild wird erneut gesendet, sobald sie wieder verbunden ist.</string>
     <string name="f91kepler_pair_again_title">Die Uhr erkennt dieses Telefon nicht mehr</string>
     <string name="f91kepler_pair_again_text">%1$s wurde zurückgesetzt oder anderswo neu gekoppelt und hat die Kopplung mit diesem Telefon verloren, daher kann sie sich nicht verbinden. Tippe auf Erneut koppeln, um die alte Kopplung zu entfernen und neu zu koppeln.</string>
     <string name="f91kepler_pair_again_action">Erneut koppeln</string>

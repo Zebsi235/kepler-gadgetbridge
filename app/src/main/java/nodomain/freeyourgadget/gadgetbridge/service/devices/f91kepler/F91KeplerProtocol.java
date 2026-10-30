@@ -338,6 +338,14 @@ final class F91KeplerProtocol {
         return new byte[]{F91KeplerConstants.IMAGE_CTRL_COMMIT, xor8};
     }
 
+    /** Percent done after {@code done} of {@code total} image writes, 0-100. */
+    static int imageProgressPercent(final int done, final int total) {
+        if (total <= 0) {
+            return 0;
+        }
+        return Math.max(0, Math.min(100, done * 100 / total));
+    }
+
     /**
      * Split a 480-byte frame into the 26 ImageChunk writes: {@code [seq][data]},
      * where chunk {@code seq} carries the 19 bytes at offset {@code seq * 19} and

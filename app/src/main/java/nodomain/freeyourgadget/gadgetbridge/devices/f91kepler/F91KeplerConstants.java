@@ -365,4 +365,22 @@ public final class F91KeplerConstants {
     /** Opens {@link F91KeplerImageActivity}; also the onSendConfiguration key the
      *  activity uses to ask the service to upload the stored frame. */
     public static final String PREF_IMAGE_UPLOAD = "f91_image_upload";
+
+    /** Local broadcast: how the stored image is getting on its way to the watch. */
+    public static final String ACTION_IMAGE_STATUS = "nodomain.freeyourgadget.gadgetbridge.f91kepler.action.IMAGE_STATUS";
+    /** The watch's address, so an image screen only listens to its own watch. */
+    public static final String EXTRA_IMAGE_ADDRESS = "address";
+    /** One of the IMAGE_STATE_* values. */
+    public static final String EXTRA_IMAGE_STATE = "state";
+    /** 0-100 while {@link #IMAGE_STATE_SENDING}. */
+    public static final String EXTRA_IMAGE_PERCENT = "percent";
+    public static final int IMAGE_STATE_SENDING = 1;
+    /** The watch confirmed the checksum of the stored image. */
+    public static final int IMAGE_STATE_DONE = 2;
+    /** Two uploads were not confirmed; a new Send tries again. */
+    public static final int IMAGE_STATE_FAILED = 3;
+    /** The link dropped mid-upload; the next connect sends it again. */
+    public static final int IMAGE_STATE_INTERRUPTED = 4;
+    /** Saved while the watch is away; the next connect sends it. */
+    public static final int IMAGE_STATE_WAITING = 5;
 }

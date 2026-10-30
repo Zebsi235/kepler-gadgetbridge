@@ -16,8 +16,13 @@
     along with this program.  If not, see <https://www.gnu.org/licenses/>. */
 package nodomain.freeyourgadget.gadgetbridge.devices.f91kepler;
 
+import android.content.BroadcastReceiver;
+import android.content.Context;
+import android.content.Intent;
+import android.content.IntentFilter;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
+import android.graphics.Matrix;
 import android.graphics.drawable.Drawable;
 import android.net.Uri;
 import android.os.Bundle;
@@ -26,6 +31,7 @@ import android.view.View;
 import android.widget.Button;
 import android.widget.CompoundButton;
 import android.widget.ImageView;
+import android.widget.ProgressBar;
 import android.widget.SeekBar;
 import android.widget.TextView;
 import android.widget.Toast;
@@ -35,6 +41,8 @@ import androidx.activity.result.contract.ActivityResultContracts;
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import androidx.appcompat.widget.SwitchCompat;
+import androidx.exifinterface.media.ExifInterface;
+import androidx.localbroadcastmanager.content.LocalBroadcastManager;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -57,7 +65,9 @@ import nodomain.freeyourgadget.gadgetbridge.util.GB;
  * preview is the packed result blown up with nearest-neighbour sampling, so what is
  * on screen is pixel-exact what the watch will light. Pressing send stores the frame
  * (see {@link F91KeplerImageStore}) and asks the service to upload it; if the watch
- * is away, the stored frame goes out on the next connect instead.
+ * is away, the stored frame goes out on the next connect instead. The service
+ * reports the upload ({@link F91KeplerConstants#ACTION_IMAGE_STATUS}): a progress
+ * bar while it runs, then sent, failed (Send turns into Try again) or interrupted.
  */
 public class F91KeplerImageActivity extends AbstractGBActivity {
     private static final Logger LOG = LoggerFactory.getLogger(F91KeplerImageActivity.class);
@@ -81,6 +91,30 @@ public class F91KeplerImageActivity extends AbstractGBActivity {
     private SeekBar thresholdBar;
     private SwitchCompat invertSwitch;
     private Button sendButton;
+    private ProgressBar progress;
+
+    /** An upload is running: Send stays off and the status line belongs to it. */
+    private boolean uploading;
+
+    private final BroadcastReceiver imageStatusReceiver = new BroadcastReceiver() {
+        @Override
+        public void onReceive(final Context context, final Intent intent) {
+            if (GBDevice.ACTION_DEVICE_CHANGED.equals(intent.getAction())) {
+                final GBDevice changed = intent.getParcelableExtra(GBDevice.EXTRA_DEVICE);
+                // A send the service never got to (the link went just as it was
+                // tapped) would otherwise leave Send switched off for good.
+                if (uploading && changed != null && device.getAddress().equals(changed.getAddress())
+                        && !changed.isInitialized()) {
+                    showUploadState(F91KeplerConstants.IMAGE_STATE_INTERRUPTED, 0);
+                }
+                return;
+            }
+            if (device.getAddress().equals(intent.getStringExtra(F91KeplerConstants.EXTRA_IMAGE_ADDRESS))) {
+                showUploadState(intent.getIntExtra(F91KeplerConstants.EXTRA_IMAGE_STATE, 0),
+                                intent.getIntExtra(F91KeplerConstants.EXTRA_IMAGE_PERCENT, 0));
+            }
+        }
+    };
 
     private Bitmap source;
     /** Where {@link #source} came from, kept so a rotation can decode it again. */
@@ -113,6 +147,7 @@ public class F91KeplerImageActivity extends AbstractGBActivity {
         thresholdBar = findViewById(R.id.f91_image_threshold);
         invertSwitch = findViewById(R.id.f91_image_invert);
         sendButton = findViewById(R.id.f91_image_send);
+        progress = findViewById(R.id.f91_image_progress);
 
         thresholdBar.setMax(255);
         thresholdBar.setProgress(F91KeplerImageConverter.DEFAULT_THRESHOLD);
@@ -162,6 +197,59 @@ public class F91KeplerImageActivity extends AbstractGBActivity {
             }
         }
         render();
+
+        final IntentFilter filter = new IntentFilter(F91KeplerConstants.ACTION_IMAGE_STATUS);
+        filter.addAction(GBDevice.ACTION_DEVICE_CHANGED);
+        LocalBroadcastManager.getInstance(this).registerReceiver(imageStatusReceiver, filter);
+        // Opened while an upload runs (a reconnect re-send, or a rotation mid-send):
+        // the next progress broadcast fills in the numbers.
+        if (getString(R.string.f91_image_sending).equals(currentDevice().getBusyTask())) {
+            showUploadState(F91KeplerConstants.IMAGE_STATE_SENDING, 0);
+        }
+    }
+
+    @Override
+    protected void onDestroy() {
+        LocalBroadcastManager.getInstance(this).unregisterReceiver(imageStatusReceiver);
+        super.onDestroy();
+    }
+
+    /**
+     * The device as the app sees it now. The intent's copy is a snapshot from when
+     * the screen opened, so its connection state goes stale as soon as the watch
+     * connects or drops.
+     */
+    private GBDevice currentDevice() {
+        final GBDevice fresh = GBApplication.app().getDeviceManager().getDeviceByAddress(device.getAddress());
+        return fresh != null ? fresh : device;
+    }
+
+    private void showUploadState(final int state, final int percent) {
+        uploading = state == F91KeplerConstants.IMAGE_STATE_SENDING;
+        progress.setVisibility(uploading ? View.VISIBLE : View.GONE);
+        progress.setProgress(percent);
+        sendButton.setText(state == F91KeplerConstants.IMAGE_STATE_FAILED
+                ? R.string.f91_image_retry : R.string.f91_image_send);
+        sendButton.setEnabled(!uploading && bits != null);
+        switch (state) {
+            case F91KeplerConstants.IMAGE_STATE_SENDING:
+                status.setText(getString(R.string.f91_image_sending_percent, percent));
+                break;
+            case F91KeplerConstants.IMAGE_STATE_DONE:
+                status.setText(R.string.f91_image_sent);
+                break;
+            case F91KeplerConstants.IMAGE_STATE_FAILED:
+                status.setText(R.string.f91_image_failed_retry);
+                break;
+            case F91KeplerConstants.IMAGE_STATE_INTERRUPTED:
+                status.setText(R.string.f91_image_interrupted);
+                break;
+            case F91KeplerConstants.IMAGE_STATE_WAITING:
+                status.setText(R.string.f91_image_saved_offline);
+                break;
+            default:
+                break;
+        }
     }
 
     @Override
@@ -232,9 +320,46 @@ public class F91KeplerImageActivity extends AbstractGBActivity {
         while (longest / options.inSampleSize > MAX_SOURCE_EDGE) {
             options.inSampleSize *= 2;
         }
+        final Bitmap decoded;
         try (final InputStream in = getContentResolver().openInputStream(uri)) {
-            return BitmapFactory.decodeStream(in, null, options);
+            decoded = BitmapFactory.decodeStream(in, null, options);
         }
+        return decoded == null ? null : uprightByExif(uri, decoded);
+    }
+
+    /**
+     * Camera photos are often stored sideways with an EXIF note saying how to
+     * turn them; BitmapFactory ignores it, so a portrait shot would arrive lying
+     * down and the crop view cannot rotate.
+     */
+    private Bitmap uprightByExif(final Uri uri, final Bitmap decoded) {
+        final ExifInterface exif;
+        try (final InputStream in = getContentResolver().openInputStream(uri)) {
+            if (in == null) {
+                return decoded;
+            }
+            exif = new ExifInterface(in);
+        } catch (final IOException | RuntimeException e) {
+            // No EXIF (PNG, GIF) or an unreadable header: show it as stored.
+            LOG.debug("No usable EXIF orientation in the picked image", e);
+            return decoded;
+        }
+        final int degrees = exif.getRotationDegrees();
+        final boolean flipped = exif.isFlipped();
+        if (degrees == 0 && !flipped) {
+            return decoded;
+        }
+        final Matrix matrix = new Matrix();
+        matrix.setRotate(degrees);
+        if (flipped) {
+            matrix.postScale(-1, 1);
+        }
+        final Bitmap upright = Bitmap.createBitmap(decoded, 0, 0,
+                decoded.getWidth(), decoded.getHeight(), matrix, true);
+        if (upright != decoded) {
+            decoded.recycle();
+        }
+        return upright;
     }
 
     /** Re-run the conversion for the current settings and update the preview. */
@@ -255,7 +380,7 @@ public class F91KeplerImageActivity extends AbstractGBActivity {
 
         if (!hasSource) {
             // Either the stored frame is on screen, or there is nothing to send.
-            sendButton.setEnabled(bits != null);
+            sendButton.setEnabled(bits != null && !uploading);
             if (bits == null) {
                 status.setText(R.string.f91_image_none);
             }
@@ -272,12 +397,16 @@ public class F91KeplerImageActivity extends AbstractGBActivity {
         bits = F91KeplerImageConverter.toBits(panel, ditherSwitch.isChecked(),
                 thresholdBar.getProgress(), invertSwitch.isChecked());
         showPreview(bits);
-        status.setText(R.string.f91_image_ready);
-        sendButton.setEnabled(true);
+        if (!uploading) {
+            // A changed image is a new send, not a retry of the failed one.
+            status.setText(R.string.f91_image_ready);
+            sendButton.setText(R.string.f91_image_send);
+            sendButton.setEnabled(true);
+        }
     }
 
     private void send() {
-        if (bits == null) {
+        if (bits == null || uploading) {
             return;
         }
         final byte[] frame = F91KeplerImageCodec.packImage(bits);
@@ -289,14 +418,16 @@ public class F91KeplerImageActivity extends AbstractGBActivity {
             return;
         }
 
-        if (device.isInitialized()) {
-            GBApplication.deviceService(device)
+        final GBDevice now = currentDevice();
+        if (now.isInitialized()) {
+            // Off until the service reports back, so a quick second tap is not a second upload.
+            showUploadState(F91KeplerConstants.IMAGE_STATE_SENDING, 0);
+            GBApplication.deviceService(now)
                     .onSendConfiguration(F91KeplerConstants.PREF_IMAGE_UPLOAD);
-            GB.toast(this, getString(R.string.f91_image_sending), Toast.LENGTH_SHORT, GB.INFO);
         } else {
             // The stored frame is picked up by the reconnect check in the support
             // class, so there is nothing else to do here.
-            GB.toast(this, getString(R.string.f91_image_saved_offline), Toast.LENGTH_LONG, GB.INFO);
+            showUploadState(F91KeplerConstants.IMAGE_STATE_WAITING, 0);
         }
     }
 

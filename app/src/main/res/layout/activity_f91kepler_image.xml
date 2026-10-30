@@ -89,6 +89,15 @@
             android:layout_marginTop="8dp"
             android:text="@string/f91_image_none" />
 
+        <ProgressBar
+            android:id="@+id/f91_image_progress"
+            style="?android:attr/progressBarStyleHorizontal"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:max="100"
+            android:visibility="gone" />
+
         <Button
             android:id="@+id/f91_image_send"
             android:layout_width="match_parent"
