@@ -293,6 +293,9 @@ public class F91KeplerSupport extends AbstractBTLESingleDeviceSupport {
                 && value != null && value.length >= 1) {
             final GBDeviceEventFindPhone.Event event = F91KeplerProtocol.findPhoneCommand(value[0]);
             if (event != GBDeviceEventFindPhone.Event.UNKNOWN) {
+                // The user's own find-phone now owns the ring: the alert's
+                // timeout must not stop it.
+                cancelAlertRingTimeout();
                 final GBDeviceEventFindPhone fp = new GBDeviceEventFindPhone();
                 fp.event = event;
                 handleGBDeviceEvent(fp);
@@ -316,6 +319,13 @@ public class F91KeplerSupport extends AbstractBTLESingleDeviceSupport {
      * know the phone's preference and should not need one.
      */
     private void handleAlertEvent(final byte ev) {
+        if (ev == F91KeplerConstants.ALERT_EVENT_STOPPED) {
+            // Not gated by the switches: a ring that isn't there stops harmlessly,
+            // and a switch turned off mid-ring must not leave the phone ringing.
+            cancelAlertRingTimeout();
+            sendFindPhone(GBDeviceEventFindPhone.Event.STOP);
+            return;
+        }
         if (ev == F91KeplerConstants.ALERT_EVENT_ALARM && has31()) {
             readAlarmSlots(false);     // a one-shot just switched itself off
         }
@@ -337,10 +347,39 @@ public class F91KeplerSupport extends AbstractBTLESingleDeviceSupport {
         final GBDeviceEventFindPhone.Event event =
                 F91KeplerProtocol.alertEvent(ev, vibrateOnly);
         if (event != GBDeviceEventFindPhone.Event.UNKNOWN) {
-            final GBDeviceEventFindPhone fp = new GBDeviceEventFindPhone();
-            fp.event = event;
-            handleGBDeviceEvent(fp);
+            sendFindPhone(event);
+            startAlertRingTimeout();
         }
+    }
+
+    private void sendFindPhone(final GBDeviceEventFindPhone.Event event) {
+        final GBDeviceEventFindPhone fp = new GBDeviceEventFindPhone();
+        fp.event = event;
+        handleGBDeviceEvent(fp);
+    }
+
+    private final Handler alertHandler = new Handler(Looper.getMainLooper());
+    /** True while the phone ring is the one the last alert started. */
+    private volatile boolean alertRinging;
+    /** Stops the phone ring an alert started, if it is still that ring. */
+    private final Runnable alertRingTimeout = () -> {
+        if (alertRinging) {
+            alertRinging = false;
+            LOG.info("F91 alert ring timed out on the phone (watch sent no stop)");
+            sendFindPhone(GBDeviceEventFindPhone.Event.STOP);
+        }
+    };
+
+    /** Firmware before 3.3.2 never says the alert ended; stop when the watch's does. */
+    private void startAlertRingTimeout() {
+        alertHandler.removeCallbacks(alertRingTimeout);
+        alertRinging = true;
+        alertHandler.postDelayed(alertRingTimeout, F91KeplerConstants.ALERT_RING_TIMEOUT_MS);
+    }
+
+    private void cancelAlertRingTimeout() {
+        alertRinging = false;
+        alertHandler.removeCallbacks(alertRingTimeout);
     }
 
     private F91KeplerBondWatch bondWatch() {
@@ -394,6 +433,7 @@ public class F91KeplerSupport extends AbstractBTLESingleDeviceSupport {
     @Override
     public void dispose() {
         stuckHandler.removeCallbacksAndMessages(null);
+        cancelAlertRingTimeout();
         super.dispose();
     }
 

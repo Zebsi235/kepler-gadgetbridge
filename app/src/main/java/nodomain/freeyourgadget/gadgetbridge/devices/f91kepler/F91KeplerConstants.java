@@ -103,6 +103,12 @@ public final class F91KeplerConstants {
     /** AlertEvent byte values, 1:1 with the firmware's f91_alert.h. */
     public static final byte ALERT_EVENT_TIMER = 0x00;
     public static final byte ALERT_EVENT_ALARM = 0x01;
+    /** Firmware 3.3.2+: the alarm/timer alert ended on the watch (button,
+     *  snooze or its own 60 s timeout), so the phone stops ringing too. */
+    public static final byte ALERT_EVENT_STOPPED = 0x02;
+    /** The watch's own alert ring length (f91_clock.c F91_ALERT_TIMEOUT_MS).
+     *  Older firmware never sends STOPPED, so the phone stops itself after this. */
+    public static final long ALERT_RING_TIMEOUT_MS = 60_000;
 
     // UI Config Service (firmware P7): a single ModeOrder char carrying the
     // enabled set + display order of the watch's modes as a 1..10 byte array of

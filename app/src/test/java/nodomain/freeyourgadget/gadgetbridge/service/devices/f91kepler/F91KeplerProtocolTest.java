@@ -151,17 +151,29 @@ public class F91KeplerProtocolTest {
         // A future firmware event must not make an older app ring for something
         // it does not understand.
         assertEquals(GBDeviceEventFindPhone.Event.UNKNOWN,
-                F91KeplerProtocol.alertEvent((byte) 0x02, false));
+                F91KeplerProtocol.alertEvent((byte) 0x03, false));
         assertEquals(GBDeviceEventFindPhone.Event.UNKNOWN,
                 F91KeplerProtocol.alertEvent((byte) 0xFF, true));
     }
 
     @Test
+    public void alertEvent_stoppedStopsTheRingInBothModes() {
+        // Firmware 3.3.2: the alert ended on the watch, so the phone stops too,
+        // whether it was ringing or only vibrating.
+        assertEquals(GBDeviceEventFindPhone.Event.STOP,
+                F91KeplerProtocol.alertEvent(F91KeplerConstants.ALERT_EVENT_STOPPED, false));
+        assertEquals(GBDeviceEventFindPhone.Event.STOP,
+                F91KeplerProtocol.alertEvent(F91KeplerConstants.ALERT_EVENT_STOPPED, true));
+    }
+
+    @Test
     public void alertEvent_wireValuesMatchTheFirmware() {
-        // f91_alert.h: ALERT_EVENT_TIMER = 0, ALERT_EVENT_ALARM = 1. If these
-        // drift the phone alerts for the wrong thing.
+        // f91_alert.h: ALERT_EVENT_TIMER = 0, ALERT_EVENT_ALARM = 1,
+        // ALERT_EVENT_STOPPED = 2. If these drift the phone alerts for the
+        // wrong thing.
         assertEquals(0, F91KeplerConstants.ALERT_EVENT_TIMER);
         assertEquals(1, F91KeplerConstants.ALERT_EVENT_ALARM);
+        assertEquals(2, F91KeplerConstants.ALERT_EVENT_STOPPED);
     }
 
     @Test

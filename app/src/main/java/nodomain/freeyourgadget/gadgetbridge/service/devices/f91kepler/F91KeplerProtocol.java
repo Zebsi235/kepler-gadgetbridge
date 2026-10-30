@@ -218,7 +218,8 @@ final class F91KeplerProtocol {
      *
      * <p>{@code vibrateOnly} selects between the two ways of getting the user's
      * attention: START rings, START_VIBRATE only vibrates. Both are existing
-     * upstream behaviours, so no new event type is needed.
+     * upstream behaviours, so no new event type is needed. STOPPED (firmware
+     * 3.3.2) maps to STOP whatever {@code vibrateOnly} says.
      *
      * <p>Returns {@link GBDeviceEventFindPhone.Event#UNKNOWN} for an unknown
      * byte, so a future firmware event cannot make an old app ring for something
@@ -230,6 +231,8 @@ final class F91KeplerProtocol {
             case F91KeplerConstants.ALERT_EVENT_ALARM:
                 return vibrateOnly ? GBDeviceEventFindPhone.Event.START_VIBRATE
                                    : GBDeviceEventFindPhone.Event.START;
+            case F91KeplerConstants.ALERT_EVENT_STOPPED:
+                return GBDeviceEventFindPhone.Event.STOP;
             default:
                 return GBDeviceEventFindPhone.Event.UNKNOWN;
         }
