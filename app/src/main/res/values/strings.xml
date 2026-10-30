@@ -2442,6 +2442,9 @@
     <string name="f91_image_sending_percent">Sending the image to the watch… %1$d %%</string>
     <string name="f91_image_failed_retry">The watch did not confirm the image. Tap Try again.</string>
     <string name="f91_image_retry">Try again</string>
+    <string name="f91_alarms_saved">Alarms saved on the watch</string>
+    <string name="f91_alarms_failed">The alarms did not reach the watch. They are sent again when it reconnects.</string>
+    <string name="f91_setting_failed">The watch did not take this change. Change it again once the watch is connected.</string>
     <string name="f91_image_interrupted">The watch disconnected. The image is sent again when it reconnects.</string>
     <string name="devicetype_polarh9" translatable="false">Polar H9</string>
     <string name="devicetype_polarh10" translatable="false">Polar H10</string>

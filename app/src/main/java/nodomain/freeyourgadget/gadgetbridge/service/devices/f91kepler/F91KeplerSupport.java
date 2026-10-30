@@ -27,6 +27,7 @@ import android.os.Looper;
 import android.text.format.DateFormat;
 import android.widget.Toast;
 
+import androidx.annotation.StringRes;
 import androidx.localbroadcastmanager.content.LocalBroadcastManager;
 
 import org.apache.commons.lang3.StringUtils;
@@ -131,6 +132,8 @@ public class F91KeplerSupport extends AbstractBTLESingleDeviceSupport {
     /** An upload is on the air: a second Send waits for it instead of queueing
      *  another 28 writes whose trailing reads would confuse the first. */
     private volatile boolean imageUploading;
+    /** Text for "this burst did not reach the watch" while a burst is on the air, else 0. */
+    private volatile int burstFailText;
     private GBProgressNotification imageNotification;
 
     /**
@@ -419,6 +422,7 @@ public class F91KeplerSupport extends AbstractBTLESingleDeviceSupport {
             bondWatch().onLinkUp();
         } else if (newState == BluetoothProfile.STATE_DISCONNECTED) {
             stuckHandler.removeCallbacksAndMessages(null);
+            failBurst();
             if (imageUploading) {
                 // The queue is dropped without write callbacks, so nothing else
                 // would tell the user; the stored frame goes on the next connect.
@@ -487,6 +491,9 @@ public class F91KeplerSupport extends AbstractBTLESingleDeviceSupport {
                                          final int status) {
         if (status != BluetoothGatt.GATT_SUCCESS && bondWatch().onOperationStatus(status)) {
             watchStuckLink(gatt);
+        }
+        if (status != BluetoothGatt.GATT_SUCCESS) {
+            failBurst();
         }
         if (status != BluetoothGatt.GATT_SUCCESS && characteristic != null
                 && (F91KeplerConstants.UUID_CHAR_IMAGE_CHUNK.equals(characteristic.getUuid())
@@ -680,7 +687,7 @@ public class F91KeplerSupport extends AbstractBTLESingleDeviceSupport {
         } catch (final NumberFormatException e) {
             minutes = 9;
         }
-        final TransactionBuilder builder = createTransactionBuilder("set snooze length");
+        final TransactionBuilder builder = startBurst("set snooze length", R.string.f91_setting_failed);
         for (int i = 0; i < got.length; i++) {
             builder.write(F91KeplerConstants.UUID_CHAR_RECORD, F91KeplerProtocol.alarmSoundSnooze(i, got[i], minutes));
         }
@@ -693,7 +700,7 @@ public class F91KeplerSupport extends AbstractBTLESingleDeviceSupport {
                 prefs.edit().putBoolean(F91KeplerConstants.PREF_SOUND_SNOOZE_DIRTY, false).apply();
             }
         });
-        builder.queue();
+        queueBurst(builder, 0);
     }
 
     private void endSoundRead() {
@@ -821,9 +828,9 @@ public class F91KeplerSupport extends AbstractBTLESingleDeviceSupport {
     private void writeSoundCfg(final byte[] cfg, final int flags) {
         final byte[] frame = F91KeplerProtocol.soundCfgWrite(cfg, flags);
         soundCfg = java.util.Arrays.copyOfRange(frame, 2, frame.length);
-        final TransactionBuilder builder = createTransactionBuilder("set sound switches");
+        final TransactionBuilder builder = startBurst("set sound switches", R.string.f91_setting_failed);
         builder.write(F91KeplerConstants.UUID_CHAR_RECORD, frame);
-        builder.queue();
+        queueBurst(builder, 0);
     }
 
     /** True when this connection's firmware is known to have the 3.1 surface. */
@@ -1076,15 +1083,49 @@ public class F91KeplerSupport extends AbstractBTLESingleDeviceSupport {
         return "imperial".equals(GBApplication.getPrefs().getString("measurement_system", "metric"));
     }
 
+    // --- User-started write bursts --------------------------------------------
+
+    /**
+     * A write burst the user started (alarms, a setting). The marker is set by
+     * the burst's own first action, so it only stands while that transaction is
+     * on the air; a failed write or a dropped link aborts the transaction before
+     * its last action, which is how {@link #failBurst} knows it was ours.
+     */
+    private TransactionBuilder startBurst(final String taskName, @StringRes final int failText) {
+        final TransactionBuilder builder = createTransactionBuilder(taskName);
+        builder.run(() -> burstFailText = failText);
+        return builder;
+    }
+
+    /** Queue a burst; {@code doneText} (0: none) is shown once the watch took every write. */
+    private void queueBurst(final TransactionBuilder builder, @StringRes final int doneText) {
+        builder.run(() -> {
+            burstFailText = 0;
+            if (doneText != 0) {
+                GB.toast(getContext(), getContext().getString(doneText), Toast.LENGTH_SHORT, GB.INFO);
+            }
+        });
+        builder.queue();
+    }
+
+    /** A write failed or the link dropped: tell the user if a burst was on the air. */
+    private void failBurst() {
+        final int text = burstFailText;
+        if (text != 0) {
+            burstFailText = 0;
+            GB.toast(getContext(), getContext().getString(text), Toast.LENGTH_LONG, GB.WARN);
+        }
+    }
+
     // --- Alarms -------------------------------------------------------------
 
     @Override
     public void onSetAlarms(final ArrayList<? extends Alarm> alarms) {
         if (has31()) {
             alarmSetGen++;
-            final TransactionBuilder builder = createTransactionBuilder("set alarm slots");
+            final TransactionBuilder builder = startBurst("set alarm slots", R.string.f91_alarms_failed);
             addAlarmSlots(builder, alarms);
-            builder.queue();
+            queueBurst(builder, R.string.f91_alarms_saved);
             return;
         }
         // The firmware Alarm Service holds a single one-shot alarm: CHAR5
@@ -1495,9 +1536,9 @@ public class F91KeplerSupport extends AbstractBTLESingleDeviceSupport {
             }
             case F91KeplerModes.PREF_MODES:
             case F91KeplerModes.PREF_MODES_31: {
-                final TransactionBuilder builder = createTransactionBuilder("set mode order");
+                final TransactionBuilder builder = startBurst("set mode order", R.string.f91_setting_failed);
                 addModeOrder(builder);
-                builder.queue();
+                queueBurst(builder, 0);
                 warnIfModesDropped();
                 break;
             }
@@ -1508,9 +1549,9 @@ public class F91KeplerSupport extends AbstractBTLESingleDeviceSupport {
                 // Away or pre-3.1: nothing to do now -- the next 3.1 connect
                 // re-pushes every option (restorePhoneOwnedConfig).
                 if (has31()) {
-                    final TransactionBuilder builder = createTransactionBuilder("set ui options");
+                    final TransactionBuilder builder = startBurst("set ui options", R.string.f91_setting_failed);
                     addUiOptions(builder);
-                    builder.queue();
+                    queueBurst(builder, 0);
                 }
                 break;
             }
@@ -1518,9 +1559,9 @@ public class F91KeplerSupport extends AbstractBTLESingleDeviceSupport {
             case F91KeplerConstants.PREF_COUNTER_NAME_PREFIX + "1":
             case F91KeplerConstants.PREF_COUNTER_NAME_PREFIX + "2": {
                 if (has31()) {
-                    final TransactionBuilder builder = createTransactionBuilder("set counter name");
+                    final TransactionBuilder builder = startBurst("set counter name", R.string.f91_setting_failed);
                     addCounterName(builder, config.charAt(config.length() - 1) - '0');
-                    builder.queue();
+                    queueBurst(builder, 0);
                 }
                 break;
             }
@@ -1533,17 +1574,17 @@ public class F91KeplerSupport extends AbstractBTLESingleDeviceSupport {
                             .edit().putBoolean(F91KeplerConstants.PREF_BRIGHTNESS_DIRTY, true).apply();
                     break;
                 }
-                final TransactionBuilder builder = createTransactionBuilder("set brightness");
+                final TransactionBuilder builder = startBurst("set brightness", R.string.f91_setting_failed);
                 addBrightness(builder);
-                builder.queue();
+                queueBurst(builder, 0);
                 break;
             }
             case F91KeplerConstants.PREF_SLEEP_ENABLED:
             case F91KeplerConstants.PREF_SLEEP_START:
             case F91KeplerConstants.PREF_SLEEP_END: {
-                final TransactionBuilder builder = createTransactionBuilder("set sleep window");
+                final TransactionBuilder builder = startBurst("set sleep window", R.string.f91_setting_failed);
                 addRadioSchedule(builder);
-                builder.queue();
+                queueBurst(builder, 0);
                 break;
             }
             case F91KeplerConstants.PREF_SOUND_LOST:
