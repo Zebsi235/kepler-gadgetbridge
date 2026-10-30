@@ -46,6 +46,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import nodomain.freeyourgadget.gadgetbridge.GBApplication;
 import nodomain.freeyourgadget.gadgetbridge.R;
 import nodomain.freeyourgadget.gadgetbridge.activities.devicesettings.DeviceSettingsPreferenceConst;
+import nodomain.freeyourgadget.gadgetbridge.database.DBHandler;
 import nodomain.freeyourgadget.gadgetbridge.database.DBHelper;
 import nodomain.freeyourgadget.gadgetbridge.deviceevents.GBDeviceEventUpdatePreferences;
 import nodomain.freeyourgadget.gadgetbridge.deviceevents.GBDeviceEventBatteryInfo;
@@ -53,6 +54,7 @@ import nodomain.freeyourgadget.gadgetbridge.deviceevents.GBDeviceEventFindPhone;
 import nodomain.freeyourgadget.gadgetbridge.deviceevents.GBDeviceEventMusicControl;
 import nodomain.freeyourgadget.gadgetbridge.deviceevents.GBDeviceEventVersionInfo;
 import nodomain.freeyourgadget.gadgetbridge.devices.f91kepler.F91KeplerConstants;
+import nodomain.freeyourgadget.gadgetbridge.devices.f91kepler.F91KeplerCoordinator;
 import nodomain.freeyourgadget.gadgetbridge.devices.f91kepler.F91KeplerFirmware;
 import nodomain.freeyourgadget.gadgetbridge.devices.f91kepler.F91KeplerImageCodec;
 import nodomain.freeyourgadget.gadgetbridge.devices.f91kepler.F91KeplerImageStore;
@@ -228,6 +230,7 @@ public class F91KeplerSupport extends AbstractBTLESingleDeviceSupport {
         alarmSoundInFlight = false;
         soundAdopt = false;
         builder.setDeviceState(GBDevice.State.INITIALIZING);
+        renameOldDefault();
         if (GBApplication.getPrefs().syncTime()) {
             addSetTime(builder);
         }
@@ -270,6 +273,30 @@ public class F91KeplerSupport extends AbstractBTLESingleDeviceSupport {
         // what it is holding first instead of re-sending it on every reconnect.
         addImageCheck(builder);
         return builder;
+    }
+
+    /**
+     * Watches added by earlier app versions show as "F91 Kepler" (no alias) or
+     * "Kepler". Rename them once to "Kepler Watch"; a name the user typed stays,
+     * and so does any name set after this ran (the flag stops a second pass).
+     */
+    private void renameOldDefault() {
+        final SharedPreferences prefs = GBApplication.getDeviceSpecificSharedPrefs(getDevice().getAddress());
+        if (prefs.getBoolean(F91KeplerConstants.PREF_NAME_MIGRATED, false)) {
+            return;
+        }
+        if (F91KeplerCoordinator.isOldDefaultName(getDevice().getAlias())) {
+            getDevice().setAlias(F91KeplerCoordinator.DISPLAY_NAME);
+            // DBHelper.getDevice writes a changed alias back to the device row.
+            try (DBHandler db = GBApplication.acquireDB()) {
+                DBHelper.getDevice(getDevice(), db.getDaoSession());
+            } catch (final Exception e) {
+                LOG.warn("F91 could not store the new watch name, trying again next connect", e);
+                return;
+            }
+            getDevice().sendDeviceUpdateIntent(getContext());
+        }
+        prefs.edit().putBoolean(F91KeplerConstants.PREF_NAME_MIGRATED, true).apply();
     }
 
     /**
