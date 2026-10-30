@@ -158,7 +158,9 @@ public class NotificationListener extends NotificationListenerService {
      * made meanwhile and can check the ids it got from here on reconnect.
      */
     public static boolean isNotificationActive(final int id) {
-        return notificationsActive.contains(id);
+        synchronized (notificationsActive) {   // read from the device's thread
+            return notificationsActive.contains(id);
+        }
     }
 
     // The ids this listener posted lately, active or not, so a device can tell
@@ -166,7 +168,7 @@ public class NotificationListener extends NotificationListenerService {
     private static final int POSTED_IDS_MAX = 256;
     private static final Set<Integer> notificationsPosted = Collections.synchronizedSet(new LinkedHashSet<>());
 
-    /** Whether this listener posted the notification with this id (recently). */
+    /** Whether this listener posted the notification with this id (recently, since it last started). */
     public static boolean isPostedNotification(final int id) {
         return notificationsPosted.contains(id);
     }
@@ -360,7 +362,12 @@ public class NotificationListener extends NotificationListenerService {
         LocalBroadcastManager.getInstance(this).unregisterReceiver(mReceiver);
         unregisterReceiver(mExportedReceiver);
         notificationStack.clear();
-        notificationsActive.clear();
+        // A restarted listener cannot match the old notifications any more, so
+        // it stops vouching for them before the active list forgets them.
+        notificationsPosted.clear();
+        synchronized (notificationsActive) {
+            notificationsActive.clear();
+        }
         cleanUpNotificationPictureProvider();
         super.onDestroy();
     }
@@ -644,7 +651,9 @@ public class NotificationListener extends NotificationListenerService {
         } else {
             notificationOldRepeatPrevention.put(source, notification.when);
         }
-        notificationsActive.add(notificationSpec.getId());
+        synchronized (notificationsActive) {
+            notificationsActive.add(notificationSpec.getId());
+        }
         synchronized (notificationsPosted) {
             notificationsPosted.add(notificationSpec.getId());
             if (notificationsPosted.size() > POSTED_IDS_MAX) {
@@ -1149,7 +1158,9 @@ public class NotificationListener extends NotificationListenerService {
         }
 
         // Clean up removed notifications from internal list
-        notificationsActive.removeAll(notificationsToRemove);
+        synchronized (notificationsActive) {
+            notificationsActive.removeAll(notificationsToRemove);
+        }
 
         // Send notification remove request to device
         List<GBDevice> devices = GBApplication.app().getDeviceManager().getSelectedDevices();

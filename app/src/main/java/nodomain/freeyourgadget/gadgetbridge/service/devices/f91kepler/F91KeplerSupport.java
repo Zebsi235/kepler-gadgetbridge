@@ -162,6 +162,8 @@ public class F91KeplerSupport extends AbstractBTLESingleDeviceSupport {
      *  sent a characteristic it no longer has. */
     private volatile String connectedFw;
 
+    /** Newest first. Changed on the main thread (onNotification) and read on the
+     *  GATT thread (initializeDevice): every access holds its lock. */
     private final List<RecentNotif> recent = new ArrayList<>();
     private static final class RecentNotif {
         final int id;
@@ -922,29 +924,39 @@ public class F91KeplerSupport extends AbstractBTLESingleDeviceSupport {
     private void addRecent(final NotificationSpec spec) {
         final String app = StringUtils.firstNonBlank(spec.getSourceName(), "");
         final String sender = StringUtils.firstNonBlank(spec.getSender(), spec.getTitle(), "notification");
-        removeRecent(spec.getId());                    // de-dupe by id
-        recent.add(0, new RecentNotif(spec.getId(), app, sender));   // newest first
-        while (recent.size() > F91_RECENT_MAX) {
-            recent.remove(recent.size() - 1);
+        synchronized (recent) {
+            removeRecent(spec.getId());                    // de-dupe by id
+            recent.add(0, new RecentNotif(spec.getId(), app, sender));   // newest first
+            while (recent.size() > F91_RECENT_MAX) {
+                recent.remove(recent.size() - 1);
+            }
         }
     }
 
     private void dropInactiveNotifications() {
         for (final Iterator<Integer> it = listenerNotificationIds.iterator(); it.hasNext(); ) {
             final int id = it.next();
-            if (!NotificationListener.isNotificationActive(id)) {
+            if (NotificationListener.isNotificationActive(id)) {
+                continue;
+            }
+            // Asked after the active check: a restarted listener forgets what it
+            // posted before it empties its active list, so its notifications are
+            // kept (it can no longer tell whether they are still showing).
+            if (NotificationListener.isPostedNotification(id)) {
                 notificationTracker.remove(id);
                 removeRecent(id);
-                it.remove();
             }
+            it.remove();
         }
     }
 
     private void removeRecent(final int id) {
-        for (final Iterator<RecentNotif> it = recent.iterator(); it.hasNext(); ) {
-            if (it.next().id == id) {
-                it.remove();
-                break;
+        synchronized (recent) {
+            for (final Iterator<RecentNotif> it = recent.iterator(); it.hasNext(); ) {
+                if (it.next().id == id) {
+                    it.remove();
+                    break;
+                }
             }
         }
     }
@@ -952,14 +964,18 @@ public class F91KeplerSupport extends AbstractBTLESingleDeviceSupport {
     /** Push the current top-N recent notifications (or a clear when empty) to the
      *  watch's NotificationEntry char. */
     private void addRecentNotifications(final TransactionBuilder builder) {
-        final int total = recent.size();
+        final List<RecentNotif> snapshot;
+        synchronized (recent) {
+            snapshot = new ArrayList<>(recent);
+        }
+        final int total = snapshot.size();
         if (total == 0) {
             builder.write(F91KeplerConstants.UUID_CHAR_NOTIFICATION_ENTRY,
                           F91KeplerProtocol.notificationEntry(0, 0, "", ""));
             return;
         }
         for (int i = 0; i < total; i++) {
-            final RecentNotif e = recent.get(i);
+            final RecentNotif e = snapshot.get(i);
             builder.write(F91KeplerConstants.UUID_CHAR_NOTIFICATION_ENTRY,
                           F91KeplerProtocol.notificationEntry(i, total, forWatch(e.app), forWatch(e.sender)));
         }
