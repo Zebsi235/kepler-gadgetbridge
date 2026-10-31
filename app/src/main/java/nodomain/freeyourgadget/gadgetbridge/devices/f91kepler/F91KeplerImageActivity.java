@@ -31,6 +31,7 @@ import android.view.View;
 import android.widget.Button;
 import android.widget.CompoundButton;
 import android.widget.ImageView;
+import android.widget.LinearLayout;
 import android.widget.ProgressBar;
 import android.widget.SeekBar;
 import android.widget.TextView;
@@ -41,6 +42,7 @@ import androidx.activity.result.contract.ActivityResultContracts;
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import androidx.appcompat.widget.SwitchCompat;
+import com.google.android.material.dialog.MaterialAlertDialogBuilder;
 import androidx.exifinterface.media.ExifInterface;
 import androidx.localbroadcastmanager.content.LocalBroadcastManager;
 
@@ -80,6 +82,12 @@ public class F91KeplerImageActivity extends AbstractGBActivity {
     private static final String STATE_SOURCE_URI = "f91_image_source_uri";
     private static final String STATE_CROP = "f91_image_crop";
     private static final String STATE_AWAITING = "f91_image_awaiting";
+    private static final String STATE_PICKED = "f91_image_picked";
+    /** Gallery thumbnails: the panel's 96x39 at this many screen dp per pixel. */
+    private static final float THUMB_DP_PER_PIXEL = 1f;
+    /** Frame around the chosen thumbnail (Kepler phosphor) and around the others. */
+    private static final int THUMB_CHOSEN = 0xFF6EE7D6;
+    private static final int THUMB_OTHER = 0xFF34383C;
 
     private GBDevice device;
 
@@ -133,6 +141,14 @@ public class F91KeplerImageActivity extends AbstractGBActivity {
 
     private ActivityResultLauncher<String[]> picker;
 
+    private F91KeplerImageLibrary library;
+    private LinearLayout recentRow;
+    private TextView recentEmpty;
+    private LinearLayout presetRow;
+    /** A gallery image on screen (no photo to convert), kept across a rotation. */
+    @Nullable
+    private byte[] picked;
+
     @Override
     protected void onCreate(@Nullable final Bundle savedInstanceState) {
         device = getIntent().getParcelableExtra(GBDevice.EXTRA_DEVICE);
@@ -171,6 +187,13 @@ public class F91KeplerImageActivity extends AbstractGBActivity {
 
         final Button choose = findViewById(R.id.f91_image_choose);
         choose.setOnClickListener(v -> picker.launch(new String[]{"image/*"}));
+
+        library = F91KeplerImageLibrary.forApp(this);
+        recentRow = findViewById(R.id.f91_image_recent_row);
+        recentEmpty = findViewById(R.id.f91_image_recent_empty);
+        presetRow = findViewById(R.id.f91_image_preset_row);
+        showPresets();
+        showRecent();
         sendButton.setOnClickListener(v -> send());
 
         final CompoundButton.OnCheckedChangeListener onToggle = (button, checked) -> render();
@@ -202,11 +225,15 @@ public class F91KeplerImageActivity extends AbstractGBActivity {
             // Turned mid-upload: the outcome that follows is still this screen's news.
             awaiting = savedInstanceState.getBoolean(STATE_AWAITING, false);
             final Uri uri = savedInstanceState.getParcelable(STATE_SOURCE_URI);
+            final byte[] pickedBefore = savedInstanceState.getByteArray(STATE_PICKED);
             if (uri != null) {
                 loadSource(uri, savedInstanceState.getFloatArray(STATE_CROP));
+            } else if (pickedBefore != null && pickedBefore.length == F91KeplerConstants.IMAGE_BYTES) {
+                pick(pickedBefore);
             }
         }
         render();
+        markChosen();
 
         final IntentFilter filter = new IntentFilter(F91KeplerConstants.ACTION_TRANSFER_STATUS);
         filter.addAction(GBDevice.ACTION_DEVICE_CHANGED);
@@ -268,7 +295,102 @@ public class F91KeplerImageActivity extends AbstractGBActivity {
         if (source != null && sourceUri != null) {
             outState.putParcelable(STATE_SOURCE_URI, sourceUri);
             outState.putFloatArray(STATE_CROP, cropView.getCropState());
+        } else if (picked != null) {
+            outState.putByteArray(STATE_PICKED, picked);
         }
+    }
+
+    // --- Gallery: recent images and presets, like the companion app ----------
+
+    private void showPresets() {
+        presetRow.removeAllViews();
+        for (final F91KeplerImagePreset preset : F91KeplerImagePreset.values()) {
+            final byte[] frame = preset.frame();
+            presetRow.addView(thumbnail(frame, getString(preset.label), v -> pick(frame), null));
+        }
+    }
+
+    private void showRecent() {
+        recentRow.removeAllViews();
+        final java.util.List<F91KeplerImageLibrary.Entry> recent = library.recent();
+        recentEmpty.setVisibility(recent.isEmpty() ? View.VISIBLE : View.GONE);
+        for (final F91KeplerImageLibrary.Entry entry : recent) {
+            recentRow.addView(thumbnail(entry.frame, getString(R.string.f91_image_recent),
+                    v -> pick(entry.frame), v -> {
+                        confirmRemove(entry);
+                        return true;
+                    }));
+        }
+        markChosen();
+    }
+
+    /** The frame exactly as the panel shows it: 96x39, nearest-neighbour, lit on black. */
+    private ImageView thumbnail(final byte[] frame, final String description,
+                                final View.OnClickListener onClick,
+                                @Nullable final View.OnLongClickListener onLongClick) {
+        final float density = getResources().getDisplayMetrics().density;
+        final ImageView thumb = new ImageView(this);
+        final LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(
+                Math.round(F91KeplerConstants.IMAGE_WIDTH * THUMB_DP_PER_PIXEL * density + 8 * density),
+                Math.round(F91KeplerConstants.IMAGE_HEIGHT * THUMB_DP_PER_PIXEL * density + 8 * density));
+        lp.setMarginEnd(Math.round(8 * density));
+        thumb.setLayoutParams(lp);
+        final int pad = Math.round(4 * density);
+        thumb.setPadding(pad, pad, pad, pad);
+        thumb.setScaleType(ImageView.ScaleType.FIT_XY);
+        thumb.setImageBitmap(F91KeplerImageConverter.toPreview(F91KeplerImageCodec.unpackImage(frame), 1));
+        final Drawable drawable = thumb.getDrawable();
+        if (drawable != null) {
+            drawable.setFilterBitmap(false);
+        }
+        thumb.setBackgroundColor(THUMB_OTHER);
+        thumb.setTag(frame);
+        thumb.setContentDescription(description);
+        thumb.setOnClickListener(onClick);
+        if (onLongClick != null) {
+            thumb.setOnLongClickListener(onLongClick);
+        }
+        return thumb;
+    }
+
+    /** Frame the thumbnails that show the image now on screen. */
+    private void markChosen() {
+        final byte[] now = bits == null ? null : F91KeplerImageCodec.packImage(bits);
+        for (final LinearLayout row : new LinearLayout[]{recentRow, presetRow}) {
+            for (int i = 0; i < row.getChildCount(); i++) {
+                final View child = row.getChildAt(i);
+                final boolean chosen = now != null && java.util.Arrays.equals(now, (byte[]) child.getTag());
+                child.setBackgroundColor(chosen ? THUMB_CHOSEN : THUMB_OTHER);
+            }
+        }
+    }
+
+    /** Show a gallery image, ready to send; it replaces a photo being cropped. */
+    private void pick(final byte[] frame) {
+        source = null;
+        sourceUri = null;
+        picked = frame;
+        bits = F91KeplerImageCodec.unpackImage(frame);
+        showPreview(bits);
+        render();
+        if (!uploading) {
+            awaiting = false;
+            status.setText(R.string.f91_image_ready);
+            sendButton.setText(R.string.f91_image_send);
+        }
+        markChosen();
+    }
+
+    private void confirmRemove(final F91KeplerImageLibrary.Entry entry) {
+        new MaterialAlertDialogBuilder(this)
+                .setTitle(R.string.f91_image_remove_title)
+                .setMessage(R.string.f91_image_remove_text)
+                .setPositiveButton(R.string.f91_image_remove, (d, w) -> {
+                    library.delete(entry.id);
+                    showRecent();
+                })
+                .setNegativeButton(R.string.cancel, null)
+                .show();
     }
 
     /** Show the last uploaded frame so re-opening the screen is not a blank slate. */
@@ -309,6 +431,7 @@ public class F91KeplerImageActivity extends AbstractGBActivity {
             return;
         }
         sourceUri = uri;
+        picked = null;
         cropView.setImage(source);
         cropView.setCropState(cropState);
         render();
@@ -428,6 +551,13 @@ public class F91KeplerImageActivity extends AbstractGBActivity {
             GB.toast(this, getString(R.string.f91_image_store_failed), Toast.LENGTH_LONG, GB.ERROR);
             return;
         }
+        try {
+            library.add(frame, System.currentTimeMillis());
+        } catch (final IOException e) {
+            // The upload does not depend on it; the gallery just misses this one.
+            LOG.warn("Could not add the image to the gallery", e);
+        }
+        showRecent();
 
         // Every Send is a fresh start, also one saved while the watch is away.
         GBApplication.getDeviceSpecificSharedPrefs(device.getAddress()).edit()

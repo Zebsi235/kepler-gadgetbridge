@@ -86,6 +86,15 @@
     <string name="f91_image_sending_percent">Bild wird an die Uhr gesendet … %1$d %%</string>
     <string name="f91_image_failed_retry">Die Uhr hat das Bild nicht bestätigt. Tippe auf „Erneut versuchen“.</string>
     <string name="f91_image_interrupted">Die Verbindung zur Uhr ist abgebrochen. Das Bild wird erneut gesendet, sobald sie wieder verbunden ist.</string>
+    <string name="f91_image_recent">Zuletzt gesendet</string>
+    <string name="f91_image_recent_none">Bilder, die du an die Uhr sendest, erscheinen hier. Halte eines gedrückt, um es zu entfernen.</string>
+    <string name="f91_image_presets">Vorlagen</string>
+    <string name="f91_image_preset_logo">Kepler-Logo</string>
+    <string name="f91_image_preset_logo_inverted">Kepler-Logo, invertiert</string>
+    <string name="f91_image_preset_blank">Leer (alle Pixel aus)</string>
+    <string name="f91_image_remove_title">Dieses Bild entfernen?</string>
+    <string name="f91_image_remove_text">Es wird auf diesem Telefon aus „Zuletzt gesendet“ entfernt. Die Uhr zeigt es weiter, bis du ein anderes Bild sendest.</string>
+    <string name="f91_image_remove">Entfernen</string>
     <string name="f91_transfer_title">Kepler Watch</string>
     <string name="f91_transfer_image">Bild wird an die Uhr gesendet …</string>
     <string name="f91_transfer_image_failed">Das Bild ist nicht auf der Uhr angekommen</string>
