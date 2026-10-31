@@ -34,7 +34,8 @@ import nodomain.freeyourgadget.gadgetbridge.service.devices.f91kepler.F91KeplerS
 
 /**
  * Coordinator for the F91 Kepler watch — a custom Casio F-91W internal
- * replacement (CC2640R2F, firmware v3.1.0) that advertises as "F91 Kepler" and
+ * replacement (CC2640R2F, firmware v3.1.0) that advertises as "F91 Kepler"
+ * (later firmware may say "Kepler" or "Kepler Watch") and
  * exposes nine custom GATT services -- Notification, Image, Clock, Device
  * Control, Music, Find Phone, Alert, Weather and UI Config -- plus the standard
  * Battery and Device Information services. The sensitive characteristics
@@ -42,23 +43,35 @@ import nodomain.freeyourgadget.gadgetbridge.service.devices.f91kepler.F91KeplerS
  * (no PIN).
  */
 public class F91KeplerCoordinator extends AbstractBLEDeviceCoordinator {
+    /** What the app calls a Kepler watch: new watches get it as their alias. */
+    public static final String DISPLAY_NAME = "Kepler Watch";
+
+    /** Today's firmware advertises "F91 Kepler"; "Kepler" and "Kepler Watch"
+     *  are accepted too so a later rename of the advertised name does not
+     *  lock the app out. */
+    static final Pattern ADVERTISED_NAMES = Pattern.compile("F91 Kepler|Kepler|Kepler Watch");
+
     @Override
     protected Pattern getSupportedDeviceName() {
-        // Today's firmware advertises "F91 Kepler"; plain "Kepler" is accepted
-        // too so a later rename of the advertised name does not lock the app out.
-        return Pattern.compile("(F91 )?Kepler");
+        return ADVERTISED_NAMES;
     }
 
-    /** A new watch is shown as "Kepler" (the advertised "F91 Kepler" stays its name); renaming still works. */
+    /** A new watch is shown as "Kepler Watch", whatever name it advertises; renaming still works. */
     @Override
     public GBDevice createDevice(final GBDeviceCandidate candidate, final DeviceType deviceType) {
         final GBDevice device = super.createDevice(candidate, deviceType);
-        device.setAlias(displayName(candidate.getName()));
+        device.setAlias(DISPLAY_NAME);
         return device;
     }
 
-    static String displayName(final String advertised) {
-        return advertised != null && advertised.startsWith("F91 ") ? advertised.substring(4) : advertised;
+    /**
+     * True for the names earlier app versions left on a watch: none (the
+     * advertised "F91 Kepler" showed), the advertised name itself, or the
+     * alias "Kepler" (kepler-2). A name the user typed is anything else.
+     */
+    public static boolean isOldDefaultName(final String alias) {
+        return alias == null || alias.trim().isEmpty()
+                || "F91 Kepler".equals(alias) || "Kepler".equals(alias);
     }
 
     @NonNull

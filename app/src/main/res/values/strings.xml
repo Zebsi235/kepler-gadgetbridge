@@ -2347,7 +2347,7 @@
     <string name="devicetype_banglejs" translatable="false">Bangle.js</string>
     <string name="devicetype_tlw64" translatable="false">TLW64</string>
     <string name="devicetype_pinetime_jf" translatable="false">PineTime (JF Firmware)</string>
-    <string name="devicetype_f91_kepler" translatable="false">Kepler</string>
+    <string name="devicetype_f91_kepler" translatable="false">Kepler Watch</string>
     <string name="f91_pref_header_alerts">Alerts on this phone</string>
     <string name="f91_pref_title_alert_timer">Alert me when the timer ends</string>
     <string name="f91_pref_summary_alert_timer">Also ring or vibrate this phone when the watch\'s timer ends.</string>

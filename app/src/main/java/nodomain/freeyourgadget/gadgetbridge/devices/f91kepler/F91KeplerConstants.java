@@ -365,4 +365,7 @@ public final class F91KeplerConstants {
     /** Opens {@link F91KeplerImageActivity}; also the onSendConfiguration key the
      *  activity uses to ask the service to upload the stored frame. */
     public static final String PREF_IMAGE_UPLOAD = "f91_image_upload";
+    /** Internal, not a setting: the one-time rename of an old default name to
+     *  "Kepler Watch" has run for this watch, so a name typed later is kept. */
+    public static final String PREF_NAME_MIGRATED = "f91_name_kepler_watch";
 }
