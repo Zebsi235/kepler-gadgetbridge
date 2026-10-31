@@ -114,6 +114,16 @@ public class F91KeplerImageLibraryTest {
         assertArrayEquals(frame(1), lib.recent().get(0).frame);
     }
 
+    @Test
+    public void ignoresFilesItDidNotWrite() throws IOException {
+        final F91KeplerImageLibrary lib = new F91KeplerImageLibrary(tmp.getRoot());
+        lib.add(frame(1), 1000);
+        java.nio.file.Files.write(new File(tmp.getRoot(), "zzz.bin").toPath(), frame(9));
+        final List<F91KeplerImageLibrary.Entry> recent = lib.recent();
+        assertEquals(1, recent.size());
+        assertArrayEquals(frame(1), recent.get(0).frame);
+    }
+
     @Test(expected = IOException.class)
     public void refusesAWrongSizedFrame() throws IOException {
         new F91KeplerImageLibrary(tmp.getRoot()).add(new byte[10], 1000);

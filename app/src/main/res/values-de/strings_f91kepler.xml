@@ -87,6 +87,7 @@
     <string name="f91_image_failed_retry">Die Uhr hat das Bild nicht bestätigt. Tippe auf „Erneut versuchen“.</string>
     <string name="f91_image_interrupted">Die Verbindung zur Uhr ist abgebrochen. Das Bild wird erneut gesendet, sobald sie wieder verbunden ist.</string>
     <string name="f91_image_recent">Zuletzt gesendet</string>
+    <string name="f91_image_recent_item">Zuletzt gesendetes Bild %1$d</string>
     <string name="f91_image_recent_none">Bilder, die du an die Uhr sendest, erscheinen hier. Halte eines gedrückt, um es zu entfernen.</string>
     <string name="f91_image_presets">Vorlagen</string>
     <string name="f91_image_preset_logo">Kepler-Logo</string>

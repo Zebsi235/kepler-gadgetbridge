@@ -2442,6 +2442,7 @@
     <string name="f91_image_failed_retry">The watch did not confirm the image. Tap Try again.</string>
     <string name="f91_image_interrupted">The watch disconnected. The image is sent again when it reconnects.</string>
     <string name="f91_image_recent">Recent</string>
+    <string name="f91_image_recent_item">Recent image %1$d</string>
     <string name="f91_image_recent_none">Images you send to the watch appear here. Touch and hold one to remove it.</string>
     <string name="f91_image_presets">Presets</string>
     <string name="f91_image_preset_logo">Kepler logo</string>

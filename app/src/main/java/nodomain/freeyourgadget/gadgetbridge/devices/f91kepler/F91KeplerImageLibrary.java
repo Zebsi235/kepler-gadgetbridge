@@ -72,12 +72,13 @@ public final class F91KeplerImageLibrary {
         }
         Arrays.sort(files, (a, b) -> b.getName().compareTo(a.getName()));
         for (final File f : files) {
-            if (f.length() != F91KeplerConstants.IMAGE_BYTES) {
+            final String id = f.getName().substring(0, f.getName().length() - SUFFIX.length());
+            // Only our own time-stamped files: a foreign name would sort first forever.
+            if (f.length() != F91KeplerConstants.IMAGE_BYTES || !id.matches("\\d+")) {
                 continue;
             }
             try {
-                out.add(new Entry(f.getName().substring(0, f.getName().length() - SUFFIX.length()),
-                                  Files.readAllBytes(f.toPath())));
+                out.add(new Entry(id, Files.readAllBytes(f.toPath())));
             } catch (final IOException e) {
                 LOG.warn("Could not read the gallery image {}", f, e);
             }

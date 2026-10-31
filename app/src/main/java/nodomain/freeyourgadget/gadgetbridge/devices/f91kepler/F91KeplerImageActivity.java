@@ -83,8 +83,6 @@ public class F91KeplerImageActivity extends AbstractGBActivity {
     private static final String STATE_CROP = "f91_image_crop";
     private static final String STATE_AWAITING = "f91_image_awaiting";
     private static final String STATE_PICKED = "f91_image_picked";
-    /** Gallery thumbnails: the panel's 96x39 at this many screen dp per pixel. */
-    private static final float THUMB_DP_PER_PIXEL = 1f;
     /** Frame around the chosen thumbnail (Kepler phosphor) and around the others. */
     private static final int THUMB_CHOSEN = 0xFF6EE7D6;
     private static final int THUMB_OTHER = 0xFF34383C;
@@ -229,7 +227,10 @@ public class F91KeplerImageActivity extends AbstractGBActivity {
             if (uri != null) {
                 loadSource(uri, savedInstanceState.getFloatArray(STATE_CROP));
             } else if (pickedBefore != null && pickedBefore.length == F91KeplerConstants.IMAGE_BYTES) {
-                pick(pickedBefore);
+                // Not pick(): that starts a new send and would drop the upload state restored above.
+                picked = pickedBefore;
+                bits = F91KeplerImageCodec.unpackImage(pickedBefore);
+                showPreview(bits);
             }
         }
         render();
@@ -308,14 +309,16 @@ public class F91KeplerImageActivity extends AbstractGBActivity {
             final byte[] frame = preset.frame();
             presetRow.addView(thumbnail(frame, getString(preset.label), v -> pick(frame), null));
         }
+        markChosen();
     }
 
     private void showRecent() {
         recentRow.removeAllViews();
         final java.util.List<F91KeplerImageLibrary.Entry> recent = library.recent();
         recentEmpty.setVisibility(recent.isEmpty() ? View.VISIBLE : View.GONE);
-        for (final F91KeplerImageLibrary.Entry entry : recent) {
-            recentRow.addView(thumbnail(entry.frame, getString(R.string.f91_image_recent),
+        for (int i = 0; i < recent.size(); i++) {
+            final F91KeplerImageLibrary.Entry entry = recent.get(i);
+            recentRow.addView(thumbnail(entry.frame, getString(R.string.f91_image_recent_item, i + 1),
                     v -> pick(entry.frame), v -> {
                         confirmRemove(entry);
                         return true;
@@ -324,21 +327,26 @@ public class F91KeplerImageActivity extends AbstractGBActivity {
         markChosen();
     }
 
-    /** The frame exactly as the panel shows it: 96x39, nearest-neighbour, lit on black. */
+    /**
+     * The frame exactly as the panel shows it: 96x39, lit on black, every panel
+     * pixel a whole number of screen pixels (a fractional scale would make some
+     * columns wider than others and band a dithered image).
+     */
     private ImageView thumbnail(final byte[] frame, final String description,
                                 final View.OnClickListener onClick,
                                 @Nullable final View.OnLongClickListener onLongClick) {
         final float density = getResources().getDisplayMetrics().density;
+        final int scale = Math.max(1, (int) Math.floor(density));
+        final int pad = Math.round(4 * density);
         final ImageView thumb = new ImageView(this);
         final LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(
-                Math.round(F91KeplerConstants.IMAGE_WIDTH * THUMB_DP_PER_PIXEL * density + 8 * density),
-                Math.round(F91KeplerConstants.IMAGE_HEIGHT * THUMB_DP_PER_PIXEL * density + 8 * density));
+                F91KeplerConstants.IMAGE_WIDTH * scale + 2 * pad,
+                F91KeplerConstants.IMAGE_HEIGHT * scale + 2 * pad);
         lp.setMarginEnd(Math.round(8 * density));
         thumb.setLayoutParams(lp);
-        final int pad = Math.round(4 * density);
         thumb.setPadding(pad, pad, pad, pad);
-        thumb.setScaleType(ImageView.ScaleType.FIT_XY);
-        thumb.setImageBitmap(F91KeplerImageConverter.toPreview(F91KeplerImageCodec.unpackImage(frame), 1));
+        thumb.setScaleType(ImageView.ScaleType.CENTER);
+        thumb.setImageBitmap(F91KeplerImageConverter.toPreview(F91KeplerImageCodec.unpackImage(frame), scale));
         final Drawable drawable = thumb.getDrawable();
         if (drawable != null) {
             drawable.setFilterBitmap(false);
@@ -361,6 +369,7 @@ public class F91KeplerImageActivity extends AbstractGBActivity {
                 final View child = row.getChildAt(i);
                 final boolean chosen = now != null && java.util.Arrays.equals(now, (byte[]) child.getTag());
                 child.setBackgroundColor(chosen ? THUMB_CHOSEN : THUMB_OTHER);
+                child.setSelected(chosen);
             }
         }
     }
