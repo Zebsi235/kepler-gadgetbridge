@@ -168,6 +168,11 @@ public class F91KeplerSupport extends AbstractBTLESingleDeviceSupport {
      *  sent a characteristic it no longer has. */
     private volatile String connectedFw;
 
+    /** A 4-byte TimeZone write is waiting for its answer (fallback below). */
+    private volatile boolean tzWideInFlight;
+    /** This watch refused the 4-byte TimeZone write: send 2 bytes for the rest of the link. */
+    private volatile boolean tzWideRefused;
+
     /** Newest first. Changed on the main thread (onNotification) and read on the
      *  GATT thread (initializeDevice): every access holds its lock. */
     private final List<RecentNotif> recent = new ArrayList<>();
@@ -223,6 +228,8 @@ public class F91KeplerSupport extends AbstractBTLESingleDeviceSupport {
         // A new connection: forget the previous one's firmware version, so the
         // 3.1 gate (has31) is closed until THIS watch has reported its version.
         connectedFw = null;
+        tzWideInFlight = false;
+        tzWideRefused = false;
         soundCfg = null;
         synchronized (soundWriteKeys) {
             soundReadsPending = 0;
@@ -536,8 +543,26 @@ public class F91KeplerSupport extends AbstractBTLESingleDeviceSupport {
             LOG.warn("F91 alarm slot select failed with status {}", status);
             finishAlarmRead(false);
         }
+        if (characteristic != null
+                && F91KeplerConstants.UUID_CHAR_TIMEZONE.equals(characteristic.getUuid())
+                && tzWideInFlight) {
+            tzWideInFlight = false;
+            if (status == ATT_INVALID_VALUE_LENGTH || status == ATT_INVALID_VALUE) {
+                // A firmware without the wide form (wrong length) or one with a
+                // narrower range: fall back to the clamped 2-byte value.
+                LOG.warn("F91 watch refused the 4-byte time zone (status {}), sending 2 bytes", status);
+                tzWideRefused = true;
+                final TransactionBuilder builder = createTransactionBuilder("set time zone (2 bytes)");
+                addTimezone(builder, currentSecondsWest());
+                builder.queue();
+            }
+        }
         return super.onCharacteristicWrite(gatt, characteristic, status);
     }
+
+    /** ATT error codes the TimeZone fallback reacts to. */
+    private static final int ATT_INVALID_VALUE_LENGTH = 0x0D;
+    private static final int ATT_INVALID_VALUE = 0x80;   // TI stack ATT_ERR_INVALID_VALUE
 
     private void handleBatteryInfo(final BatteryInfo info) {
         if (info == null) {
@@ -559,7 +584,32 @@ public class F91KeplerSupport extends AbstractBTLESingleDeviceSupport {
         }
         connectedFw = fw;
         handleGBDeviceEvent(versionCmd);
+        resendWideTimezone(fw);
         restorePhoneOwnedConfig(fw);
+    }
+
+    /**
+     * initializeDevice writes the time zone before DIS has been read, so it
+     * always goes as the clamped 2-byte form. Once the version is known, send
+     * the full offset to a firmware that takes it -- only when it was clamped.
+     */
+    private void resendWideTimezone(final String fw) {
+        if (!GBApplication.getPrefs().syncTime()) {
+            return;
+        }
+        final int secondsWest = currentSecondsWest();
+        if (F91KeplerProtocol.timezoneFitsInt16(secondsWest)) {
+            return;
+        }
+        if (!F91KeplerFirmware.atLeast(fw, F91KeplerFirmware.MIN_WIDE_TZ)) {
+            LOG.warn("F91 time zone {} s west does not fit firmware {} (+-9 h 06 min); the watch shows it clamped",
+                    secondsWest, fw);
+            return;
+        }
+        // Its own transaction: a refused write must not cancel other restores.
+        final TransactionBuilder builder = createTransactionBuilder("set time zone (4 bytes)");
+        addTimezone(builder, secondsWest);
+        builder.queue();
     }
 
     /**
@@ -869,11 +919,35 @@ public class F91KeplerSupport extends AbstractBTLESingleDeviceSupport {
 
     private void addSetTime(final TransactionBuilder builder) {
         final long nowMillis = System.currentTimeMillis();
+        builder.write(F91KeplerConstants.UUID_CHAR_TIME, F91KeplerProtocol.time(nowMillis / 1000L));
+        addTimezone(builder, secondsWestAt(nowMillis));
+    }
+
+    private static int currentSecondsWest() {
+        return secondsWestAt(System.currentTimeMillis());
+    }
+
+    private static int secondsWestAt(final long nowMillis) {
         // Java's getOffset() returns ms EAST of UTC (incl. DST); firmware stores
         // signed seconds WEST of UTC, so negate. Mirrors the companion app's
         // TimeSyncScheduler — the convention this firmware renders correctly.
-        final int secondsWest = -(TimeZone.getDefault().getOffset(nowMillis) / 1000);
-        builder.write(F91KeplerConstants.UUID_CHAR_TIME, F91KeplerProtocol.time(nowMillis / 1000L));
+        return -(TimeZone.getDefault().getOffset(nowMillis) / 1000);
+    }
+
+    /**
+     * The 4-byte form only to a watch that has said it runs 3.3.2+ on THIS link
+     * (an older one refuses it); else the 2-byte form, clamped to +-9 h 06 min.
+     */
+    private void addTimezone(final TransactionBuilder builder, final int secondsWest) {
+        if (!tzWideRefused && F91KeplerFirmware.atLeast(connectedFw, F91KeplerFirmware.MIN_WIDE_TZ)) {
+            tzWideInFlight = true;
+            builder.write(F91KeplerConstants.UUID_CHAR_TIMEZONE, F91KeplerProtocol.timezoneWestWide(secondsWest));
+            return;
+        }
+        if (!F91KeplerProtocol.timezoneFitsInt16(secondsWest) && connectedFw != null) {
+            LOG.warn("F91 time zone {} s west does not fit firmware {} (+-9 h 06 min); sent clamped",
+                    secondsWest, connectedFw);
+        }
         builder.write(F91KeplerConstants.UUID_CHAR_TIMEZONE, F91KeplerProtocol.timezoneWest(secondsWest));
     }
 

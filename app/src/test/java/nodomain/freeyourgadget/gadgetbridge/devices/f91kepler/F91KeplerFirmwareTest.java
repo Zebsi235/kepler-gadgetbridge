@@ -129,4 +129,14 @@ public class F91KeplerFirmwareTest {
         assertFalse(F91KeplerFirmware.hasLostAlert("3.2.1"));
         assertFalse(F91KeplerFirmware.hasLostAlert(null));
     }
+
+    @Test
+    public void wideTimezoneNeeds332IncludingPreReleases() {
+        final int[] min = F91KeplerFirmware.MIN_WIDE_TZ;
+        assertTrue(F91KeplerFirmware.atLeast("3.3.2", min));
+        assertTrue(F91KeplerFirmware.atLeast("3.3.2-rc3-bl", min));
+        assertTrue(F91KeplerFirmware.atLeast("3.4.0", min));
+        assertFalse(F91KeplerFirmware.atLeast("3.3.1-rc2", min));
+        assertFalse(F91KeplerFirmware.atLeast(null, min));
+    }
 }

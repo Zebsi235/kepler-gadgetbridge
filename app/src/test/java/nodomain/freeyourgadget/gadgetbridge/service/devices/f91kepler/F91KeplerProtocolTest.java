@@ -59,6 +59,55 @@ public class F91KeplerProtocolTest {
                 F91KeplerProtocol.timezoneWest(28800));
     }
 
+    private static byte[] int32LE(final int v) {
+        return new byte[]{(byte) v, (byte) (v >> 8), (byte) (v >> 16), (byte) (v >> 24)};
+    }
+
+    private static byte[] int16LE(final int v) {
+        return new byte[]{(byte) v, (byte) (v >> 8)};
+    }
+
+    @Test
+    public void timezoneWest_clampsOutsideInt16() {
+        // UTC+10 (Sydney) = -36000 s west, UTC-10 (Hawaii) = +36000: past +-9 h 06 min.
+        assertArrayEquals(int16LE(Short.MIN_VALUE), F91KeplerProtocol.timezoneWest(-36000));
+        assertArrayEquals(int16LE(Short.MAX_VALUE), F91KeplerProtocol.timezoneWest(36000));
+        assertArrayEquals(int16LE(Short.MIN_VALUE), F91KeplerProtocol.timezoneWest(-50400));
+        assertArrayEquals(int16LE(0), F91KeplerProtocol.timezoneWest(0));
+    }
+
+    @Test
+    public void timezoneWestWide_isInt32LE() {
+        assertArrayEquals(new byte[]{0, 0, 0, 0}, F91KeplerProtocol.timezoneWestWide(0));
+        // UTC+10 = -36000 = 0xFFFF7360 -> LE {60, 73, FF, FF}.
+        assertArrayEquals(new byte[]{0x60, 0x73, (byte) 0xFF, (byte) 0xFF},
+                F91KeplerProtocol.timezoneWestWide(-36000));
+        assertArrayEquals(int32LE(-46800), F91KeplerProtocol.timezoneWestWide(-46800));   // UTC+13
+        assertArrayEquals(int32LE(-50400), F91KeplerProtocol.timezoneWestWide(-50400));   // UTC+14
+        // UTC-10 = 36000 = 0x00008CA0 -> LE {A0, 8C, 00, 00}.
+        assertArrayEquals(new byte[]{(byte) 0xA0, (byte) 0x8C, 0, 0},
+                F91KeplerProtocol.timezoneWestWide(36000));
+        assertArrayEquals(int32LE(43200), F91KeplerProtocol.timezoneWestWide(43200));     // UTC-12
+        assertArrayEquals(int32LE(-3600), F91KeplerProtocol.timezoneWestWide(-3600));     // Berlin
+    }
+
+    @Test
+    public void timezoneWestWide_clampsToFirmwareRange() {
+        assertArrayEquals(int32LE(-50400), F91KeplerProtocol.timezoneWestWide(-54000));   // UTC+15
+        assertArrayEquals(int32LE(43200), F91KeplerProtocol.timezoneWestWide(46800));     // UTC-13
+        assertArrayEquals(int32LE(-50400), F91KeplerProtocol.timezoneWestWide(Integer.MIN_VALUE));
+        assertArrayEquals(int32LE(43200), F91KeplerProtocol.timezoneWestWide(Integer.MAX_VALUE));
+    }
+
+    @Test
+    public void timezoneFitsInt16_boundaries() {
+        assertTrue(F91KeplerProtocol.timezoneFitsInt16(0));
+        assertTrue(F91KeplerProtocol.timezoneFitsInt16(32767));
+        assertTrue(F91KeplerProtocol.timezoneFitsInt16(-32768));
+        assertFalse(F91KeplerProtocol.timezoneFitsInt16(-36000));
+        assertFalse(F91KeplerProtocol.timezoneFitsInt16(36000));
+    }
+
     @Test
     public void timeModeAndDst_areSingleByteFlags() {
         assertArrayEquals(new byte[]{0x01}, F91KeplerProtocol.timeMode(true));
