@@ -148,10 +148,14 @@ public class F91KeplerSupport extends AbstractBTLESingleDeviceSupport {
     private volatile boolean alarmReadWrite;
     /**
      * When the last alarm alert started (elapsedRealtime) and its local minute
-     * (h*60+m), for {@link #switchOffRingingOneShots}.
+     * (h*60+m), for {@link #switchOffRingingOneShots}. {@code alarmRangHmLate}:
+     * the minute a few seconds later, for a watch clock running ahead of the phone.
      */
     private volatile long alarmRangAt;
     private volatile int alarmRangHm = -1;
+    private volatile int alarmRangHmLate = -1;
+    /** The running read-back was started by an alarm alert (not by the connect). */
+    private volatile boolean alarmReadAfterRing;
     /**
      * Firmware 3.2 SOUND_CFG as last read from this watch (6 or 8 bytes, no
      * CRC), null until read. The sound switches are written as a change of
@@ -383,9 +387,13 @@ public class F91KeplerSupport extends AbstractBTLESingleDeviceSupport {
         }
         if (ev == F91KeplerConstants.ALERT_EVENT_ALARM && has31()) {
             final Calendar now = Calendar.getInstance();
+            alarmRangAt = 0L;          // the minutes below are never read with a fresh time
             alarmRangHm = now.get(Calendar.HOUR_OF_DAY) * 60 + now.get(Calendar.MINUTE);
+            now.add(Calendar.SECOND, RANG_SKEW_S);
+            alarmRangHmLate = now.get(Calendar.HOUR_OF_DAY) * 60 + now.get(Calendar.MINUTE);
             alarmRangAt = SystemClock.elapsedRealtime();
             readAlarmSlots(false);     // a one-shot just switched itself off
+            alarmReadAfterRing = true;
         }
         final SharedPreferences prefs =
                 GBApplication.getDeviceSpecificSharedPrefs(getDevice().getAddress());
@@ -1486,9 +1494,9 @@ public class F91KeplerSupport extends AbstractBTLESingleDeviceSupport {
             // The alarm screen sends its list when it is left, and the ring itself
             // leaves it (the find-phone screen opens): that list still has the
             // ringing one-shot on, and outruns the read-back that would switch it off.
-            // The database holds the same list: the screen stores every change first.
-            final List<? extends Alarm> list = switchOffRingingOneShots() ? DBHelper.getAlarms(getDevice()) : alarms;
-            transfers.queue("set alarm slots", F91KeplerTransfer.ALARMS, true, builder -> addAlarmSlots(builder, list));
+            final Set<Integer> ringing = switchOffRingingOneShots(alarms);
+            transfers.queue("set alarm slots", F91KeplerTransfer.ALARMS, true,
+                    builder -> addAlarmSlots(builder, alarms, ringing));
             return;
         }
         final List<? extends Alarm> list = new ArrayList<>(alarms);
@@ -1619,35 +1627,47 @@ public class F91KeplerSupport extends AbstractBTLESingleDeviceSupport {
                 && alarm.getHour() * 60 + alarm.getMinute() == hm;
     }
 
+    /** How far the watch clock may run ahead of the phone's for {@link #switchOffRingingOneShots}. */
+    private static final int RANG_SKEW_S = 10;
+
     /**
-     * Firmware 3.1: switches off in the app the one-shots the watch is ringing
-     * now ({@link F91KeplerProtocol#ringingOneShot}); true if it did, and the
-     * alarm screen reloads them.
+     * Firmware 3.1: the positions in {@code alarms} of the one-shots the watch
+     * is ringing now ({@link F91KeplerProtocol#ringingOneShot}). They are
+     * switched off in the app too, and the alarm screen reloads them.
      */
-    private boolean switchOffRingingOneShots() {
-        final long since = SystemClock.elapsedRealtime() - alarmRangAt;
+    private Set<Integer> switchOffRingingOneShots(final List<? extends Alarm> alarms) {
+        final Set<Integer> ringing = new HashSet<>();
+        final long rangAt = alarmRangAt;
+        final long since = SystemClock.elapsedRealtime() - rangAt;
         final int rangHm = alarmRangHm;
-        if (rangHm < 0 || since >= 60_000L) {
-            return false;
+        final int rangHmLate = alarmRangHmLate;
+        if (rangAt == 0L || since >= RANG_WINDOW_MS) {
+            return ringing;
         }
-        final Calendar now = Calendar.getInstance();
-        final int nowHm = now.get(Calendar.HOUR_OF_DAY) * 60 + now.get(Calendar.MINUTE);
-        int changed = 0;
+        for (final Alarm a : alarms) {
+            if (a != null && (F91KeplerProtocol.ringingOneShot(a.getEnabled(), a.getUnused(), a.getHour(),
+                                                               a.getMinute(), a.getRepetition(), rangHm, since)
+                    || F91KeplerProtocol.ringingOneShot(a.getEnabled(), a.getUnused(), a.getHour(),
+                                                        a.getMinute(), a.getRepetition(), rangHmLate, since))) {
+                ringing.add(a.getPosition());
+            }
+        }
+        if (ringing.isEmpty()) {
+            return ringing;
+        }
         for (final nodomain.freeyourgadget.gadgetbridge.entities.Alarm a : DBHelper.getAlarms(getDevice())) {
-            if (F91KeplerProtocol.ringingOneShot(a.getEnabled(), a.getUnused(), a.getHour(), a.getMinute(),
-                                                 a.getRepetition(), rangHm, since, nowHm)) {
+            if (a.getEnabled() && ringing.contains(a.getPosition())) {
                 LOG.info("F91 one-shot alarm {} is ringing on the watch, switching it off", a.getPosition());
                 a.setEnabled(false);
                 DBHelper.store(a);
-                changed++;
             }
         }
-        if (changed > 0) {
-            LocalBroadcastManager.getInstance(getContext())
-                    .sendBroadcast(new Intent(DeviceService.ACTION_SAVE_ALARMS));
-        }
-        return changed > 0;
+        LocalBroadcastManager.getInstance(getContext())
+                .sendBroadcast(new Intent(DeviceService.ACTION_SAVE_ALARMS));
+        return ringing;
     }
+
+    private static final long RANG_WINDOW_MS = 60_000L;
 
     private void switchOffRungOneShot(final int pos, final int hm) {
         for (final nodomain.freeyourgadget.gadgetbridge.entities.Alarm a : DBHelper.getAlarms(getDevice())) {
@@ -1669,6 +1689,12 @@ public class F91KeplerSupport extends AbstractBTLESingleDeviceSupport {
      * older Gadgetbridge would otherwise ring alongside the slots.
      */
     private void addAlarmSlots(final TransactionBuilder builder, final List<? extends Alarm> alarms) {
+        addAlarmSlots(builder, alarms, java.util.Collections.emptySet());
+    }
+
+    /** {@code forceOff}: positions written off whatever the list says. */
+    private void addAlarmSlots(final TransactionBuilder builder, final List<? extends Alarm> alarms,
+                               final Set<Integer> forceOff) {
         final Alarm[] bySlot = new Alarm[F91KeplerConstants.ALARM_SLOTS_31];
         for (final Alarm a : alarms) {
             if (a != null && a.getPosition() >= 0 && a.getPosition() < bySlot.length) {
@@ -1677,7 +1703,7 @@ public class F91KeplerSupport extends AbstractBTLESingleDeviceSupport {
         }
         for (int i = 0; i < bySlot.length; i++) {
             final Alarm a = bySlot[i];
-            final boolean on = a != null && a.getEnabled() && !a.getUnused();
+            final boolean on = a != null && a.getEnabled() && !a.getUnused() && !forceOff.contains(i);
             final byte[] slot = a == null
                     ? F91KeplerProtocol.alarmSlot(false, 0, 0, 0)
                     : F91KeplerProtocol.alarmSlot(on, a.getHour(), a.getMinute(), a.getRepetition());
@@ -1697,6 +1723,7 @@ public class F91KeplerSupport extends AbstractBTLESingleDeviceSupport {
     private void readAlarmSlots(final boolean thenWrite) {
         java.util.Arrays.fill(alarmReadSlots, null);
         alarmReadWrite = thenWrite;
+        alarmReadAfterRing = false;
         alarmReadGen = alarmSetGen;
         final TransactionBuilder builder = createTransactionBuilder("read alarm slots");
         // Transactions run one at a time: a sound read still "on the air" here was
@@ -1748,9 +1775,20 @@ public class F91KeplerSupport extends AbstractBTLESingleDeviceSupport {
                 .getBoolean(F91KeplerConstants.PREF_SOUND_SNOOZE_DIRTY, false)) {
             readAlarmSounds();
         }
+        final boolean afterRing = alarmReadAfterRing;
+        alarmReadAfterRing = false;
         if (raced) {
-            LOG.debug("F91 alarms were edited during the read-back, keeping the edit");
-            return;                    // onSetAlarms has written the user's list already
+            // onSetAlarms has written the user's list already. After a ring that
+            // list may be the alarm screen's, left as the ring opened the find-phone
+            // screen, with the rung one-shot still on: it is switched off and the
+            // list written again (a one-shot rung on the watch is never an edit).
+            if (afterRing && complete && reconcileOneShots() > 0) {
+                transfers.queue("restore alarm slots", F91KeplerTransfer.ALARMS, false,
+                        builder -> addAlarmSlots(builder, DBHelper.getAlarms(getDevice())));
+            } else {
+                LOG.debug("F91 alarms were edited during the read-back, keeping the edit");
+            }
+            return;
         }
         if (complete) {
             reconcileOneShots();
@@ -1761,8 +1799,8 @@ public class F91KeplerSupport extends AbstractBTLESingleDeviceSupport {
         }
     }
 
-    /** One-shots the watch has rung are switched off in the app too. */
-    private void reconcileOneShots() {
+    /** One-shots the watch has rung are switched off in the app too; how many. */
+    private int reconcileOneShots() {
         int changed = 0;
         for (final nodomain.freeyourgadget.gadgetbridge.entities.Alarm a : DBHelper.getAlarms(getDevice())) {
             final int pos = a.getPosition();
@@ -1782,6 +1820,7 @@ public class F91KeplerSupport extends AbstractBTLESingleDeviceSupport {
             LocalBroadcastManager.getInstance(getContext())
                     .sendBroadcast(new Intent(DeviceService.ACTION_SAVE_ALARMS));
         }
+        return changed;
     }
 
     // --- Firmware 3.1: options, counters, forecast, sun --------------------
