@@ -41,11 +41,4 @@ public class F91KeplerNotificationTrackerTest {
         assertEquals(0, t.bitmask());
         assertTrue(t.expire(T0 + DAY).isEmpty());
     }
-
-    @Test
-    public void aClockSetBackDoesNotKeepTheMarkForEver() {
-        final F91KeplerNotificationTracker t = new F91KeplerNotificationTracker();
-        t.addUntracked(4, F91KeplerNotificationTracker.Category.TEXT, T0);
-        assertEquals(Collections.singletonList(4), t.expire(T0 - 60_000));
-    }
 }

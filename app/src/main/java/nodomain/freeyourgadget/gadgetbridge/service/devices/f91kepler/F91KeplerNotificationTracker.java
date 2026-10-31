@@ -87,14 +87,15 @@ class F91KeplerNotificationTracker {
         }
     }
 
-    /** Removes the untracked notifications that are too old; returns their ids. */
+    /**
+     * Removes the untracked notifications that are too old; returns their ids.
+     * Times are {@code SystemClock.elapsedRealtime()}, which never goes back.
+     */
     synchronized List<Integer> expire(final long nowMillis) {
         final List<Integer> expired = new ArrayList<>();
         for (final Iterator<Map.Entry<Integer, Long>> it = untracked.entrySet().iterator(); it.hasNext(); ) {
             final Map.Entry<Integer, Long> e = it.next();
-            // a clock set back counts as old too, rather than keeping the mark for ever
-            final long age = nowMillis - e.getValue();
-            if (age >= UNTRACKED_MAX_AGE_MS || age < 0) {
+            if (nowMillis - e.getValue() >= UNTRACKED_MAX_AGE_MS) {
                 it.remove();
                 for (final Set<Integer> set : active) {
                     set.remove(e.getKey());

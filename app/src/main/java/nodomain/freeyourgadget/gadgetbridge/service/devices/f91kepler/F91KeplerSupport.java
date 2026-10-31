@@ -24,6 +24,7 @@ import android.content.Intent;
 import android.content.SharedPreferences;
 import android.os.Handler;
 import android.os.Looper;
+import android.os.SystemClock;
 import android.service.notification.StatusBarNotification;
 import android.text.format.DateFormat;
 import android.widget.Toast;
@@ -400,6 +401,7 @@ public class F91KeplerSupport extends AbstractBTLESingleDeviceSupport {
     @Override
     public void dispose() {
         stuckHandler.removeCallbacksAndMessages(null);
+        notificationExpiryHandler.removeCallbacksAndMessages(null);
         super.dispose();
     }
 
@@ -888,8 +890,11 @@ public class F91KeplerSupport extends AbstractBTLESingleDeviceSupport {
         final String key = notificationSpec.getKey() != null ? notificationSpec.getKey() : "";
         dropOldNotifications();
         if (!fromListener) {
-            notificationTracker.addUntracked(notificationSpec.getId(), category, System.currentTimeMillis());
+            notificationTracker.addUntracked(notificationSpec.getId(), category, SystemClock.elapsedRealtime());
             addRecent(notificationSpec);
+            // a listener id that fell out of the listener's window is untracked now
+            listenerNotificationIds.remove(notificationSpec.getId());
+            scheduleNotificationExpiry();
         } else if (isStillShowing(notificationSpec.getId(), key)) {
             notificationTracker.add(notificationSpec.getId(), category);
             addRecent(notificationSpec);
@@ -945,10 +950,27 @@ public class F91KeplerSupport extends AbstractBTLESingleDeviceSupport {
      * intents) are hardly ever reported dismissed: after a day they no longer
      * keep the mark lit or stay in the history.
      */
-    private void dropOldNotifications() {
-        for (final int id : notificationTracker.expire(System.currentTimeMillis())) {
+    private boolean dropOldNotifications() {
+        final List<Integer> expired = notificationTracker.expire(SystemClock.elapsedRealtime());
+        for (final int id : expired) {
             removeRecent(id);
         }
+        return !expired.isEmpty();
+    }
+
+    private final Handler notificationExpiryHandler = new Handler(Looper.getMainLooper());
+
+    /** Also ends them while the watch stays connected without new notifications. */
+    private void scheduleNotificationExpiry() {
+        notificationExpiryHandler.removeCallbacksAndMessages(null);
+        notificationExpiryHandler.postDelayed(() -> {
+            if (dropOldNotifications() && getDevice().isInitialized()) {
+                final TransactionBuilder builder = createTransactionBuilder("expire old notifications");
+                builder.write(F91KeplerConstants.UUID_CHAR_NOTIFICATION_BAR, notificationTracker.bitmask());
+                addRecentNotifications(builder);
+                builder.queue();
+            }
+        }, F91KeplerNotificationTracker.UNTRACKED_MAX_AGE_MS + 60_000);
     }
 
     private void dropInactiveNotifications() {
