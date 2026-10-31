@@ -26,7 +26,6 @@ import android.os.Handler;
 import android.os.Looper;
 import android.os.SystemClock;
 import android.service.notification.StatusBarNotification;
-import android.os.SystemClock;
 import android.text.format.DateFormat;
 import android.widget.Toast;
 
@@ -74,7 +73,6 @@ import nodomain.freeyourgadget.gadgetbridge.model.NotificationSpec;
 import nodomain.freeyourgadget.gadgetbridge.model.NotificationType;
 import nodomain.freeyourgadget.gadgetbridge.model.WeatherSpec;
 import nodomain.freeyourgadget.gadgetbridge.model.weather.Weather;
-import nodomain.freeyourgadget.gadgetbridge.util.AlarmUtils;
 import nodomain.freeyourgadget.gadgetbridge.util.GB;
 import nodomain.freeyourgadget.gadgetbridge.service.btle.AbstractBTLESingleDeviceSupport;
 import nodomain.freeyourgadget.gadgetbridge.service.btle.GattService;
@@ -520,6 +518,7 @@ public class F91KeplerSupport extends AbstractBTLESingleDeviceSupport {
     public void dispose() {
         stuckHandler.removeCallbacksAndMessages(null);
         notificationExpiryHandler.removeCallbacksAndMessages(null);
+        legacyAlarmHandler.removeCallbacksAndMessages(null);
         transfers.dispose();
         // The phone ring has no timer of its own: once disposed nothing else
         // would stop an alert ring, so stop it now.
@@ -751,7 +750,14 @@ public class F91KeplerSupport extends AbstractBTLESingleDeviceSupport {
                 builder.run(() -> prefs.edit().putBoolean(F91KeplerConstants.PREF_BRIGHTNESS_DIRTY, false).apply());
             }
         });
+        if (fw != null && !F91KeplerFirmware.has31(fw)) {
+            // The single alarm switched itself off if it rang while the phone was away
+            legacyAlarmHandler.post(() -> syncLegacyAlarm(null, false));
+        }
         if (F91KeplerFirmware.has31(fw)) {
+            prefs.edit().remove(F91KeplerConstants.PREF_LEGACY_ARMED_AT)
+                    .remove(F91KeplerConstants.PREF_LEGACY_ONCE_POS)
+                    .remove(F91KeplerConstants.PREF_LEGACY_ONCE_HM).apply();
             // Its own transaction: a refused 3.1 write must not cancel the
             // restores above. All of it is phone-owned and cheap to repeat --
             // the watch skips the flash write for an unchanged value.
@@ -1409,38 +1415,144 @@ public class F91KeplerSupport extends AbstractBTLESingleDeviceSupport {
             transfers.queue("set alarm slots", F91KeplerTransfer.ALARMS, true, builder -> addAlarmSlots(builder, alarms));
             return;
         }
-        // The firmware Alarm Service holds a single one-shot alarm: CHAR5
-        // AlarmTime (absolute UTC epoch, 0 = disabled) + CHAR6 AlarmEnabled.
-        // Pick the soonest enabled, in-use alarm's next occurrence; if none,
-        // disable. (The watch auto-disables after firing, so a repeating alarm
-        // effectively fires once until Gadgetbridge re-syncs — recurring is a
-        // firmware follow-up, see FW91 #73.)
+        final List<? extends Alarm> list = new ArrayList<>(alarms);
+        legacyAlarmHandler.post(() -> syncLegacyAlarm(list, true));
+    }
+
+    /** Runs the pre-3.1 alarm work on the main thread, one call at a time. */
+    private final Handler legacyAlarmHandler = new Handler(Looper.getMainLooper());
+    /** Marks the re-arm timer, so a new sync cancels it but not a queued save. */
+    private static final Object LEGACY_TIMER = new Object();
+    private static final long LEGACY_REARM_AFTER_MS = 90_000;
+    /** Checks the wall clock this often: a delayed post does not count the time the phone sleeps. */
+    private static final long LEGACY_CHECK_MAX_MS = 15 * 60_000;
+
+    /**
+     * Firmware before 3.1: the Alarm Service holds a single alarm, CHAR5
+     * AlarmTime (absolute UTC epoch, 0 = disabled) + CHAR6 AlarmEnabled, and
+     * switches it off as it rings. Arms the soonest next ring of all enabled
+     * alarms (repeat days included), and again after each ring while connected
+     * and on connect, so a repeating alarm keeps ringing. A one-shot the app
+     * armed whose time has passed rang on the watch: it is switched off in the
+     * app, not armed for the next day.
+     *
+     * @param alarms the app's alarms, or null to read them from the database
+     * @param force  write even if the watch holds this ring already (the user
+     *               saved the alarms). Otherwise the watch keeps what it has while
+     *               the ring to arm is the one it holds, so switching the alarm
+     *               off on the watch skips that ring instead of being undone at
+     *               the next connect.
+     */
+    private void syncLegacyAlarm(@Nullable final List<? extends Alarm> alarms, final boolean force) {
+        if (connectedFw != null && has31()) {
+            return;   // queued before the version was known: the 3.1 path owns the alarms
+        }
+        legacyAlarmHandler.removeCallbacksAndMessages(LEGACY_TIMER);
+        final List<? extends Alarm> list = alarms != null ? alarms : DBHelper.getAlarms(getDevice());
+        final SharedPreferences prefs = GBApplication.getDeviceSpecificSharedPrefs(getDevice().getAddress());
+        final long nowMillis = System.currentTimeMillis();
+        final long armedAt = prefs.getLong(F91KeplerConstants.PREF_LEGACY_ARMED_AT, 0L);
+        final boolean passed = armedAt > 0 && armedAt * 1000L <= nowMillis;
+        final int rangPos = passed ? prefs.getInt(F91KeplerConstants.PREF_LEGACY_ONCE_POS, -1) : -1;
+        final int rangHm = prefs.getInt(F91KeplerConstants.PREF_LEGACY_ONCE_HM, -1);
+
+        final Calendar now = Calendar.getInstance();
+        now.setTimeInMillis(nowMillis);
         Calendar soonest = null;
-        for (final Alarm alarm : alarms) {
-            if (alarm == null || alarm.getUnused() || !alarm.getEnabled()) {
+        Alarm armed = null;
+        for (final Alarm alarm : list) {
+            if (alarm == null || alarm.getUnused() || !alarm.getEnabled() || isRungOneShot(alarm, rangPos, rangHm)) {
                 continue;
             }
-            final Calendar next = AlarmUtils.toCalendar(alarm); // next h:m, rolls to tomorrow if past
+            final Calendar next = F91KeplerProtocol.nextAlarm(now, alarm.getHour(), alarm.getMinute(),
+                                                              alarm.getRepetition());
             if (soonest == null || next.before(soonest)) {
                 soonest = next;
+                armed = alarm;
             }
         }
+        final long nextAt = soonest == null ? 0L : soonest.getTimeInMillis() / 1000L;
+        if (!force && !passed && nextAt == armedAt) {
+            // Same ring as armed (a new time zone or list would change it)
+            LOG.debug("F91 alarm unchanged and not rung yet: the watch keeps what it has");
+            if (armedAt > 0) {
+                scheduleLegacyCheck(armedAt * 1000L + LEGACY_REARM_AFTER_MS);
+            }
+            return;
+        }
+        if (rangPos >= 0) {
+            switchOffRungOneShot(rangPos, rangHm);
+        }
 
-        final Calendar armed = soonest;
-        transfers.queue("set alarms", F91KeplerTransfer.ALARMS, true, builder -> {
-            if (armed == null) {
+        final SharedPreferences.Editor edit = prefs.edit()
+                .remove(F91KeplerConstants.PREF_LEGACY_ONCE_POS)
+                .remove(F91KeplerConstants.PREF_LEGACY_ONCE_HM);
+        final Calendar ring = soonest;
+        if (ring == null) {
+            edit.putLong(F91KeplerConstants.PREF_LEGACY_ARMED_AT, 0L);
+        } else {
+            edit.putLong(F91KeplerConstants.PREF_LEGACY_ARMED_AT, ring.getTimeInMillis() / 1000L);
+            if (armed.getRepetition() == 0) {
+                edit.putInt(F91KeplerConstants.PREF_LEGACY_ONCE_POS, armed.getPosition())
+                        .putInt(F91KeplerConstants.PREF_LEGACY_ONCE_HM, armed.getHour() * 60 + armed.getMinute());
+            }
+            // After it rang: off for a one-shot, the next ring for a repeating one
+            scheduleLegacyCheck(ring.getTimeInMillis() + LEGACY_REARM_AFTER_MS);
+        }
+        // A sync of its own (on connect, after a ring) fails quietly like the other automatic ones
+        transfers.queue("set alarms", F91KeplerTransfer.ALARMS, force, builder -> {
+            if (ring == null) {
                 builder.write(F91KeplerConstants.UUID_CHAR_ALARM_ENABLED, F91KeplerProtocol.alarmEnabled(false));
                 builder.write(F91KeplerConstants.UUID_CHAR_ALARM_TIME, F91KeplerProtocol.alarmTime(0L));
             } else {
                 // Write the time first, then enable: the firmware only arms when
                 // AlarmEnabled && AlarmTime != 0. getTimeInMillis() is UTC, matching
                 // the watch's UTC clock.
-                final long epochSeconds = armed.getTimeInMillis() / 1000L;
+                final long epochSeconds = ring.getTimeInMillis() / 1000L;
                 builder.write(F91KeplerConstants.UUID_CHAR_ALARM_TIME, F91KeplerProtocol.alarmTime(epochSeconds));
                 builder.write(F91KeplerConstants.UUID_CHAR_ALARM_ENABLED, F91KeplerProtocol.alarmEnabled(true));
-                LOG.debug("F91 alarm armed for {} (epoch {})", armed.getTime(), epochSeconds);
+                LOG.debug("F91 alarm armed for {} (epoch {})", ring.getTime(), epochSeconds);
             }
+            // Stored only once the watch took it: a dropped write is written again on connect
+            builder.run(edit::apply);
         });
+    }
+
+    /**
+     * Syncs again once {@code dueMillis} (wall clock) has passed, while the link
+     * to a watch known to be pre-3.1 stays up (an alarm set in the first moment
+     * of a 3.1 link also comes this way, before the version is known).
+     */
+    private void scheduleLegacyCheck(final long dueMillis) {
+        final long wait = Math.max(1000L, Math.min(dueMillis - System.currentTimeMillis(), LEGACY_CHECK_MAX_MS));
+        legacyAlarmHandler.postAtTime(() -> {
+            if (!getDevice().isInitialized() || connectedFw == null || has31()) {
+                return;
+            }
+            if (System.currentTimeMillis() >= dueMillis) {
+                syncLegacyAlarm(null, false);
+            } else {
+                scheduleLegacyCheck(dueMillis);
+            }
+        }, LEGACY_TIMER, SystemClock.uptimeMillis() + wait);
+    }
+
+    /** Still the one-shot the app armed and the watch rang: same slot, no repeat days, same time. */
+    private static boolean isRungOneShot(final Alarm alarm, final int pos, final int hm) {
+        return pos >= 0 && alarm.getPosition() == pos && alarm.getRepetition() == 0
+                && alarm.getHour() * 60 + alarm.getMinute() == hm;
+    }
+
+    private void switchOffRungOneShot(final int pos, final int hm) {
+        for (final nodomain.freeyourgadget.gadgetbridge.entities.Alarm a : DBHelper.getAlarms(getDevice())) {
+            if (a.getEnabled() && isRungOneShot(a, pos, hm)) {
+                LOG.info("F91 one-shot alarm {} rang on the watch, switching it off", pos);
+                a.setEnabled(false);
+                DBHelper.store(a);
+                LocalBroadcastManager.getInstance(getContext())
+                        .sendBroadcast(new Intent(DeviceService.ACTION_SAVE_ALARMS));
+            }
+        }
     }
 
     /**

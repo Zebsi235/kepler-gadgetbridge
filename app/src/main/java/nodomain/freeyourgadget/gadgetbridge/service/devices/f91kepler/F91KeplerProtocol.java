@@ -106,6 +106,33 @@ final class F91KeplerProtocol {
                 .array();
     }
 
+    /**
+     * When an alarm rings next, at the whole minute: the next {@code hour:minute}
+     * after {@code now} that falls on one of its repeat days (Gadgetbridge mask,
+     * Monday = 1 .. Sunday = 64), or simply the next one for a one-shot (mask 0).
+     */
+    static Calendar nextAlarm(final Calendar now, final int hour, final int minute, final int repetition) {
+        final Calendar next = (Calendar) now.clone();
+        next.set(Calendar.HOUR_OF_DAY, hour);
+        next.set(Calendar.MINUTE, minute);
+        next.set(Calendar.SECOND, 0);
+        next.set(Calendar.MILLISECOND, 0);
+        if (!next.after(now)) {
+            next.add(Calendar.DATE, 1);
+        }
+        if ((repetition & 0x7F) != 0) {
+            for (int i = 0; i < 7 && (repetition & dayBit(next)) == 0; i++) {
+                next.add(Calendar.DATE, 1);
+            }
+        }
+        return next;
+    }
+
+    /** The Gadgetbridge repeat bit of the calendar's weekday (Monday = 1 .. Sunday = 64). */
+    private static int dayBit(final Calendar day) {
+        return 1 << ((day.get(Calendar.DAY_OF_WEEK) + 5) % 7);
+    }
+
     /** Alarm enabled characteristic: 0x00 = off, 0x01 = on. */
     static byte[] alarmEnabled(final boolean enabled) {
         return new byte[]{(byte) (enabled ? 0x01 : 0x00)};

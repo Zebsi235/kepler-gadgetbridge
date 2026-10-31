@@ -355,6 +355,15 @@ public final class F91KeplerConstants {
      * connect would undo that.
      */
     public static final String PREF_BRIGHTNESS_DIRTY = "f91_brightness_dirty";
+    /**
+     * Firmware before 3.1 holds one alarm time and switches it off as it rings.
+     * What the app armed last: its time (epoch seconds, 0 = none) and, for a
+     * one-shot, its app position and hour * 60 + minute, so a later connect knows the one-shot rang and does not arm it
+     * for the next day.
+     */
+    public static final String PREF_LEGACY_ARMED_AT = "f91_legacy_armed_at";
+    public static final String PREF_LEGACY_ONCE_POS = "f91_legacy_once_pos";
+    public static final String PREF_LEGACY_ONCE_HM = "f91_legacy_once_hm";
     public static final String PREF_NOTIFICATION_POPUP = "f91_notification_popup";
 
     /**
