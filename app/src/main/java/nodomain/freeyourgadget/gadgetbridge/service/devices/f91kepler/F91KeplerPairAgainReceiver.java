@@ -46,14 +46,20 @@ public class F91KeplerPairAgainReceiver extends BroadcastReceiver {
     private static final Logger LOG = LoggerFactory.getLogger(F91KeplerPairAgainReceiver.class);
 
     static final String EXTRA_ADDRESS = "f91kepler_address";
-    /** Unique among GB's fixed notification ids (GB.java 2..43). */
-    static final int NOTIFICATION_ID = 44;
+    /**
+     * One notification per watch, in the fork's id range (see
+     * GB.NOTIFICATION_ID_MUSIC_ACCESS), so two watches do not replace each
+     * other's offer.
+     */
+    private static final int NOTIFICATION_ID_BASE = 0x4B50_1000;
     private static final long BOND_DROP_WAIT_MS = 8000;
 
     static void showNotification(final Context context, final GBDevice device) {
         final Intent pairAgain = new Intent(context, F91KeplerPairAgainReceiver.class)
                 .putExtra(EXTRA_ADDRESS, device.getAddress());
-        final PendingIntent action = PendingIntent.getBroadcast(context, 0, pairAgain,
+        final int id = notificationId(device.getAddress());
+        // The request code keeps one watch's intent from overwriting the other's.
+        final PendingIntent action = PendingIntent.getBroadcast(context, id, pairAgain,
                 PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
         final Intent open = new Intent(context, ControlCenterv2.class)
                 .setFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TOP);
@@ -67,11 +73,15 @@ public class F91KeplerPairAgainReceiver extends BroadcastReceiver {
                 .addAction(0, context.getString(R.string.f91kepler_pair_again_action), action)
                 .setAutoCancel(true)
                 .build();
-        GB.notify(NOTIFICATION_ID, notification, context);
+        GB.notify(id, notification, context);
     }
 
-    static void cancelNotification(final Context context) {
-        GB.removeNotification(NOTIFICATION_ID, context);
+    static void cancelNotification(final Context context, final String address) {
+        GB.removeNotification(notificationId(address), context);
+    }
+
+    static int notificationId(final String address) {
+        return NOTIFICATION_ID_BASE + (address.hashCode() & 0xFFF);
     }
 
     @Override
@@ -83,7 +93,7 @@ public class F91KeplerPairAgainReceiver extends BroadcastReceiver {
             LOG.warn("pair again: unknown device {}", address);
             return;
         }
-        cancelNotification(context);
+        cancelNotification(context, address);
         final PendingResult result = goAsync();
         new Thread(() -> {
             try {
