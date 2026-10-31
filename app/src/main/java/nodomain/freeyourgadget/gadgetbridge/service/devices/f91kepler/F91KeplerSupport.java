@@ -24,6 +24,7 @@ import android.content.Intent;
 import android.content.SharedPreferences;
 import android.os.Handler;
 import android.os.Looper;
+import android.os.SystemClock;
 import android.service.notification.StatusBarNotification;
 import android.os.SystemClock;
 import android.text.format.DateFormat;
@@ -518,6 +519,7 @@ public class F91KeplerSupport extends AbstractBTLESingleDeviceSupport {
     @Override
     public void dispose() {
         stuckHandler.removeCallbacksAndMessages(null);
+        notificationExpiryHandler.removeCallbacksAndMessages(null);
         transfers.dispose();
         // The phone ring has no timer of its own: once disposed nothing else
         // would stop an alert ring, so stop it now.
@@ -1090,12 +1092,17 @@ public class F91KeplerSupport extends AbstractBTLESingleDeviceSupport {
         // still pops up, but leaves no mark and no history entry behind.
         final boolean fromListener = NotificationListener.isPostedNotification(notificationSpec.getId());
         final String key = notificationSpec.getKey() != null ? notificationSpec.getKey() : "";
-        if (!fromListener || isStillShowing(notificationSpec.getId(), key)) {
+        dropOldNotifications();
+        if (!fromListener) {
+            notificationTracker.addUntracked(notificationSpec.getId(), category, SystemClock.elapsedRealtime());
+            addRecent(notificationSpec);
+            // a listener id that fell out of the listener's window is untracked now
+            listenerNotificationIds.remove(notificationSpec.getId());
+            scheduleNotificationExpiry();
+        } else if (isStillShowing(notificationSpec.getId(), key)) {
             notificationTracker.add(notificationSpec.getId(), category);
             addRecent(notificationSpec);
-            if (fromListener) {
-                listenerNotificationIds.put(notificationSpec.getId(), key);
-            }
+            listenerNotificationIds.put(notificationSpec.getId(), key);
         }
 
         final TransactionBuilder builder = createTransactionBuilder("notification");
@@ -1142,7 +1149,47 @@ public class F91KeplerSupport extends AbstractBTLESingleDeviceSupport {
         }
     }
 
+    /**
+     * Notifications from other sources than the listener (SMS receiver,
+     * intents) are hardly ever reported dismissed: after a day they no longer
+     * keep the mark lit or stay in the history.
+     */
+    private boolean dropOldNotifications() {
+        final List<Integer> expired = notificationTracker.expire(SystemClock.elapsedRealtime());
+        for (final int id : expired) {
+            removeRecent(id);
+        }
+        return !expired.isEmpty();
+    }
+
+    private final Handler notificationExpiryHandler = new Handler(Looper.getMainLooper());
+
+    /**
+     * Also ends them while the watch stays connected without new notifications.
+     * Hourly, because a delayed post does not count the time the phone sleeps.
+     */
+    private void scheduleNotificationExpiry() {
+        notificationExpiryHandler.removeCallbacksAndMessages(null);
+        notificationExpiryHandler.postDelayed(new Runnable() {
+            @Override
+            public void run() {
+                if (dropOldNotifications() && getDevice().isInitialized()) {
+                    final TransactionBuilder builder = createTransactionBuilder("expire old notifications");
+                    builder.write(F91KeplerConstants.UUID_CHAR_NOTIFICATION_BAR, notificationTracker.bitmask());
+                    addRecentNotifications(builder);
+                    builder.queue();
+                }
+                if (notificationTracker.hasUntracked()) {
+                    notificationExpiryHandler.postDelayed(this, NOTIFICATION_EXPIRY_CHECK_MS);
+                }
+            }
+        }, NOTIFICATION_EXPIRY_CHECK_MS);
+    }
+
+    private static final long NOTIFICATION_EXPIRY_CHECK_MS = 60 * 60 * 1000L;
+
     private void dropInactiveNotifications() {
+        dropOldNotifications();
         Set<String> phoneKeys = null;
         boolean phoneKeysRead = false;   // read once, and only if needed
         for (final Iterator<Map.Entry<Integer, String>> it = listenerNotificationIds.entrySet().iterator(); it.hasNext(); ) {

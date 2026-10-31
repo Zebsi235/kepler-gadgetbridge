@@ -16,7 +16,12 @@
     along with this program.  If not, see <https://www.gnu.org/licenses/>. */
 package nodomain.freeyourgadget.gadgetbridge.service.devices.f91kepler;
 
+import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.HashSet;
+import java.util.Iterator;
+import java.util.List;
+import java.util.Map;
 import java.util.Set;
 
 import nodomain.freeyourgadget.gadgetbridge.devices.f91kepler.F91KeplerConstants;
@@ -45,7 +50,16 @@ class F91KeplerNotificationTracker {
         }
     }
 
+    /**
+     * How long a notification that nothing will ever dismiss (one that did not
+     * come from the notification listener: SMS receiver, intents) keeps its
+     * mark and history entry.
+     */
+    static final long UNTRACKED_MAX_AGE_MS = 24 * 60 * 60 * 1000L;
+
     private final Set<Integer>[] active;
+    /** Untracked ids, with when they were added. */
+    private final Map<Integer, Long> untracked = new HashMap<>();
 
     @SuppressWarnings("unchecked")
     F91KeplerNotificationTracker() {
@@ -56,13 +70,44 @@ class F91KeplerNotificationTracker {
     }
 
     synchronized void add(final int id, final Category category) {
+        untracked.remove(id);
         active[category.ordinal()].add(id);
     }
 
+    /** A notification no dismissal will be reported for: it ends after {@link #UNTRACKED_MAX_AGE_MS}. */
+    synchronized void addUntracked(final int id, final Category category, final long nowMillis) {
+        add(id, category);
+        untracked.put(id, nowMillis);
+    }
+
     synchronized void remove(final int id) {
+        untracked.remove(id);
         for (final Set<Integer> set : active) {
             set.remove(id);
         }
+    }
+
+    synchronized boolean hasUntracked() {
+        return !untracked.isEmpty();
+    }
+
+    /**
+     * Removes the untracked notifications that are too old; returns their ids.
+     * Times are {@code SystemClock.elapsedRealtime()}, which never goes back.
+     */
+    synchronized List<Integer> expire(final long nowMillis) {
+        final List<Integer> expired = new ArrayList<>();
+        for (final Iterator<Map.Entry<Integer, Long>> it = untracked.entrySet().iterator(); it.hasNext(); ) {
+            final Map.Entry<Integer, Long> e = it.next();
+            if (nowMillis - e.getValue() >= UNTRACKED_MAX_AGE_MS) {
+                it.remove();
+                for (final Set<Integer> set : active) {
+                    set.remove(e.getKey());
+                }
+                expired.add(e.getKey());
+            }
+        }
+        return expired;
     }
 
     /** The current bar bitmask: a bit is set iff its category has any active notification. */
