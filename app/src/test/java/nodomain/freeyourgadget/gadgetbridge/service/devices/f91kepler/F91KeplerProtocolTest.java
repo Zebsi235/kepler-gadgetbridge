@@ -200,17 +200,54 @@ public class F91KeplerProtocolTest {
         // A future firmware event must not make an older app ring for something
         // it does not understand.
         assertEquals(GBDeviceEventFindPhone.Event.UNKNOWN,
-                F91KeplerProtocol.alertEvent((byte) 0x02, false));
+                F91KeplerProtocol.alertEvent((byte) 0x03, false));
         assertEquals(GBDeviceEventFindPhone.Event.UNKNOWN,
                 F91KeplerProtocol.alertEvent((byte) 0xFF, true));
     }
 
     @Test
+    public void alertEvent_stoppedStopsTheRingInBothModes() {
+        // Firmware 3.3.2: the alert ended on the watch, so the phone stops too,
+        // whether it was ringing or only vibrating.
+        assertEquals(GBDeviceEventFindPhone.Event.STOP,
+                F91KeplerProtocol.alertEvent(F91KeplerConstants.ALERT_EVENT_STOPPED, false));
+        assertEquals(GBDeviceEventFindPhone.Event.STOP,
+                F91KeplerProtocol.alertEvent(F91KeplerConstants.ALERT_EVENT_STOPPED, true));
+    }
+
+    @Test
+    public void shouldStopAlertRing_onlyTheAlertsOwnRing() {
+        final long now = 5_000_000L;
+        final long userStarted = now - 30_000;     // 30 s ago
+        // The alert started the ring and nothing else took it over: stop.
+        assertTrue(F91KeplerProtocol.shouldStopAlertRing(true, 0, now));
+        // The phone alert was off for this event (no ring started): leave the phone alone.
+        assertFalse(F91KeplerProtocol.shouldStopAlertRing(false, 0, now));
+        // The user rang the phone from the watch before or after the alarm:
+        // ending the alarm must not end the search.
+        assertFalse(F91KeplerProtocol.shouldStopAlertRing(true, userStarted, now));
+        assertFalse(F91KeplerProtocol.shouldStopAlertRing(false, userStarted, now));
+    }
+
+    @Test
+    public void shouldStopAlertRing_userFindPhoneExpires() {
+        // Its end can be lost (Found tapped while the link is down), so after the
+        // bound it no longer blocks the alarm's stop.
+        final long now = 5_000_000L;
+        final long max = F91KeplerProtocol.USER_FIND_PHONE_MAX_MS;
+        assertFalse(F91KeplerProtocol.shouldStopAlertRing(true, now - max + 1, now));
+        assertTrue(F91KeplerProtocol.shouldStopAlertRing(true, now - max, now));
+        assertTrue(F91KeplerProtocol.shouldStopAlertRing(true, now - 3 * max, now));
+    }
+
+    @Test
     public void alertEvent_wireValuesMatchTheFirmware() {
-        // f91_alert.h: ALERT_EVENT_TIMER = 0, ALERT_EVENT_ALARM = 1. If these
-        // drift the phone alerts for the wrong thing.
+        // f91_alert.h: ALERT_EVENT_TIMER = 0, ALERT_EVENT_ALARM = 1,
+        // ALERT_EVENT_STOPPED = 2. If these drift the phone alerts for the
+        // wrong thing.
         assertEquals(0, F91KeplerConstants.ALERT_EVENT_TIMER);
         assertEquals(1, F91KeplerConstants.ALERT_EVENT_ALARM);
+        assertEquals(2, F91KeplerConstants.ALERT_EVENT_STOPPED);
     }
 
     @Test

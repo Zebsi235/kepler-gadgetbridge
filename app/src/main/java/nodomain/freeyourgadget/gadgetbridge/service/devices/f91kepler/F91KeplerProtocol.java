@@ -241,7 +241,8 @@ final class F91KeplerProtocol {
      *
      * <p>{@code vibrateOnly} selects between the two ways of getting the user's
      * attention: START rings, START_VIBRATE only vibrates. Both are existing
-     * upstream behaviours, so no new event type is needed.
+     * upstream behaviours, so no new event type is needed. STOPPED (firmware
+     * 3.3.2) maps to STOP whatever {@code vibrateOnly} says.
      *
      * <p>Returns {@link GBDeviceEventFindPhone.Event#UNKNOWN} for an unknown
      * byte, so a future firmware event cannot make an old app ring for something
@@ -253,10 +254,37 @@ final class F91KeplerProtocol {
             case F91KeplerConstants.ALERT_EVENT_ALARM:
                 return vibrateOnly ? GBDeviceEventFindPhone.Event.START_VIBRATE
                                    : GBDeviceEventFindPhone.Event.START;
+            case F91KeplerConstants.ALERT_EVENT_STOPPED:
+                return GBDeviceEventFindPhone.Event.STOP;
             default:
                 return GBDeviceEventFindPhone.Event.UNKNOWN;
         }
     }
+
+    /**
+     * Whether an alert stop (the watch's STOPPED or the phone-side timeout) may
+     * stop the phone ring: only if an alert started it, and never while a
+     * find-phone the user started from the watch is ringing.
+     *
+     * @param userFindPhoneSince elapsedRealtime of the user's find-phone start,
+     *                           0 when none; treated as over after
+     *                           {@link #USER_FIND_PHONE_MAX_MS}
+     * @param now                elapsedRealtime now
+     */
+    static boolean shouldStopAlertRing(final boolean alertRinging,
+                                       final long userFindPhoneSince,
+                                       final long now) {
+        final boolean userRinging = userFindPhoneSince != 0
+                && now - userFindPhoneSince < USER_FIND_PHONE_MAX_MS;
+        return alertRinging && !userRinging;
+    }
+
+    /**
+     * How long a find-phone the user started from the watch counts as ringing
+     * when its end is never heard of. The watch has no limit of its own (it only
+     * sends RING/STOP on a button), so this is the phone-side bound.
+     */
+    static final long USER_FIND_PHONE_MAX_MS = 10 * 60_000;
 
     /** Displayed widths the watch truncates to; we pre-truncate to keep the
      *  write within the firmware's NotificationEntry max (3 + app + sender). */

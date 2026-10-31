@@ -25,6 +25,7 @@ import android.content.SharedPreferences;
 import android.os.Handler;
 import android.os.Looper;
 import android.service.notification.StatusBarNotification;
+import android.os.SystemClock;
 import android.text.format.DateFormat;
 import android.widget.Toast;
 
@@ -336,6 +337,15 @@ public class F91KeplerSupport extends AbstractBTLESingleDeviceSupport {
                 && value != null && value.length >= 1) {
             final GBDeviceEventFindPhone.Event event = F91KeplerProtocol.findPhoneCommand(value[0]);
             if (event != GBDeviceEventFindPhone.Event.UNKNOWN) {
+                // The user's own find-phone now owns the ring: no alert stop or
+                // timeout may end it until the user does (or it expires).
+                final long userSince = event != GBDeviceEventFindPhone.Event.STOP
+                        ? SystemClock.elapsedRealtime() : 0;
+                alertHandler.post(() -> {
+                    userFindPhoneSince = userSince;
+                    alertRinging = false;
+                    alertHandler.removeCallbacks(alertRingTimeout);
+                });
                 final GBDeviceEventFindPhone fp = new GBDeviceEventFindPhone();
                 fp.event = event;
                 handleGBDeviceEvent(fp);
@@ -359,6 +369,12 @@ public class F91KeplerSupport extends AbstractBTLESingleDeviceSupport {
      * know the phone's preference and should not need one.
      */
     private void handleAlertEvent(final byte ev) {
+        if (ev == F91KeplerConstants.ALERT_EVENT_STOPPED) {
+            // Not gated by the switches (one turned off mid-ring must not leave
+            // the phone ringing); stopAlertRing decides if the ring is the alert's.
+            alertHandler.post(() -> stopAlertRing("the watch alert ended"));
+            return;
+        }
         if (ev == F91KeplerConstants.ALERT_EVENT_ALARM && has31()) {
             readAlarmSlots(false);     // a one-shot just switched itself off
         }
@@ -380,9 +396,64 @@ public class F91KeplerSupport extends AbstractBTLESingleDeviceSupport {
         final GBDeviceEventFindPhone.Event event =
                 F91KeplerProtocol.alertEvent(ev, vibrateOnly);
         if (event != GBDeviceEventFindPhone.Event.UNKNOWN) {
-            final GBDeviceEventFindPhone fp = new GBDeviceEventFindPhone();
-            fp.event = event;
-            handleGBDeviceEvent(fp);
+            // Marked here, not in the posted part, so a dispose() that drops the
+            // pending post still knows this ring is running.
+            alertRinging = true;
+            sendFindPhone(event);
+            startAlertRingTimeout();
+        }
+    }
+
+    private void sendFindPhone(final GBDeviceEventFindPhone.Event event) {
+        final GBDeviceEventFindPhone fp = new GBDeviceEventFindPhone();
+        fp.event = event;
+        handleGBDeviceEvent(fp);
+    }
+
+    /** All alert-ring state changes run on this one thread, so a stop from the
+     *  watch and the timeout cannot race. */
+    private final Handler alertHandler = new Handler(Looper.getMainLooper());
+    /** True while the phone ring is the one the last alert started. */
+    private volatile boolean alertRinging;
+    /**
+     * elapsedRealtime when the user started a find-phone from the watch, 0 when
+     * none. It expires (F91KeplerProtocol.USER_FIND_PHONE_MAX_MS) because the
+     * clearing calls can be lost: a Found tapped while the link is down, or
+     * Android showing only a notification and never the find-phone screen.
+     */
+    private volatile long userFindPhoneSince;
+    private final Runnable alertRingTimeout =
+            () -> stopAlertRing("no stop from the watch within its ring time");
+
+    /** Stops the phone ring an alert started, unless the user's find-phone owns it. */
+    private void stopAlertRing(final String why) {
+        alertHandler.removeCallbacks(alertRingTimeout);
+        final boolean stop = F91KeplerProtocol.shouldStopAlertRing(
+                alertRinging, userFindPhoneSince, SystemClock.elapsedRealtime());
+        alertRinging = false;
+        if (stop) {
+            LOG.info("F91 alert ring stopped on the phone: {}", why);
+            sendFindPhone(GBDeviceEventFindPhone.Event.STOP);
+        }
+    }
+
+    /** Firmware before 3.3.2 never says the alert ended; stop when the watch's does. */
+    private void startAlertRingTimeout() {
+        alertHandler.post(() -> {
+            alertHandler.removeCallbacks(alertRingTimeout);
+            alertHandler.postDelayed(alertRingTimeout, F91KeplerConstants.ALERT_RING_TIMEOUT_MS);
+        });
+    }
+
+    /** FindPhoneActivity calls this with false when it closes (Found tapped or a STOP). */
+    @Override
+    public void onFindPhone(final boolean start) {
+        if (!start) {
+            alertHandler.post(() -> {
+                userFindPhoneSince = 0;
+                alertRinging = false;
+                alertHandler.removeCallbacks(alertRingTimeout);
+            });
         }
     }
 
@@ -438,6 +509,10 @@ public class F91KeplerSupport extends AbstractBTLESingleDeviceSupport {
     public void dispose() {
         stuckHandler.removeCallbacksAndMessages(null);
         transfers.dispose();
+        // The phone ring has no timer of its own: once disposed nothing else
+        // would stop an alert ring, so stop it now.
+        alertHandler.removeCallbacksAndMessages(null);
+        stopAlertRing("the watch support was closed");
         super.dispose();
     }
 
