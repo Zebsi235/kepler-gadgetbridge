@@ -113,7 +113,15 @@ the Kepler code; the ones that touch a Kepler user:
 The rest (Garmin, Zepp OS, Fossil, Ultrahuman, Xiaomi, OneTouch, PineTime DFU)
 does not affect the Kepler Watch.
 
-## How to switch it on (with the next GB release)
+## Status
+
+Switched on with v0.95.1-kepler-1: CI builds and publishes the release APK
+whenever the signing key is present (every build in this repository); without
+the key it falls back to the debug build so a fork's PR is still checked, and a
+tag build refuses to publish. The certificate of the first release APK was
+checked against v0.94.0-kepler-3 (identical, SHA-256 C3:3B:9E:5A:...:A0:8E).
+
+## How it was switched on (kept for reference)
 
 In `.github/workflows/build.yml`, change the build step from
 `./gradlew :app:assembleMainlineDebug --stacktrace` to

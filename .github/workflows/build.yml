@@ -1,6 +1,6 @@
 name: Build & Release (Kepler)
 
-# Builds the mainline debug APK on every push/PR so breakage shows up immediately,
+# Builds the mainline release APK (debug without the signing key) on every push/PR,
 # and publishes a GitHub Release with the signed APK when a v*-kepler tag is pushed.
 # A tag with an "-rc" suffix (v0.94.0-kepler-rc1) is published as a PRE-release:
 # the same signed, installable APK, for checking on a phone before the final tag.
@@ -16,13 +16,6 @@ on:
     tags: [ "v*" ]
   pull_request:
   workflow_dispatch:
-    inputs:
-      release_build:
-        # Opt-in check of the prepared non-debuggable build (docs/KEPLER_RELEASE_BUILD.md).
-        # Uploaded as a workflow artifact only, never as a GitHub Release.
-        description: "Also build the mainline release APK (artifact only)"
-        type: boolean
-        default: false
 
 permissions:
   contents: write   # create releases + upload assets on tag builds
@@ -96,8 +89,20 @@ jobs:
           } >> "$HOME/.gradle/gradle.properties"
           echo "signed=true" >> "$GITHUB_OUTPUT"
 
-      - name: Build mainline debug APK
-        run: ./gradlew :app:assembleMainlineDebug --stacktrace
+      # The published APK is the release build (not debuggable), signed with the same
+      # Kepler key as the earlier debug-built releases, so it installs over them
+      # (docs/KEPLER_RELEASE_BUILD.md). Without the key (a fork's PR) the debug build
+      # is made instead, so CI still checks the code; a tag build then fails below.
+      - name: Build mainline APK
+        id: build
+        run: |
+          if [ "${{ steps.signing.outputs.signed }}" = "true" ]; then
+            ./gradlew :app:assembleMainlineRelease --stacktrace
+            echo "variant=release" >> "$GITHUB_OUTPUT"
+          else
+            ./gradlew :app:assembleMainlineDebug --stacktrace
+            echo "variant=debug" >> "$GITHUB_OUTPUT"
+          fi
 
       - name: Unit tests
         run: ./gradlew :app:testMainlineDebugUnitTest --stacktrace
@@ -105,7 +110,7 @@ jobs:
       - name: Locate & name the APK
         id: apk
         run: |
-          SRC=$(find app/build/outputs/apk/mainline/debug -name "*.apk" | head -1)
+          SRC=$(find app/build/outputs/apk/mainline/${{ steps.build.outputs.variant }} -name "*.apk" | head -1)
           if [ -z "$SRC" ]; then echo "No APK produced" >&2; exit 1; fi
           VER=$(grep -oE 'versionName "[0-9.]+"' app/build.gradle | grep -oE '[0-9.]+')
           CODE=$(grep -oE 'versionCode [0-9]+' app/build.gradle | grep -oE '[0-9]+')
@@ -113,41 +118,20 @@ jobs:
           cp "$SRC" "$OUT"
           echo "path=$OUT" >> "$GITHUB_OUTPUT"
           echo "signed=${{ steps.signing.outputs.signed }}"
-          echo "Built $OUT (signed=${{ steps.signing.outputs.signed }})"
+          echo "Built $OUT (${{ steps.build.outputs.variant }}, signed=${{ steps.signing.outputs.signed }})"
 
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4
         with:
-          name: kepler-mainline-debug
+          name: kepler-mainline-${{ steps.build.outputs.variant }}
           path: ${{ steps.apk.outputs.path }}
           if-no-files-found: error
 
-      - name: Build mainline release APK (opt-in)
-        if: ${{ github.event_name == 'workflow_dispatch' && inputs.release_build }}
-        id: release_apk
+      - name: Refuse to publish an unsigned or debug APK
+        if: startsWith(github.ref, 'refs/tags/v') && steps.build.outputs.variant != 'release'
         run: |
-          # An unsigned release APK must never look like a real one (no "-unsigned" in OUT below).
-          if [ "${{ steps.signing.outputs.signed }}" != "true" ]; then
-            echo "No Kepler signing key: refusing to build an unsigned release APK" >&2
-            exit 1
-          fi
-          ./gradlew :app:assembleMainlineRelease --stacktrace
-          SRC=$(find app/build/outputs/apk/mainline/release -name "*.apk" | head -1)
-          if [ -z "$SRC" ]; then echo "No release APK produced" >&2; exit 1; fi
-          VER=$(grep -oE 'versionName "[0-9.]+"' app/build.gradle | grep -oE '[0-9.]+')
-          CODE=$(grep -oE 'versionCode [0-9]+' app/build.gradle | grep -oE '[0-9]+')
-          OUT="Gadgetbridge-Kepler-${VER}-vc${CODE}-release.apk"
-          cp "$SRC" "$OUT"
-          echo "path=$OUT" >> "$GITHUB_OUTPUT"
-          echo "Built $OUT from $SRC (signed=${{ steps.signing.outputs.signed }})"
-
-      - name: Upload release APK artifact (opt-in)
-        if: ${{ github.event_name == 'workflow_dispatch' && inputs.release_build }}
-        uses: actions/upload-artifact@v4
-        with:
-          name: kepler-mainline-release
-          path: ${{ steps.release_apk.outputs.path }}
-          if-no-files-found: error
+          echo "Tag build without the Kepler signing key: nothing is published" >&2
+          exit 1
 
       - name: Publish GitHub Release
         if: startsWith(github.ref, 'refs/tags/v')
