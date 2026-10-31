@@ -224,8 +224,17 @@ public class GBMusicControlReceiver extends BroadcastReceiver {
                 // media key still reaches whichever player Android routes keys
                 // to, and the user learns why it may be the wrong one.
                 LOG.warn("Failed to get media controller - did not grant notification access?", e);
-                broadcastMediaKeyEvent(eventTime, keyCode, audioManager);
-                notifyMissingNotificationAccess(context);
+                // Thrown from here, an error would pass the catch below and crash the app
+                try {
+                    broadcastMediaKeyEvent(eventTime, keyCode, audioManager);
+                } catch (final Exception e2) {
+                    LOG.error("Failed to fall back to a media key", e2);
+                }
+                try {
+                    notifyMissingNotificationAccess(context);
+                } catch (final Exception e2) {
+                    LOG.error("Failed to show the notification access hint", e2);
+                }
             } catch (final Exception e) {
                 LOG.error("Failed to get media controller", e);
             }
@@ -265,8 +274,6 @@ public class GBMusicControlReceiver extends BroadcastReceiver {
         if (now - prefs.getLong(PREF_LAST_MUSIC_ACCESS_HINT, 0) < MUSIC_ACCESS_HINT_INTERVAL_MS) {
             return;
         }
-        prefs.getPreferences().edit().putLong(PREF_LAST_MUSIC_ACCESS_HINT, now).apply();
-
         final Intent settings = new Intent(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS);
         settings.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
         final Notification notification = new NotificationCompat.Builder(context, GB.NOTIFICATION_CHANNEL_ID_DEVICE_WARNINGS)
@@ -280,6 +287,8 @@ public class GBMusicControlReceiver extends BroadcastReceiver {
                         PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE))
                 .build();
         GB.notify(GB.NOTIFICATION_ID_MUSIC_ACCESS, notification, context);
+        // Only once it was shown: a failed hint must not silence the next one for hours
+        prefs.getPreferences().edit().putLong(PREF_LAST_MUSIC_ACCESS_HINT, now).apply();
     }
 
     private static void broadcastMediaKeyEvent(final long eventTime, final int keyCode, final AudioManager audioManager) {
