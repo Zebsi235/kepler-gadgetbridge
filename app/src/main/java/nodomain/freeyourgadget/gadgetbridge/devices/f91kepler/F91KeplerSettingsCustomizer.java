@@ -29,6 +29,7 @@ import androidx.preference.Preference;
 import androidx.preference.TwoStatePreference;
 
 import java.util.Collections;
+import java.util.List;
 import java.util.Set;
 
 import nodomain.freeyourgadget.gadgetbridge.GBApplication;
@@ -77,6 +78,8 @@ public class F91KeplerSettingsCustomizer implements DeviceSpecificSettingsCustom
             F91KeplerConstants.PREF_SLEEP_END,
             F91KeplerConstants.PREF_WEEKDAY, F91KeplerConstants.PREF_WEEKDAY_LANG,
             F91KeplerConstants.PREF_QUIET_TEXT, F91KeplerConstants.PREF_HOURLY_CHIME,
+            F91KeplerConstants.PREF_SECOND_ZONE, F91KeplerConstants.PREF_SECOND_ZONE_ID,
+            F91KeplerConstants.PREF_SECOND_ZONE_NAME,
             F91KeplerConstants.PREF_SOUND_MUTE, F91KeplerConstants.PREF_SOUND_CALL,
             F91KeplerConstants.PREF_SOUND_TEXT, F91KeplerConstants.PREF_SOUND_LOWBATT,
             F91KeplerConstants.PREF_SOUND_LOST, F91KeplerConstants.PREF_SOUND_SNOOZE,
@@ -102,6 +105,12 @@ public class F91KeplerSettingsCustomizer implements DeviceSpecificSettingsCustom
     /** Shown only once the watch has reported firmware 3.2 (sound). */
     static final String[] KEYS_32 = {
             F91KeplerConstants.PREF_CATEGORY_SOUND_32,
+    };
+
+    /** Shown only once the watch has reported firmware 3.3.2 (second time zone). */
+    static final String[] KEYS_332 = {
+            F91KeplerConstants.PREF_SECOND_ZONE, F91KeplerConstants.PREF_SECOND_ZONE_ID,
+            F91KeplerConstants.PREF_SECOND_ZONE_NAME,
     };
 
     /** The opposite: shown only while the watch is NOT known to run 3.1 --
@@ -168,9 +177,42 @@ public class F91KeplerSettingsCustomizer implements DeviceSpecificSettingsCustom
                 pref.setVisible(show32);
             }
         }
+        final boolean show332 = device != null && F91KeplerFirmware.hasSecondZone(device.getFirmwareVersion());
+        for (final String key : KEYS_332) {
+            final Preference pref = handler.findPreference(key);
+            if (pref != null) {
+                pref.setVisible(show332);
+            }
+        }
         final Preference lost = handler.findPreference(F91KeplerConstants.PREF_SOUND_LOST);
         if (lost != null) {
             lost.setVisible(device != null && F91KeplerFirmware.hasLostAlert(device.getFirmwareVersion()));
+        }
+    }
+
+    /** The zone list from the phone's zones, and the name field with the name it will show. */
+    private static void setUpSecondZone(final DeviceSpecificSettingsHandler handler) {
+        final ListPreference zone = handler.findPreference(F91KeplerConstants.PREF_SECOND_ZONE_ID);
+        if (zone != null) {
+            final List<String> ids = F91KeplerZone.pickerIds();
+            final long now = System.currentTimeMillis();
+            final CharSequence[] labels = new CharSequence[ids.size()];
+            for (int i = 0; i < labels.length; i++) {
+                labels[i] = F91KeplerZone.label(ids.get(i), now);
+            }
+            zone.setEntries(labels);
+            zone.setEntryValues(ids.toArray(new CharSequence[0]));
+        }
+        final EditTextPreference name = handler.findPreference(F91KeplerConstants.PREF_SECOND_ZONE_NAME);
+        if (name != null) {
+            name.setOnBindEditTextListener(editText -> editText.setFilters(new InputFilter[]{
+                    new InputFilter.AllCaps(), new InputFilter.LengthFilter(3)}));
+            name.setSummaryProvider(pref -> {
+                final String id = zone != null && zone.getValue() != null ? zone.getValue() : "";
+                return id.isEmpty() ? null : handler.getContext().getString(
+                        R.string.f91_pref_summary_second_zone_name,
+                        F91KeplerZone.name(((EditTextPreference) pref).getText(), id));
+            });
         }
     }
 
@@ -191,6 +233,7 @@ public class F91KeplerSettingsCustomizer implements DeviceSpecificSettingsCustom
                         new InputFilter.LengthFilter(F91KeplerConstants.COUNTER_NAME_MAX)}));
             }
         }
+        setUpSecondZone(handler);
         final Preference soundTest = handler.findPreference(F91KeplerConstants.PREF_SOUND_TEST);
         if (soundTest != null) {
             soundTest.setOnPreferenceClickListener(preference -> {

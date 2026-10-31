@@ -157,6 +157,8 @@ public final class F91KeplerConstants {
     public static final int UIOPT_WEEKDAY_DE = 1 << 1;  // ... in German (MO DI MI ...)
     public static final int UIOPT_QUIET_TEXT = 1 << 2;  // texts go into the icon strip, not a popup
     public static final int UIOPT_HOURLY_CHIME = 1 << 3; // 1 s flash at the top of each hour
+    /** Firmware 3.3.2: the second time zone (REC_ZONE) in the face's seconds corner. */
+    public static final int UIOPT_SECOND_ZONE = 1 << 4;
 
     /**
      * Record, encrypted read + write (firmware 3.1.0): one typed-record channel
@@ -180,6 +182,12 @@ public final class F91KeplerConstants {
     public static final byte REC_SOUND_CFG = 0x06;
     /** PLAY: {@code [toneRef]} plays it once ("test on watch"), {@code [0]} stops. */
     public static final byte REC_SOUND_PLAY = 0x0C;
+    /**
+     * Firmware 3.3.2, index 0, RAM only (sent on every connect): the second time
+     * zone, {@code [offset_now i32 LE s EAST][next_change u32 LE UTC, 0 = none]
+     * [offset_after i32 LE s EAST][name 3x 'A'..'Z']}. Note: EAST, unlike B2F2.
+     */
+    public static final byte REC_ZONE = 0x0E;
     /** ALARM_SOUND idx 0..4: {@code [toneRef][snoozeMin][flags]} (rc1: the first 2 bytes). */
     public static final byte REC_ALARM_SOUND = 0x08;
     public static final int SND_SILENT = 1;          // mutes everything except alarms
@@ -265,6 +273,10 @@ public final class F91KeplerConstants {
     /** "auto" (German when the phone's language is German), "en" or "de". */
     public static final String PREF_WEEKDAY_LANG = "f91_weekday_lang";
     public static final String PREF_HOURLY_CHIME = "f91_hourly_chime";
+    /** Firmware 3.3.2: second time zone on/off, its zone id, and an optional 3-letter name. */
+    public static final String PREF_SECOND_ZONE = "f91_second_zone";
+    public static final String PREF_SECOND_ZONE_ID = "f91_second_zone_id";
+    public static final String PREF_SECOND_ZONE_NAME = "f91_second_zone_name";
     // Firmware 3.2 sound switches (SOUND_CFG flags) and the test button.
     public static final String PREF_SOUND_MUTE = "f91_sound_mute";
     public static final String PREF_SOUND_CALL = "f91_sound_call";
