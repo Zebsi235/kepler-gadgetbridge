@@ -35,5 +35,23 @@
             android:key="f91_hourly_chime"
             android:summary="@string/f91_pref_summary_hourly_chime"
             android:title="@string/f91_pref_title_hourly_chime" />
+        <!-- Firmware 3.3.2 only (F91KeplerSettingsCustomizer.KEYS_332). The zone
+             list is filled in by the customizer from the phone's zone ids. -->
+        <SwitchPreferenceCompat
+            android:defaultValue="false"
+            android:key="f91_second_zone"
+            android:summary="@string/f91_pref_summary_second_zone"
+            android:title="@string/f91_pref_title_second_zone" />
+        <ListPreference
+            android:defaultValue=""
+            android:dependency="f91_second_zone"
+            android:key="f91_second_zone_id"
+            android:title="@string/f91_pref_title_second_zone_id"
+            app:useSimpleSummaryProvider="true" />
+        <EditTextPreference
+            android:defaultValue=""
+            android:dependency="f91_second_zone"
+            android:key="f91_second_zone_name"
+            android:title="@string/f91_pref_title_second_zone_name" />
     </PreferenceCategory>
 </androidx.preference.PreferenceScreen>

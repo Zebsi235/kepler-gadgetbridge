@@ -88,6 +88,9 @@ public final class F91KeplerFirmware {
      */
     public static final int[] MIN_WIDE_TZ = {3, 3, 2};
 
+    /** UiOptions bit 4 + Record ZONE 0x0E: the second time zone (3.3.2). */
+    public static final int[] MIN_SECOND_ZONE = {3, 3, 2};
+
     private static final Pattern VERSION = Pattern.compile("^\\s*v?(\\d+)\\.(\\d+)\\.(\\d+)");
 
     /**
@@ -157,5 +160,9 @@ public final class F91KeplerFirmware {
 
     public static boolean hasLostAlert(@Nullable final String firmware) {
         return atLeast(firmware, MIN_LOST_ALERT);
+    }
+
+    public static boolean hasSecondZone(@Nullable final String firmware) {
+        return atLeast(firmware, MIN_SECOND_ZONE);
     }
 }

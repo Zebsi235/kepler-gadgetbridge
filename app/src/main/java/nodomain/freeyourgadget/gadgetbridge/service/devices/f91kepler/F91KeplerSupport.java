@@ -64,6 +64,7 @@ import nodomain.freeyourgadget.gadgetbridge.devices.f91kepler.F91KeplerImageCode
 import nodomain.freeyourgadget.gadgetbridge.devices.f91kepler.F91KeplerImageStore;
 import nodomain.freeyourgadget.gadgetbridge.devices.f91kepler.F91KeplerModes;
 import nodomain.freeyourgadget.gadgetbridge.devices.f91kepler.F91KeplerTransfer;
+import nodomain.freeyourgadget.gadgetbridge.devices.f91kepler.F91KeplerZone;
 import nodomain.freeyourgadget.gadgetbridge.externalevents.NotificationListener;
 import nodomain.freeyourgadget.gadgetbridge.impl.GBDevice;
 import nodomain.freeyourgadget.gadgetbridge.model.Alarm;
@@ -761,6 +762,9 @@ public class F91KeplerSupport extends AbstractBTLESingleDeviceSupport {
             // Its own transaction: a refused 3.1 write must not cancel the
             // restores above. All of it is phone-owned and cheap to repeat --
             // the watch skips the flash write for an unchanged value.
+            if (F91KeplerFirmware.hasSecondZone(fw)) {
+                queueSecondZone(false);   // before the UiOptions below set its bit again
+            }
             transfers.queue("restore 3.1 config", F91KeplerTransfer.SETTINGS, false, b31 -> {
                 addUiOptions(b31);
                 addCounterNames(b31);
@@ -1380,6 +1384,15 @@ public class F91KeplerSupport extends AbstractBTLESingleDeviceSupport {
                 addForecastAndSun(builder);
             }
         });
+        // With the weather, as the firmware notes say: the zone record knows only
+        // the next DST change, so a phone that stays connected for months
+        // refreshes it here.
+        final byte[] zone = secondZonePayload();
+        if (zone != null) {
+            transfers.queue("refresh second zone", F91KeplerTransfer.SETTINGS, false, builder ->
+                    builder.write(F91KeplerConstants.UUID_CHAR_RECORD,
+                                  F91KeplerProtocol.record(F91KeplerConstants.REC_ZONE, 0, zone)));
+        }
     }
 
     /**
@@ -1689,8 +1702,55 @@ public class F91KeplerSupport extends AbstractBTLESingleDeviceSupport {
                 prefs.getString(F91KeplerConstants.PREF_WEEKDAY_LANG, "auto"),
                 Locale.getDefault(),
                 prefs.getBoolean(F91KeplerConstants.PREF_QUIET_TEXT, false),
-                prefs.getBoolean(F91KeplerConstants.PREF_HOURLY_CHIME, false));
+                prefs.getBoolean(F91KeplerConstants.PREF_HOURLY_CHIME, false))
+                // only 3.3.2 knows the bit: an older watch refuses the whole write
+                | (secondZoneWanted() ? F91KeplerConstants.UIOPT_SECOND_ZONE : 0);
         builder.write(F91KeplerConstants.UUID_CHAR_UI_OPTIONS, F91KeplerProtocol.uiOptions(bits));
+    }
+
+    /**
+     * The second time zone record (firmware 3.3.2), or null when it is off,
+     * not picked, the watch is older, or the zone is outside what it takes.
+     */
+    @Nullable
+    private byte[] secondZonePayload() {
+        if (!secondZoneWanted()) {
+            return null;
+        }
+        final SharedPreferences prefs =
+                GBApplication.getDeviceSpecificSharedPrefs(getDevice().getAddress());
+        final String id = prefs.getString(F91KeplerConstants.PREF_SECOND_ZONE_ID, "");
+        return F91KeplerZone.payload(TimeZone.getTimeZone(id), System.currentTimeMillis(),
+                F91KeplerZone.name(prefs.getString(F91KeplerConstants.PREF_SECOND_ZONE_NAME, ""), id));
+    }
+
+    /**
+     * Switched on with a zone picked, on a 3.3.2 watch. Every real zone fits the
+     * watch's range, so the face bit follows this (a zone the watch refused
+     * leaves it showing seconds).
+     */
+    private boolean secondZoneWanted() {
+        final SharedPreferences prefs =
+                GBApplication.getDeviceSpecificSharedPrefs(getDevice().getAddress());
+        return F91KeplerFirmware.hasSecondZone(connectedFw)
+                && prefs.getBoolean(F91KeplerConstants.PREF_SECOND_ZONE, false)
+                && !prefs.getString(F91KeplerConstants.PREF_SECOND_ZONE_ID, "").isEmpty();
+    }
+
+    /**
+     * The zone first, then UiOptions with its bit: the watch keeps the zone in
+     * RAM only, so this goes out on every connect and on every change. Its own
+     * transfer, so a refused zone cannot cancel the other 3.1 restores.
+     */
+    private void queueSecondZone(final boolean byUser) {
+        final byte[] zone = secondZonePayload();
+        transfers.queue("set second zone", F91KeplerTransfer.SETTINGS, byUser, builder -> {
+            if (zone != null) {
+                builder.write(F91KeplerConstants.UUID_CHAR_RECORD,
+                              F91KeplerProtocol.record(F91KeplerConstants.REC_ZONE, 0, zone));
+            }
+            addUiOptions(builder);
+        });
     }
 
     /** All three counter names; the counts stay the watch's (see counterName). */
@@ -1883,6 +1943,14 @@ public class F91KeplerSupport extends AbstractBTLESingleDeviceSupport {
             case F91KeplerModes.PREF_MODES_31: {
                 transfers.queue("set mode order", F91KeplerTransfer.SETTINGS, true, builder -> addModeOrder(builder));
                 warnIfModesDropped();
+                break;
+            }
+            case F91KeplerConstants.PREF_SECOND_ZONE:
+            case F91KeplerConstants.PREF_SECOND_ZONE_ID:
+            case F91KeplerConstants.PREF_SECOND_ZONE_NAME: {
+                if (F91KeplerFirmware.hasSecondZone(connectedFw)) {
+                    queueSecondZone(true);
+                }
                 break;
             }
             case F91KeplerConstants.PREF_WEEKDAY:
