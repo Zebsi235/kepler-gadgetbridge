@@ -398,6 +398,7 @@ public class F91KeplerSupport extends AbstractBTLESingleDeviceSupport {
             // Marked here, not in the posted part, so a dispose() that drops the
             // pending post still knows this ring is running.
             alertRinging = true;
+            alertGen++;
             sendFindPhone(event);
             startAlertRingTimeout();
         }
@@ -414,6 +415,10 @@ public class F91KeplerSupport extends AbstractBTLESingleDeviceSupport {
     private final Handler alertHandler = new Handler(Looper.getMainLooper());
     /** True while the phone ring is the one the last alert started. */
     private volatile boolean alertRinging;
+    /** Counts the alerts that started a ring, so a late close cannot end a newer one. */
+    private volatile int alertGen;
+    /** alertGen when the find-phone screen last closed. */
+    private int closedGen;
     /**
      * elapsedRealtime when the user started a find-phone from the watch, 0 when
      * none. It expires (F91KeplerProtocol.USER_FIND_PHONE_MAX_MS) because the
@@ -455,7 +460,9 @@ public class F91KeplerSupport extends AbstractBTLESingleDeviceSupport {
             // The screen came back (turning the phone recreates it): it still rings
             alertHandler.post(() -> alertHandler.removeCallbacks(phoneRingClosed));
         } else {
+            final int gen = alertGen;
             alertHandler.post(() -> {
+                closedGen = gen;
                 alertHandler.removeCallbacks(phoneRingClosed);
                 alertHandler.postDelayed(phoneRingClosed, PHONE_RING_CLOSED_GRACE_MS);
             });
@@ -470,8 +477,13 @@ public class F91KeplerSupport extends AbstractBTLESingleDeviceSupport {
      */
     private static final long PHONE_RING_CLOSED_GRACE_MS = 1_500;
     private final Runnable phoneRingClosed = () -> {
-        final boolean stopWatch = F91KeplerProtocol.stopWatchAlertToo(alertRinging, connectedFw);
         userFindPhoneSince = 0;
+        if (alertGen != closedGen) {
+            // Another alert started its ring since the screen closed: that one stays
+            LOG.info("F91 find-phone screen closed before a new alert: the new ring stays");
+            return;
+        }
+        final boolean stopWatch = F91KeplerProtocol.stopWatchAlertToo(alertRinging, connectedFw);
         alertRinging = false;
         alertHandler.removeCallbacks(alertRingTimeout);
         if (!stopWatch) {
