@@ -66,6 +66,13 @@ public class BluetoothStateChangeReceiver extends BroadcastReceiver {
                 }
 
                 if (!prefs.getBoolean(GBPrefs.AUTO_CONNECT_BLUETOOTH, false)) {
+                    // Devices that ask for it (Kepler) come back anyway
+                    for (final GBDevice device : GBApplication.app().getDeviceManager().getDevices()) {
+                        if (!device.isConnected() && !device.isConnecting() && prefs.getAutoReconnect(device)
+                                && device.getDeviceCoordinator().reconnectsOnBluetoothOn(device)) {
+                            GBApplication.deviceService(device).connect();
+                        }
+                    }
                     return;
                 }
 

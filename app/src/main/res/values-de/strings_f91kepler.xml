@@ -42,6 +42,8 @@
     <string name="f91_weekday_lang_en">Englisch</string>
     <string name="f91_weekday_lang_de">Deutsch</string>
     <string name="f91_pref_title_hourly_chime">Stundensignal</string>
+    <string name="f91_pref_title_reconnect_on_bt_on">Neu verbinden, wenn Bluetooth angeht</string>
+    <string name="f91_pref_summary_reconnect_on_bt_on">Sobald Bluetooth am Handy wieder eingeschaltet wird, verbindet sich die Uhr wieder, ohne die App zu öffnen.</string>
     <string name="f91_pref_title_second_zone">Zweite Zeitzone</string>
     <string name="f91_pref_summary_second_zone">Die Uhrzeit einer anderen Zone in der Sekundenecke des Zifferblatts anzeigen, mit ihrem Kürzel aus drei Buchstaben. Ein + oder - nach dem Kürzel heißt, dass es dort schon morgen oder noch gestern ist. Wird bei jeder Verbindung gesendet, nach einem Batteriewechsel ist sie also wieder da, sobald sich das Handy verbindet.</string>
     <string name="f91_pref_title_second_zone_id">Zone</string>
