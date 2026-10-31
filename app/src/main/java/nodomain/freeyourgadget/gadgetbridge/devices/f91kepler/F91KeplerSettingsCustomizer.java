@@ -58,8 +58,14 @@ public class F91KeplerSettingsCustomizer implements DeviceSpecificSettingsCustom
     @Override
     public void onPreferenceChange(final Preference preference,
                                    final DeviceSpecificSettingsHandler handler) {
-        // Nothing beyond forwarding (SEND_KEYS) -- the support class does the rest
-        // in onSendConfiguration.
+        // Beyond forwarding (SEND_KEYS) the support class does the rest in
+        // onSendConfiguration. A new zone changes the name the watch would show.
+        if (F91KeplerConstants.PREF_SECOND_ZONE_ID.equals(preference.getKey())) {
+            final EditTextPreference name = handler.findPreference(F91KeplerConstants.PREF_SECOND_ZONE_NAME);
+            if (name != null && name.getSummaryProvider() != null) {
+                name.setSummaryProvider(name.getSummaryProvider());   // re-asks it
+            }
+        }
     }
 
     /**

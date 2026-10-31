@@ -1384,6 +1384,15 @@ public class F91KeplerSupport extends AbstractBTLESingleDeviceSupport {
                 addForecastAndSun(builder);
             }
         });
+        // With the weather, as the firmware notes say: the zone record knows only
+        // the next DST change, so a phone that stays connected for months
+        // refreshes it here.
+        final byte[] zone = secondZonePayload();
+        if (zone != null) {
+            transfers.queue("refresh second zone", F91KeplerTransfer.SETTINGS, false, builder ->
+                    builder.write(F91KeplerConstants.UUID_CHAR_RECORD,
+                                  F91KeplerProtocol.record(F91KeplerConstants.REC_ZONE, 0, zone)));
+        }
     }
 
     /**
@@ -1695,7 +1704,7 @@ public class F91KeplerSupport extends AbstractBTLESingleDeviceSupport {
                 prefs.getBoolean(F91KeplerConstants.PREF_QUIET_TEXT, false),
                 prefs.getBoolean(F91KeplerConstants.PREF_HOURLY_CHIME, false))
                 // only 3.3.2 knows the bit: an older watch refuses the whole write
-                | (secondZonePayload() != null ? F91KeplerConstants.UIOPT_SECOND_ZONE : 0);
+                | (secondZoneWanted() ? F91KeplerConstants.UIOPT_SECOND_ZONE : 0);
         builder.write(F91KeplerConstants.UUID_CHAR_UI_OPTIONS, F91KeplerProtocol.uiOptions(bits));
     }
 
@@ -1705,17 +1714,27 @@ public class F91KeplerSupport extends AbstractBTLESingleDeviceSupport {
      */
     @Nullable
     private byte[] secondZonePayload() {
-        if (!F91KeplerFirmware.hasSecondZone(connectedFw)) {
+        if (!secondZoneWanted()) {
             return null;
         }
         final SharedPreferences prefs =
                 GBApplication.getDeviceSpecificSharedPrefs(getDevice().getAddress());
         final String id = prefs.getString(F91KeplerConstants.PREF_SECOND_ZONE_ID, "");
-        if (!prefs.getBoolean(F91KeplerConstants.PREF_SECOND_ZONE, false) || id.isEmpty()) {
-            return null;
-        }
         return F91KeplerZone.payload(TimeZone.getTimeZone(id), System.currentTimeMillis(),
                 F91KeplerZone.name(prefs.getString(F91KeplerConstants.PREF_SECOND_ZONE_NAME, ""), id));
+    }
+
+    /**
+     * Switched on with a zone picked, on a 3.3.2 watch. Every real zone fits the
+     * watch's range, so the face bit follows this (a zone the watch refused
+     * leaves it showing seconds).
+     */
+    private boolean secondZoneWanted() {
+        final SharedPreferences prefs =
+                GBApplication.getDeviceSpecificSharedPrefs(getDevice().getAddress());
+        return F91KeplerFirmware.hasSecondZone(connectedFw)
+                && prefs.getBoolean(F91KeplerConstants.PREF_SECOND_ZONE, false)
+                && !prefs.getString(F91KeplerConstants.PREF_SECOND_ZONE_ID, "").isEmpty();
     }
 
     /**

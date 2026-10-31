@@ -78,7 +78,10 @@ public final class F91KeplerZone {
     private F91KeplerZone() {
     }
 
-    /** Region/City zone ids for the picker, sorted (no Etc/ or legacy aliases). */
+    /**
+     * Region/City zone ids for the picker, sorted (no Etc/ ones). Android also
+     * lists old spellings (Asia/Calcutta beside Asia/Kolkata); both work.
+     */
     public static List<String> pickerIds() {
         final List<String> ids = new ArrayList<>();
         for (final String id : TimeZone.getAvailableIDs()) {
