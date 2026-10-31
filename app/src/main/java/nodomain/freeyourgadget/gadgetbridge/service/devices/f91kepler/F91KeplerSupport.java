@@ -24,9 +24,11 @@ import android.content.Intent;
 import android.content.SharedPreferences;
 import android.os.Handler;
 import android.os.Looper;
+import android.service.notification.StatusBarNotification;
 import android.text.format.DateFormat;
 import android.widget.Toast;
 
+import androidx.annotation.Nullable;
 import androidx.localbroadcastmanager.content.LocalBroadcastManager;
 
 import org.apache.commons.lang3.StringUtils;
@@ -35,6 +37,7 @@ import org.slf4j.LoggerFactory;
 
 import java.util.ArrayList;
 import java.util.Calendar;
+import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Locale;
@@ -111,8 +114,9 @@ public class F91KeplerSupport extends AbstractBTLESingleDeviceSupport {
     // Ids that came from NotificationListener, the only source
     // whose removals can be checked again after a disconnect (an SMS from
     // SMSReceiver is never removed by anything, so it must not be dropped as
-    // "gone from the phone").
-    private final Set<Integer> listenerNotificationIds = ConcurrentHashMap.newKeySet();
+    // "gone from the phone"). Mapped to the notification's key ("" if none),
+    // which still finds it on the phone after the listener restarted.
+    private final Map<Integer, String> listenerNotificationIds = new ConcurrentHashMap<>();
 
     /** Recent notifications for the watch's Notifications mode, newest first,
      *  capped at the firmware's ring size. GB owns the active set; the watch is
@@ -164,6 +168,8 @@ public class F91KeplerSupport extends AbstractBTLESingleDeviceSupport {
      *  sent a characteristic it no longer has. */
     private volatile String connectedFw;
 
+    /** Newest first. Changed on the main thread (onNotification) and read on the
+     *  GATT thread (initializeDevice): every access holds its lock. */
     private final List<RecentNotif> recent = new ArrayList<>();
     private static final class RecentNotif {
         final int id;
@@ -906,11 +912,12 @@ public class F91KeplerSupport extends AbstractBTLESingleDeviceSupport {
         // (dismissed while a cached copy waited for the reconnect): then it
         // still pops up, but leaves no mark and no history entry behind.
         final boolean fromListener = NotificationListener.isPostedNotification(notificationSpec.getId());
-        if (!fromListener || NotificationListener.isNotificationActive(notificationSpec.getId())) {
+        final String key = notificationSpec.getKey() != null ? notificationSpec.getKey() : "";
+        if (!fromListener || isStillShowing(notificationSpec.getId(), key)) {
             notificationTracker.add(notificationSpec.getId(), category);
             addRecent(notificationSpec);
             if (fromListener) {
-                listenerNotificationIds.add(notificationSpec.getId());
+                listenerNotificationIds.put(notificationSpec.getId(), key);
             }
         }
 
@@ -949,29 +956,96 @@ public class F91KeplerSupport extends AbstractBTLESingleDeviceSupport {
     private void addRecent(final NotificationSpec spec) {
         final String app = StringUtils.firstNonBlank(spec.getSourceName(), "");
         final String sender = StringUtils.firstNonBlank(spec.getSender(), spec.getTitle(), "notification");
-        removeRecent(spec.getId());                    // de-dupe by id
-        recent.add(0, new RecentNotif(spec.getId(), app, sender));   // newest first
-        while (recent.size() > F91_RECENT_MAX) {
-            recent.remove(recent.size() - 1);
+        synchronized (recent) {
+            removeRecent(spec.getId());                    // de-dupe by id
+            recent.add(0, new RecentNotif(spec.getId(), app, sender));   // newest first
+            while (recent.size() > F91_RECENT_MAX) {
+                recent.remove(recent.size() - 1);
+            }
         }
     }
 
     private void dropInactiveNotifications() {
-        for (final Iterator<Integer> it = listenerNotificationIds.iterator(); it.hasNext(); ) {
-            final int id = it.next();
-            if (!NotificationListener.isNotificationActive(id)) {
-                notificationTracker.remove(id);
-                removeRecent(id);
+        Set<String> phoneKeys = null;
+        boolean phoneKeysRead = false;   // read once, and only if needed
+        for (final Iterator<Map.Entry<Integer, String>> it = listenerNotificationIds.entrySet().iterator(); it.hasNext(); ) {
+            final Map.Entry<Integer, String> e = it.next();
+            Boolean showing = listenerVouches(e.getKey());
+            if (showing == null) {
+                if (!phoneKeysRead) {
+                    phoneKeys = phoneNotificationKeys();
+                    phoneKeysRead = true;
+                }
+                showing = phoneKeys == null || phoneKeys.contains(e.getValue());
+            }
+            if (!showing) {
+                notificationTracker.remove(e.getKey());
+                removeRecent(e.getKey());
                 it.remove();
             }
         }
     }
 
+    /**
+     * Whether a NotificationListener notification is still on the phone. The
+     * running listener vouches for the ids it posted. Older ones (posted before
+     * the listener restarted, or beyond its id window) are looked up by key in
+     * the phone's list; when that cannot be read (no listener bound) the answer
+     * is yes, so nothing is dropped and the next connect checks again.
+     */
+    private static boolean isStillShowing(final int id, final String key) {
+        final Boolean showing = listenerVouches(id);
+        if (showing != null) {
+            return showing;
+        }
+        final Set<String> keys = phoneNotificationKeys();
+        return keys == null || keys.contains(key);
+    }
+
+    /** Whether the running listener says the id is showing; null if it cannot tell. */
+    @Nullable
+    private static Boolean listenerVouches(final int id) {
+        if (NotificationListener.isNotificationActive(id)) {
+            return true;
+        }
+        // Asked after the active check: a restarting listener stops vouching
+        // for its ids before it empties its active list.
+        if (NotificationListener.isPostedByRunningListener(id)) {
+            return false;
+        }
+        return null;
+    }
+
+    /** The keys of the notifications the phone shows now, or null if no listener is bound. */
+    @Nullable
+    private static Set<String> phoneNotificationKeys() {
+        final NotificationListener listener = NotificationListener.getRunning();
+        if (listener == null) {
+            return null;
+        }
+        try {
+            final StatusBarNotification[] sbns = listener.getActiveNotifications();
+            if (sbns == null) {
+                return null;
+            }
+            final Set<String> keys = new HashSet<>();
+            for (final StatusBarNotification sbn : sbns) {
+                keys.add(sbn.getKey());
+            }
+            return keys;
+        } catch (final RuntimeException e) {   // SecurityException while not bound
+            LOG.debug("Cannot read the phone's notifications", e);
+            return null;
+        }
+    }
+
     private void removeRecent(final int id) {
-        for (final Iterator<RecentNotif> it = recent.iterator(); it.hasNext(); ) {
-            if (it.next().id == id) {
-                it.remove();
-                break;
+        synchronized (recent) {
+            for (final Iterator<RecentNotif> it = recent.iterator(); it.hasNext(); ) {
+                if (it.next().id == id) {
+                    it.remove();
+                    break;
+                }
             }
         }
     }
@@ -979,14 +1053,18 @@ public class F91KeplerSupport extends AbstractBTLESingleDeviceSupport {
     /** Push the current top-N recent notifications (or a clear when empty) to the
      *  watch's NotificationEntry char. */
     private void addRecentNotifications(final TransactionBuilder builder) {
-        final int total = recent.size();
+        final List<RecentNotif> snapshot;
+        synchronized (recent) {
+            snapshot = new ArrayList<>(recent);
+        }
+        final int total = snapshot.size();
         if (total == 0) {
             builder.write(F91KeplerConstants.UUID_CHAR_NOTIFICATION_ENTRY,
                           F91KeplerProtocol.notificationEntry(0, 0, "", ""));
             return;
         }
         for (int i = 0; i < total; i++) {
-            final RecentNotif e = recent.get(i);
+            final RecentNotif e = snapshot.get(i);
             builder.write(F91KeplerConstants.UUID_CHAR_NOTIFICATION_ENTRY,
                           F91KeplerProtocol.notificationEntry(i, total, forWatch(e.app), forWatch(e.sender)));
         }
