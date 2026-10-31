@@ -484,6 +484,16 @@ public class F91KeplerSupport extends AbstractBTLESingleDeviceSupport {
 
             @Override
             public void run() {
+                try {
+                    check();
+                } catch (final SecurityException e) {
+                    // Bluetooth permission taken away while connected: this runs on
+                    // the main thread, where it would crash the app.
+                    LOG.warn("F91 stuck-link check stopped: no Bluetooth permission, the link is left as it is", e);
+                }
+            }
+
+            private void check() {
                 final int bondState = gatt.getDevice().getBondState();
                 checks++;
                 final boolean bonding = bondState == BluetoothDevice.BOND_BONDING && checks < STUCK_CHECKS_MAX;
@@ -533,7 +543,15 @@ public class F91KeplerSupport extends AbstractBTLESingleDeviceSupport {
             // end a transfer that was on the air.
             transfers.onLinkLost();
             imageCheckPending = false;
-            final boolean bonded = gatt.getDevice().getBondState() == BluetoothDevice.BOND_BONDED;
+            boolean bonded;
+            try {
+                bonded = gatt.getDevice().getBondState() == BluetoothDevice.BOND_BONDED;
+            } catch (final SecurityException e) {
+                // No Bluetooth permission: pairing again could not help, so no
+                // offer, and the streak of failed links starts again (as without a bond)
+                LOG.warn("F91 cannot read the bond state: no Bluetooth permission", e);
+                bonded = false;
+            }
             final boolean offer = bondWatch().onLinkDown(status, bonded);
             LOG.info("F91 link down: status {} bonded {} failed links in a row {}",
                     status, bonded, bondWatch().failedLinks());
