@@ -71,8 +71,12 @@ final class F91KeplerTransfers {
     private static final long SHOW_PROGRESS_AFTER_MS = 1_000L;
     /** Nothing moved for this long: the transaction was dropped without a callback. */
     private static final long STALL_MS = 30_000L;
-    /** Failure notifications, one per kind and watch, far from GB's fixed ids (2..43) and pair-again (44). */
-    private static final int FAILED_NOTIFICATION_BASE = 19_100;
+    /**
+     * Failure notifications, one per kind and watch, in the fork's id range (see
+     * GB.NOTIFICATION_ID_MUSIC_ACCESS), above the pair-again offers and clear of
+     * upstream's random progress ids (0..99999).
+     */
+    private static final int FAILED_NOTIFICATION_BASE = 0x4B50_2000;
     private static final int KINDS = F91KeplerTransfer.values().length;
 
     /** Fills a transaction with the writes (and reads) of one transfer. */

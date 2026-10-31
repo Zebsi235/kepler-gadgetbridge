@@ -151,13 +151,14 @@ android {
         // screens from firmware 3.1.3), 257 the firmware 3.2 sound settings, 258
         // image-screen fixes (landscape, rotation, upload confirmation), 263 the
         // notification mark re-sent on connect (259-262 earlier CI builds of it),
-        // 264 the 0.95.1 base, 265 the next Kepler release (Kepler Watch name,
-        // image upload progress, alarm-stopped, wide time zones, notification
-        // fixes, release build switched on).
+        // 264 the 0.95.1 base, 265 the first build of the next Kepler release
+        // (Kepler Watch name, image upload progress, alarm-stopped, wide time
+        // zones, notification fixes, release build switched on), 266 the same
+        // with the audit fixes.
         // Release tags: v0.92.2-kepler (252), -kepler-2 (253), -kepler-3 (254),
         // v0.94.0-kepler (255), v0.94.0-kepler-2 (256), v0.94.0-kepler-3 (258).
         versionName "0.95.1"
-        versionCode 265
+        versionCode 266
         vectorDrawables.useSupportLibrary = true
         buildConfigField "String", "GIT_HASH_SHORT", "\"${getGitHashShort()}\""
         buildConfigField "String", "GIT_DIRTY_STATUS", "\"${getGitDirtyFlag()}\""
