@@ -296,6 +296,17 @@ public class F91KeplerProtocolTest {
         F91KeplerProtocol.imageChunks(new byte[479]);
     }
 
+    @Test
+    public void progressPercent_runsFrom0To100() {
+        // begin + 26 chunks + commit = 28 writes
+        assertEquals(0, F91KeplerProtocol.progressPercent(0, 28));
+        assertEquals(3, F91KeplerProtocol.progressPercent(1, 28));
+        assertEquals(50, F91KeplerProtocol.progressPercent(14, 28));
+        assertEquals(100, F91KeplerProtocol.progressPercent(28, 28));
+        assertEquals(100, F91KeplerProtocol.progressPercent(30, 28));
+        assertEquals(0, F91KeplerProtocol.progressPercent(5, 0));
+    }
+
     // --- Brightness (F2F2, issue #211) -----------------------------------
 
     @Test
