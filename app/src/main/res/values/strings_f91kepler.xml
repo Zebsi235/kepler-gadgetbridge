@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Kepler strings added after 0.95.1, kept out of strings.xml so upstream merges do not conflict. -->
+<resources>
+    <string name="f91_pref_title_second_zone">Second time zone</string>
+    <string name="f91_pref_summary_second_zone">Show the time in another zone in the seconds corner of the clock face, with its three-letter name. A + or - after the name means that zone is already tomorrow or still yesterday. Sent on every connect, so after a battery change it is back once the phone connects.</string>
+    <string name="f91_pref_title_second_zone_id">Zone</string>
+    <string name="f91_pref_title_second_zone_name">Name on the watch</string>
+    <string name="f91_pref_summary_second_zone_name">%1$s. Three letters A to Z; leave empty to use the name made from the zone.</string>
+    <string name="f91_pref_title_reconnect_on_bt_on">Reconnect when Bluetooth comes on</string>
+    <string name="f91_pref_summary_reconnect_on_bt_on">Connect to the watch again as soon as the phone\'s Bluetooth is switched back on, without opening the app.</string>
+</resources>

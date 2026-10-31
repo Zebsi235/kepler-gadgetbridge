@@ -204,6 +204,14 @@ public interface DeviceCoordinator {
     }
 
     /**
+     * Whether this device is reconnected when Bluetooth is switched back on,
+     * even when the global "connect on Bluetooth enable" setting is off.
+     */
+    default boolean reconnectsOnBluetoothOn(final GBDevice device) {
+        return false;
+    }
+
+    /**
      * Checks whether this coordinator handles the given candidate.
      *
      * @param candidate

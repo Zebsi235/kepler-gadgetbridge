@@ -27,6 +27,7 @@ import java.util.TimeZone;
 import nodomain.freeyourgadget.gadgetbridge.deviceevents.GBDeviceEventFindPhone;
 import nodomain.freeyourgadget.gadgetbridge.deviceevents.GBDeviceEventMusicControl;
 import nodomain.freeyourgadget.gadgetbridge.devices.f91kepler.F91KeplerConstants;
+import nodomain.freeyourgadget.gadgetbridge.devices.f91kepler.F91KeplerFirmware;
 
 /**
  * Byte serializers for the F91 Kepler GATT characteristics. Ported 1:1 from
@@ -286,6 +287,22 @@ final class F91KeplerProtocol {
             default:
                 return GBDeviceEventFindPhone.Event.UNKNOWN;
         }
+    }
+
+    /**
+     * Whether the phone ring the user just stopped belongs to a watch alert
+     * that should stop on the watch as well (owner decision: stopping on the
+     * phone also stops the watch). Only firmware 3.3.2 takes the write.
+     * When the ring ended because the watch said so, alertRinging is false
+     * already and nothing is written back.
+     */
+    static boolean stopWatchAlertToo(final boolean alertRinging, final String firmware) {
+        return alertRinging && F91KeplerFirmware.atLeast(firmware, F91KeplerFirmware.MIN_ALERT_STOP);
+    }
+
+    /** AlertEvent write that stops the watch's alarm/timer alert (firmware 3.3.2). */
+    static byte[] alertStop() {
+        return new byte[]{F91KeplerConstants.ALERT_CMD_STOP};
     }
 
     /**
@@ -609,6 +626,21 @@ final class F91KeplerProtocol {
         return slot != null && appEnabled && !appUnused && appRepetition == 0
                 && slot[1] == 0 && slot[4] == 0
                 && slot[2] == appHour && slot[3] == appMinute;
+    }
+
+    /**
+     * A one-shot the watch is ringing right now: the app's alarm is on, used,
+     * has no repeat days and is set to the minute the alarm alert started in
+     * ({@code rangHm}), less than a minute ago ({@code sinceRangMs}). Written as
+     * on, the watch would arm it again in the very minute it rings and ring
+     * once more after it is stopped.
+     */
+    static boolean ringingOneShot(final boolean appEnabled, final boolean appUnused,
+                                  final int appHour, final int appMinute, final int appRepetition,
+                                  final int rangHm, final long sinceRangMs) {
+        return appEnabled && !appUnused && appRepetition == 0 && rangHm >= 0
+                && sinceRangMs >= 0 && sinceRangMs < 60_000L
+                && appHour * 60 + appMinute == rangHm;
     }
 
     /**

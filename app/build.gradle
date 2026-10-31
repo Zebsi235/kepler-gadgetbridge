@@ -154,11 +154,13 @@ android {
         // 264 the 0.95.1 base, 265 the first build of the next Kepler release
         // (Kepler Watch name, image upload progress, alarm-stopped, wide time
         // zones, notification fixes, release build switched on), 266 the same
-        // with the audit fixes.
+        // with the audit fixes, 267 the release for firmware 3.3.2 (alarm stop
+        // from the phone, second time zone, reconnect when Bluetooth comes on).
         // Release tags: v0.92.2-kepler (252), -kepler-2 (253), -kepler-3 (254),
-        // v0.94.0-kepler (255), v0.94.0-kepler-2 (256), v0.94.0-kepler-3 (258).
+        // v0.94.0-kepler (255), v0.94.0-kepler-2 (256), v0.94.0-kepler-3 (258),
+        // v0.95.1-kepler-1 (266).
         versionName "0.95.1"
-        versionCode 266
+        versionCode 267
         vectorDrawables.useSupportLibrary = true
         buildConfigField "String", "GIT_HASH_SHORT", "\"${getGitHashShort()}\""
         buildConfigField "String", "GIT_DIRTY_STATUS", "\"${getGitDirtyFlag()}\""

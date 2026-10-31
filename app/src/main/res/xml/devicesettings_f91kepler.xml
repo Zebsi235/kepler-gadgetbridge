@@ -14,4 +14,12 @@
         android:summary="@string/f91_pref_summary_notification_popup"
         android:title="@string/f91_pref_title_notification_popup" />
 
+    <!-- Phone-only, read by F91KeplerCoordinator.reconnectsOnBluetoothOn
+         (default F91KeplerConstants.RECONNECT_ON_BT_ON_DEFAULT). -->
+    <SwitchPreferenceCompat
+        android:defaultValue="true"
+        android:key="f91_reconnect_on_bt_on"
+        android:summary="@string/f91_pref_summary_reconnect_on_bt_on"
+        android:title="@string/f91_pref_title_reconnect_on_bt_on" />
+
 </androidx.preference.PreferenceScreen>
