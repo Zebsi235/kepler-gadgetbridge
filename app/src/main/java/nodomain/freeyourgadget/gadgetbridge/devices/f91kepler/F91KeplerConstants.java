@@ -106,6 +106,9 @@ public final class F91KeplerConstants {
     /** Firmware 3.3.2+: the alarm/timer alert ended on the watch (button,
      *  snooze or its own 60 s timeout), so the phone stops ringing too. */
     public static final byte ALERT_EVENT_STOPPED = 0x02;
+    /** Firmware 3.3.2+: written by the phone, stops the watch's alarm/timer
+     *  alert (a dismiss, not a snooze); nothing ringing = no-op. Encrypted write. */
+    public static final byte ALERT_CMD_STOP = 0x02;
     /** The watch's own alert ring length (f91_clock.c F91_ALERT_TIMEOUT_MS).
      *  Older firmware never sends STOPPED, so the phone stops itself after this. */
     public static final long ALERT_RING_TIMEOUT_MS = 60_000;

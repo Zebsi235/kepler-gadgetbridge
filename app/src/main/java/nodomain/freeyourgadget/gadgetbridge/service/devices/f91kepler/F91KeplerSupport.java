@@ -399,6 +399,7 @@ public class F91KeplerSupport extends AbstractBTLESingleDeviceSupport {
             // Marked here, not in the posted part, so a dispose() that drops the
             // pending post still knows this ring is running.
             alertRinging = true;
+            alertGen++;
             sendFindPhone(event);
             startAlertRingTimeout();
         }
@@ -415,6 +416,10 @@ public class F91KeplerSupport extends AbstractBTLESingleDeviceSupport {
     private final Handler alertHandler = new Handler(Looper.getMainLooper());
     /** True while the phone ring is the one the last alert started. */
     private volatile boolean alertRinging;
+    /** Counts the alerts that started a ring, so a late close cannot end a newer one. */
+    private volatile int alertGen;
+    /** alertGen when the find-phone screen last closed. */
+    private int closedGen;
     /**
      * elapsedRealtime when the user started a find-phone from the watch, 0 when
      * none. It expires (F91KeplerProtocol.USER_FIND_PHONE_MAX_MS) because the
@@ -445,17 +450,55 @@ public class F91KeplerSupport extends AbstractBTLESingleDeviceSupport {
         });
     }
 
-    /** FindPhoneActivity calls this with false when it closes (Found tapped or a STOP). */
+    /**
+     * FindPhoneActivity calls this with false when it closes (Found tapped or a
+     * STOP). Found on a ring a watch alert started also stops the alert on the
+     * watch (firmware 3.3.2); a ring the watch already ended writes nothing.
+     */
     @Override
     public void onFindPhone(final boolean start) {
-        if (!start) {
+        if (start) {
+            // The screen came back (turning the phone recreates it): it still rings
+            alertHandler.post(() -> alertHandler.removeCallbacks(phoneRingClosed));
+        } else {
+            final int gen = alertGen;
             alertHandler.post(() -> {
-                userFindPhoneSince = 0;
-                alertRinging = false;
-                alertHandler.removeCallbacks(alertRingTimeout);
+                closedGen = gen;
+                alertHandler.removeCallbacks(phoneRingClosed);
+                alertHandler.postDelayed(phoneRingClosed, PHONE_RING_CLOSED_GRACE_MS);
             });
         }
     }
+
+    /**
+     * The find-phone screen calls onFindPhone(false) whenever it is destroyed,
+     * also when turning the phone recreates it; the new one calls
+     * onFindPhone(true) at once. Only a close that stays closed this long ends
+     * the ring here (and on the watch).
+     */
+    private static final long PHONE_RING_CLOSED_GRACE_MS = 1_500;
+    private final Runnable phoneRingClosed = () -> {
+        userFindPhoneSince = 0;
+        if (alertGen != closedGen) {
+            // Another alert started its ring since the screen closed: that one stays
+            LOG.info("F91 find-phone screen closed before a new alert: the new ring stays");
+            return;
+        }
+        final boolean stopWatch = F91KeplerProtocol.stopWatchAlertToo(alertRinging, connectedFw);
+        alertRinging = false;
+        alertHandler.removeCallbacks(alertRingTimeout);
+        if (!stopWatch) {
+            return;
+        }
+        if (getDevice().isInitialized()) {
+            LOG.info("F91 alert stopped on the phone: stopping it on the watch too");
+            final TransactionBuilder builder = createTransactionBuilder("stop watch alert");
+            builder.write(F91KeplerConstants.UUID_CHAR_ALERT_EVENT, F91KeplerProtocol.alertStop());
+            builder.queue();
+        } else {
+            LOG.info("F91 alert stopped on the phone while the watch is away: it rings out on its own");
+        }
+    };
 
     private F91KeplerBondWatch bondWatch() {
         return BOND_WATCHES.computeIfAbsent(getDevice().getAddress(), a -> new F91KeplerBondWatch());
@@ -617,7 +660,13 @@ public class F91KeplerSupport extends AbstractBTLESingleDeviceSupport {
             watchStuckLink(gatt);
         }
         // A refused 4-byte time zone is not a failed transfer: the 2-byte fallback below sends it.
-        if (status != BluetoothGatt.GATT_SUCCESS && !(tzWideInFlight && characteristic != null
+        // Nor is the alert stop, which is no transfer at all (an early 3.3.2 rc may refuse it).
+        final boolean alertStop = characteristic != null
+                && F91KeplerConstants.UUID_CHAR_ALERT_EVENT.equals(characteristic.getUuid());
+        if (alertStop && status != BluetoothGatt.GATT_SUCCESS) {
+            LOG.warn("F91 watch refused the alert stop: status {}", status);
+        }
+        if (status != BluetoothGatt.GATT_SUCCESS && !alertStop && !(tzWideInFlight && characteristic != null
                 && F91KeplerConstants.UUID_CHAR_TIMEZONE.equals(characteristic.getUuid())
                 && (status == ATT_INVALID_VALUE_LENGTH || status == ATT_INVALID_VALUE))) {
             transfers.onOperationFailed();

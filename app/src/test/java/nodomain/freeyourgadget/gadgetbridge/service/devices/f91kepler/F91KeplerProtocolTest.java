@@ -216,6 +216,19 @@ public class F91KeplerProtocolTest {
     }
 
     @Test
+    public void phoneStopAlsoStopsTheWatchAlert_from332() {
+        assertArrayEquals(new byte[]{0x02}, F91KeplerProtocol.alertStop());
+        assertTrue(F91KeplerProtocol.stopWatchAlertToo(true, "3.3.2"));
+        assertTrue(F91KeplerProtocol.stopWatchAlertToo(true, "3.3.2-rc10-bl"));
+        assertTrue(F91KeplerProtocol.stopWatchAlertToo(true, "3.4.0"));
+        // older firmware has no write on D4F1
+        assertFalse(F91KeplerProtocol.stopWatchAlertToo(true, "3.3.1-rc3-bl"));
+        assertFalse(F91KeplerProtocol.stopWatchAlertToo(true, null));
+        // the ring already ended (the watch said so, or it timed out): nothing to stop
+        assertFalse(F91KeplerProtocol.stopWatchAlertToo(false, "3.3.2"));
+    }
+
+    @Test
     public void shouldStopAlertRing_onlyTheAlertsOwnRing() {
         final long now = 5_000_000L;
         final long userStarted = now - 30_000;     // 30 s ago
