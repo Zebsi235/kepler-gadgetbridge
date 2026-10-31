@@ -22,9 +22,9 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.File;
+import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.io.IOException;
-import java.nio.file.Files;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
@@ -78,7 +78,7 @@ public final class F91KeplerImageLibrary {
                 continue;
             }
             try {
-                out.add(new Entry(id, Files.readAllBytes(f.toPath())));
+                out.add(new Entry(id, read(f)));
             } catch (final IOException e) {
                 LOG.warn("Could not read the gallery image {}", f, e);
             }
@@ -116,6 +116,22 @@ public final class F91KeplerImageLibrary {
         for (int i = MAX_RECENT; i < after.size(); i++) {
             delete(after.get(i).id);
         }
+    }
+
+    /** java.nio.file needs Android 8; the app runs from Android 6. */
+    private static byte[] read(final File f) throws IOException {
+        final byte[] frame = new byte[F91KeplerConstants.IMAGE_BYTES];
+        try (final FileInputStream in = new FileInputStream(f)) {
+            int got = 0;
+            while (got < frame.length) {
+                final int n = in.read(frame, got, frame.length - got);
+                if (n < 0) {
+                    throw new IOException("short gallery file " + f);
+                }
+                got += n;
+            }
+        }
+        return frame;
     }
 
     public void delete(final String id) {
