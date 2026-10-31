@@ -27,6 +27,7 @@ import android.os.Looper;
 import android.text.format.DateFormat;
 import android.widget.Toast;
 
+import androidx.annotation.Nullable;
 import androidx.localbroadcastmanager.content.LocalBroadcastManager;
 
 import org.apache.commons.lang3.StringUtils;
@@ -563,9 +564,13 @@ public class F91KeplerSupport extends AbstractBTLESingleDeviceSupport {
         }
         if (fw != null && !F91KeplerFirmware.has31(fw)) {
             // The single alarm switched itself off if it rang while the phone was away
-            syncLegacyAlarm(new ArrayList<>(DBHelper.getAlarms(getDevice())), true);
+            legacyAlarmHandler.post(() -> syncLegacyAlarm(null, false));
         }
         if (F91KeplerFirmware.has31(fw)) {
+            prefs.edit().remove(F91KeplerConstants.PREF_LEGACY_ARMED_AT)
+                    .remove(F91KeplerConstants.PREF_LEGACY_SIGNATURE)
+                    .remove(F91KeplerConstants.PREF_LEGACY_ONCE_POS)
+                    .remove(F91KeplerConstants.PREF_LEGACY_ONCE_HM).apply();
             // Its own transaction: a refused 3.1 write must not cancel the
             // restores above. All of it is phone-owned and cheap to repeat --
             // the watch skips the flash write for an unchanged value.
@@ -1076,37 +1081,53 @@ public class F91KeplerSupport extends AbstractBTLESingleDeviceSupport {
             builder.queue();
             return;
         }
-        syncLegacyAlarm(alarms, false);
+        final List<? extends Alarm> list = new ArrayList<>(alarms);
+        legacyAlarmHandler.post(() -> syncLegacyAlarm(list, true));
     }
 
-    /** Re-arms the pre-3.1 alarm shortly after it rang, while the link stays up. */
+    /** Runs the pre-3.1 alarm work on the main thread, one call at a time. */
     private final Handler legacyAlarmHandler = new Handler(Looper.getMainLooper());
     private static final long LEGACY_REARM_AFTER_MS = 90_000;
+    /** Checks the wall clock this often: a delayed post does not count the time the phone sleeps. */
+    private static final long LEGACY_CHECK_MAX_MS = 15 * 60_000;
 
     /**
      * Firmware before 3.1: the Alarm Service holds a single alarm, CHAR5
      * AlarmTime (absolute UTC epoch, 0 = disabled) + CHAR6 AlarmEnabled, and
      * switches it off as it rings. Arms the soonest next ring of all enabled
-     * alarms (repeat days included); re-armed after each ring while connected
-     * and on every connect, so a repeating alarm keeps ringing.
+     * alarms (repeat days included), and again after each ring while connected
+     * and on connect, so a repeating alarm keeps ringing. A one-shot the app
+     * armed whose time has passed rang on the watch: it is switched off in the
+     * app, not armed for the next day.
      *
-     * @param onConnect a one-shot armed earlier whose time has passed rang on
-     *                  the watch: it is switched off in the app, not re-armed
+     * @param alarms the app's alarms, or null to read them from the database
+     * @param force  write even if the watch holds this list's next ring already
+     *               (the user saved the alarms). Otherwise the watch keeps what
+     *               it has until that ring has passed, so switching the alarm
+     *               off on the watch skips that ring instead of being undone at
+     *               the next connect.
      */
-    private void syncLegacyAlarm(final List<? extends Alarm> alarms, final boolean onConnect) {
+    private void syncLegacyAlarm(@Nullable final List<? extends Alarm> alarms, final boolean force) {
         legacyAlarmHandler.removeCallbacksAndMessages(null);
+        final List<? extends Alarm> list = alarms != null ? alarms : DBHelper.getAlarms(getDevice());
         final SharedPreferences prefs = GBApplication.getDeviceSpecificSharedPrefs(getDevice().getAddress());
-        final long rangAt = onConnect ? rungLegacyOneShot(prefs) : 0L;
-        final int rangPos = prefs.getInt(F91KeplerConstants.PREF_LEGACY_ONCE_POS, -1);
+        final long nowMillis = System.currentTimeMillis();
+        final long armedAt = prefs.getLong(F91KeplerConstants.PREF_LEGACY_ARMED_AT, 0L);
+        final boolean passed = armedAt > 0 && armedAt * 1000L <= nowMillis;
+        final int rangPos = passed ? prefs.getInt(F91KeplerConstants.PREF_LEGACY_ONCE_POS, -1) : -1;
+        final int rangHm = prefs.getInt(F91KeplerConstants.PREF_LEGACY_ONCE_HM, -1);
 
+        final StringBuilder signature = new StringBuilder();
         final Calendar now = Calendar.getInstance();
+        now.setTimeInMillis(nowMillis);
         Calendar soonest = null;
         Alarm armed = null;
-        for (final Alarm alarm : alarms) {
-            if (alarm == null || alarm.getUnused() || !alarm.getEnabled()
-                    || isRungOneShot(alarm, rangPos, rangAt)) {
+        for (final Alarm alarm : list) {
+            if (alarm == null || alarm.getUnused() || !alarm.getEnabled() || isRungOneShot(alarm, rangPos, rangHm)) {
                 continue;
             }
+            signature.append(alarm.getPosition()).append(':').append(alarm.getHour()).append(':')
+                    .append(alarm.getMinute()).append(':').append(alarm.getRepetition()).append(';');
             final Calendar next = F91KeplerProtocol.nextAlarm(now, alarm.getHour(), alarm.getMinute(),
                                                               alarm.getRepetition());
             if (soonest == null || next.before(soonest)) {
@@ -1114,16 +1135,26 @@ public class F91KeplerSupport extends AbstractBTLESingleDeviceSupport {
                 armed = alarm;
             }
         }
-        if (rangAt > 0) {
-            switchOffRungOneShot(rangPos, rangAt);
+        if (!force && !passed && signature.toString().equals(prefs.getString(F91KeplerConstants.PREF_LEGACY_SIGNATURE, null))) {
+            LOG.debug("F91 alarm unchanged and not rung yet: the watch keeps what it has");
+            if (armedAt > 0) {
+                scheduleLegacyCheck(armedAt * 1000L + LEGACY_REARM_AFTER_MS);
+            }
+            return;
+        }
+        if (rangPos >= 0) {
+            switchOffRungOneShot(rangPos, rangHm);
         }
 
+        final SharedPreferences.Editor edit = prefs.edit()
+                .putString(F91KeplerConstants.PREF_LEGACY_SIGNATURE, signature.toString())
+                .remove(F91KeplerConstants.PREF_LEGACY_ONCE_POS)
+                .remove(F91KeplerConstants.PREF_LEGACY_ONCE_HM);
         final TransactionBuilder builder = createTransactionBuilder("set alarms");
         if (soonest == null) {
             builder.write(F91KeplerConstants.UUID_CHAR_ALARM_ENABLED, F91KeplerProtocol.alarmEnabled(false));
             builder.write(F91KeplerConstants.UUID_CHAR_ALARM_TIME, F91KeplerProtocol.alarmTime(0L));
-            prefs.edit().remove(F91KeplerConstants.PREF_LEGACY_ONCE_POS)
-                    .remove(F91KeplerConstants.PREF_LEGACY_ONCE_AT).apply();
+            edit.putLong(F91KeplerConstants.PREF_LEGACY_ARMED_AT, 0L);
         } else {
             // Write the time first, then enable: the firmware only arms when
             // AlarmEnabled && AlarmTime != 0. getTimeInMillis() is UTC, matching
@@ -1132,45 +1163,46 @@ public class F91KeplerSupport extends AbstractBTLESingleDeviceSupport {
             builder.write(F91KeplerConstants.UUID_CHAR_ALARM_TIME, F91KeplerProtocol.alarmTime(epochSeconds));
             builder.write(F91KeplerConstants.UUID_CHAR_ALARM_ENABLED, F91KeplerProtocol.alarmEnabled(true));
             LOG.debug("F91 alarm armed for {} (epoch {})", soonest.getTime(), epochSeconds);
+            edit.putLong(F91KeplerConstants.PREF_LEGACY_ARMED_AT, epochSeconds);
             if (armed.getRepetition() == 0) {
-                prefs.edit().putInt(F91KeplerConstants.PREF_LEGACY_ONCE_POS, armed.getPosition())
-                        .putLong(F91KeplerConstants.PREF_LEGACY_ONCE_AT, epochSeconds).apply();
-            } else {
-                prefs.edit().remove(F91KeplerConstants.PREF_LEGACY_ONCE_POS)
-                        .remove(F91KeplerConstants.PREF_LEGACY_ONCE_AT).apply();
+                edit.putInt(F91KeplerConstants.PREF_LEGACY_ONCE_POS, armed.getPosition())
+                        .putInt(F91KeplerConstants.PREF_LEGACY_ONCE_HM, armed.getHour() * 60 + armed.getMinute());
             }
-            // After it rang: off for a one-shot, the next day for a repeating one
-            // (only once the watch is known to be pre-3.1: an alarm set in the
-            // first moment of a 3.1 link also comes this way)
-            legacyAlarmHandler.postDelayed(() -> {
-                if (getDevice().isInitialized() && connectedFw != null && !has31()) {
-                    syncLegacyAlarm(new ArrayList<>(DBHelper.getAlarms(getDevice())), true);
-                }
-            }, soonest.getTimeInMillis() - now.getTimeInMillis() + LEGACY_REARM_AFTER_MS);
+            // After it rang: off for a one-shot, the next ring for a repeating one
+            scheduleLegacyCheck(soonest.getTimeInMillis() + LEGACY_REARM_AFTER_MS);
         }
+        edit.apply();
         builder.queue();
     }
 
-    /** The epoch seconds of the one-shot the watch has rung since it was armed, or 0. */
-    private static long rungLegacyOneShot(final SharedPreferences prefs) {
-        final int pos = prefs.getInt(F91KeplerConstants.PREF_LEGACY_ONCE_POS, -1);
-        final long at = prefs.getLong(F91KeplerConstants.PREF_LEGACY_ONCE_AT, 0L);
-        return pos >= 0 && at > 0 && at * 1000L <= System.currentTimeMillis() ? at : 0L;
+    /**
+     * Syncs again once {@code dueMillis} (wall clock) has passed, while the link
+     * to a watch known to be pre-3.1 stays up (an alarm set in the first moment
+     * of a 3.1 link also comes this way, before the version is known).
+     */
+    private void scheduleLegacyCheck(final long dueMillis) {
+        final long wait = dueMillis - System.currentTimeMillis();
+        legacyAlarmHandler.postDelayed(() -> {
+            if (!getDevice().isInitialized() || connectedFw == null || has31()) {
+                return;
+            }
+            if (System.currentTimeMillis() >= dueMillis) {
+                syncLegacyAlarm(null, false);
+            } else {
+                scheduleLegacyCheck(dueMillis);
+            }
+        }, Math.max(1000L, Math.min(wait, LEGACY_CHECK_MAX_MS)));
     }
 
-    /** Still the one-shot that rang: same slot, no repeat days, same time (not changed since). */
-    private static boolean isRungOneShot(final Alarm alarm, final int pos, final long at) {
-        if (at <= 0 || alarm.getPosition() != pos || alarm.getRepetition() != 0) {
-            return false;
-        }
-        final Calendar rang = Calendar.getInstance();
-        rang.setTimeInMillis(at * 1000L);
-        return rang.get(Calendar.HOUR_OF_DAY) == alarm.getHour() && rang.get(Calendar.MINUTE) == alarm.getMinute();
+    /** Still the one-shot the app armed and the watch rang: same slot, no repeat days, same time. */
+    private static boolean isRungOneShot(final Alarm alarm, final int pos, final int hm) {
+        return pos >= 0 && alarm.getPosition() == pos && alarm.getRepetition() == 0
+                && alarm.getHour() * 60 + alarm.getMinute() == hm;
     }
 
-    private void switchOffRungOneShot(final int pos, final long at) {
+    private void switchOffRungOneShot(final int pos, final int hm) {
         for (final nodomain.freeyourgadget.gadgetbridge.entities.Alarm a : DBHelper.getAlarms(getDevice())) {
-            if (a.getEnabled() && isRungOneShot(a, pos, at)) {
+            if (a.getEnabled() && isRungOneShot(a, pos, hm)) {
                 LOG.info("F91 one-shot alarm {} rang on the watch, switching it off", pos);
                 a.setEnabled(false);
                 DBHelper.store(a);
