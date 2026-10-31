@@ -483,6 +483,7 @@ public class F91KeplerSupport extends AbstractBTLESingleDeviceSupport {
         }
         if (status != BluetoothGatt.GATT_SUCCESS) {
             transfers.onOperationFailed();
+            imageCheckPending = false;
         }
         if (status != BluetoothGatt.GATT_SUCCESS && characteristic != null
                 && (F91KeplerConstants.UUID_CHAR_IMAGE_CHUNK.equals(characteristic.getUuid())
@@ -1352,10 +1353,11 @@ public class F91KeplerSupport extends AbstractBTLESingleDeviceSupport {
                 || F91KeplerImageStore.load(getDevice()) == null) {
             return;
         }
-        // Set and cleared by the transaction itself: a connect write refused before
-        // it (the queue then skips the rest), or a watch without the characteristic
-        // (no read is added), must not leave Send waiting for an answer that never comes.
-        builder.run(() -> imageCheckPending = true);
+        // Pending from now (a Send during the connect writes must not start a second
+        // upload), and over after the read even when the watch has no such
+        // characteristic (no read is added). A refused write before it, which skips
+        // the rest of the transaction, clears it in onCharacteristicWrite.
+        imageCheckPending = true;
         builder.read(F91KeplerConstants.UUID_CHAR_IMAGE_CONTROL);
         builder.run(() -> imageCheckPending = false);
     }
