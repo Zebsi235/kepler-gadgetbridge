@@ -380,6 +380,13 @@ public final class F91KeplerConstants {
     public static final String PREF_LEGACY_ONCE_POS = "f91_legacy_once_pos";
     public static final String PREF_LEGACY_ONCE_HM = "f91_legacy_once_hm";
     public static final String PREF_NOTIFICATION_POPUP = "f91_notification_popup";
+    /**
+     * Phone-only: reconnect the watch when the phone's Bluetooth comes back on,
+     * whatever Gadgetbridge's global "connect on Bluetooth enable" says (that
+     * one is off by default, and the watch then stayed away until tapped).
+     */
+    public static final String PREF_RECONNECT_ON_BT_ON = "f91_reconnect_on_bt_on";
+    public static final boolean RECONNECT_ON_BT_ON_DEFAULT = true;
 
     /**
      * Default for {@link #PREF_NOTIFICATION_POPUP}: the watch DOES light up for a

@@ -44,6 +44,7 @@ public class F91KeplerSettingsKeysTest {
 
     private static final String[] XMLS = {
             "devicesettings_f91kepler_brightness.xml",
+            "devicesettings_f91kepler.xml",
             "devicesettings_f91kepler_sleep.xml",
             "devicesettings_f91kepler_modes.xml",
             "devicesettings_f91kepler_31_face.xml",
@@ -61,7 +62,7 @@ public class F91KeplerSettingsKeysTest {
     private static final Set<String> PHONE_ONLY = new HashSet<>(Arrays.asList(
             F91KeplerConstants.PREF_ALERT_TIMER, F91KeplerConstants.PREF_ALERT_ALARM,
             F91KeplerConstants.PREF_ALERT_MODE, F91KeplerConstants.PREF_NOTIFICATION_POPUP,
-            F91KeplerConstants.PREF_IMAGE_UPLOAD,
+            F91KeplerConstants.PREF_IMAGE_UPLOAD, F91KeplerConstants.PREF_RECONNECT_ON_BT_ON,
             // a button: its click sends it (notifyPreferenceChanged), there is no value
             F91KeplerConstants.PREF_SOUND_TEST));
 
@@ -169,6 +170,22 @@ public class F91KeplerSettingsKeysTest {
             assertTrue(key + " cannot be both shown and hidden on 3.1",
                     !Arrays.asList(F91KeplerSettingsCustomizer.KEYS_31).contains(key));
         }
+    }
+
+    /** Reconnect on Bluetooth on: on unless the user switches it off, and the switch shows the same. */
+    @Test
+    public void reconnectOnBluetoothOnDefaultsToOn() throws Exception {
+        assertTrue(F91KeplerConstants.RECONNECT_ON_BT_ON_DEFAULT);
+        final NodeList nodes = DocumentBuilderFactory.newInstance().newDocumentBuilder()
+                .parse(new File(xmlDir(), "devicesettings_f91kepler.xml")).getElementsByTagName("*");
+        String shown = null;
+        for (int i = 0; i < nodes.getLength(); i++) {
+            final Element e = (Element) nodes.item(i);
+            if (F91KeplerConstants.PREF_RECONNECT_ON_BT_ON.equals(e.getAttribute("android:key"))) {
+                shown = e.getAttribute("android:defaultValue");
+            }
+        }
+        assertTrue("switch default " + shown, "true".equals(shown));
     }
 
     /** The two Watch modes lists are shown one at a time, never both, never none. */

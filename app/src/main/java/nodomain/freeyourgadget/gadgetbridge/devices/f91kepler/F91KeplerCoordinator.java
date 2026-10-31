@@ -86,6 +86,12 @@ public class F91KeplerCoordinator extends AbstractBLEDeviceCoordinator {
     }
 
     @Override
+    public boolean reconnectsOnBluetoothOn(final GBDevice device) {
+        return GBApplication.getDeviceSpecificSharedPrefs(device.getAddress()).getBoolean(
+                F91KeplerConstants.PREF_RECONNECT_ON_BT_ON, F91KeplerConstants.RECONNECT_ON_BT_ON_DEFAULT);
+    }
+
+    @Override
     public boolean prefersScanReconnect() {
         // After 2 h without a phone the watch advertises one 2-second burst per
         // minute. Direct retries back off to 64 s and Doze stretches them to

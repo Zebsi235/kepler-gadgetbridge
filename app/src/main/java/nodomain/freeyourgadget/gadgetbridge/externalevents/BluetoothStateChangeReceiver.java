@@ -23,6 +23,9 @@ import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
 
+import java.util.Collections;
+import java.util.Set;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -66,6 +69,17 @@ public class BluetoothStateChangeReceiver extends BroadcastReceiver {
                 }
 
                 if (!prefs.getBoolean(GBPrefs.AUTO_CONNECT_BLUETOOTH, false)) {
+                    // Devices that ask for it (Kepler) come back anyway, unless the
+                    // user disconnected them (same rule as the connect-all path)
+                    final Set<String> last = prefs.getBoolean(GBPrefs.RECONNECT_ONLY_TO_CONNECTED, true)
+                            ? prefs.getStringSet(GBPrefs.LAST_DEVICE_ADDRESSES, Collections.emptySet()) : null;
+                    for (final GBDevice device : GBApplication.app().getDeviceManager().getDevices()) {
+                        if (!device.isConnected() && !device.isConnecting() && prefs.getAutoReconnect(device)
+                                && (last == null || last.contains(device.getAddress()))
+                                && device.getDeviceCoordinator().reconnectsOnBluetoothOn(device)) {
+                            GBApplication.deviceService(device).connect();
+                        }
+                    }
                     return;
                 }
 
