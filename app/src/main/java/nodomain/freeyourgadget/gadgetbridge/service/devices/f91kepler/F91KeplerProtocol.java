@@ -338,8 +338,8 @@ final class F91KeplerProtocol {
         return new byte[]{F91KeplerConstants.IMAGE_CTRL_COMMIT, xor8};
     }
 
-    /** Percent done after {@code done} of {@code total} image writes, 0-100. */
-    static int imageProgressPercent(final int done, final int total) {
+    /** Percent done after {@code done} of {@code total} transfer steps, 0-100. */
+    static int progressPercent(final int done, final int total) {
         if (total <= 0) {
             return 0;
         }

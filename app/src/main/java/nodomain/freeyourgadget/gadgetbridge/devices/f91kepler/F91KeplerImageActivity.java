@@ -66,7 +66,7 @@ import nodomain.freeyourgadget.gadgetbridge.util.GB;
  * on screen is pixel-exact what the watch will light. Pressing send stores the frame
  * (see {@link F91KeplerImageStore}) and asks the service to upload it; if the watch
  * is away, the stored frame goes out on the next connect instead. The service
- * reports the upload ({@link F91KeplerConstants#ACTION_IMAGE_STATUS}): a progress
+ * reports the upload ({@link F91KeplerConstants#ACTION_TRANSFER_STATUS}): a progress
  * bar while it runs, then sent, failed (Send turns into Try again) or interrupted.
  */
 public class F91KeplerImageActivity extends AbstractGBActivity {
@@ -95,6 +95,9 @@ public class F91KeplerImageActivity extends AbstractGBActivity {
 
     /** An upload is running: Send stays off and the status line belongs to it. */
     private boolean uploading;
+    /** Sent or saved for the watch and not answered yet: only then does an outcome
+     *  replace the status line (a reconnect's "already there" must not cover a new edit). */
+    private boolean awaiting;
 
     private final BroadcastReceiver imageStatusReceiver = new BroadcastReceiver() {
         @Override
@@ -105,13 +108,17 @@ public class F91KeplerImageActivity extends AbstractGBActivity {
                 // tapped) would otherwise leave Send switched off for good.
                 if (uploading && changed != null && device.getAddress().equals(changed.getAddress())
                         && !changed.isInitialized()) {
-                    showUploadState(F91KeplerConstants.IMAGE_STATE_INTERRUPTED, 0);
+                    showUploadState(F91KeplerConstants.TRANSFER_STATE_INTERRUPTED, 0);
                 }
                 return;
             }
-            if (device.getAddress().equals(intent.getStringExtra(F91KeplerConstants.EXTRA_IMAGE_ADDRESS))) {
-                showUploadState(intent.getIntExtra(F91KeplerConstants.EXTRA_IMAGE_STATE, 0),
-                                intent.getIntExtra(F91KeplerConstants.EXTRA_IMAGE_PERCENT, 0));
+            if (device.getAddress().equals(intent.getStringExtra(F91KeplerConstants.EXTRA_TRANSFER_ADDRESS))
+                    && F91KeplerTransfer.IMAGE.name().equals(intent.getStringExtra(F91KeplerConstants.EXTRA_TRANSFER_KIND))) {
+                final int state = intent.getIntExtra(F91KeplerConstants.EXTRA_TRANSFER_STATE, 0);
+                // An upload starting (also the reconnect re-send) is always news.
+                if (awaiting || state == F91KeplerConstants.TRANSFER_STATE_SENDING) {
+                    showUploadState(state, intent.getIntExtra(F91KeplerConstants.EXTRA_TRANSFER_PERCENT, 0));
+                }
             }
         }
     };
@@ -198,14 +205,11 @@ public class F91KeplerImageActivity extends AbstractGBActivity {
         }
         render();
 
-        final IntentFilter filter = new IntentFilter(F91KeplerConstants.ACTION_IMAGE_STATUS);
+        final IntentFilter filter = new IntentFilter(F91KeplerConstants.ACTION_TRANSFER_STATUS);
         filter.addAction(GBDevice.ACTION_DEVICE_CHANGED);
         LocalBroadcastManager.getInstance(this).registerReceiver(imageStatusReceiver, filter);
         // Opened while an upload runs (a reconnect re-send, or a rotation mid-send):
-        // the next progress broadcast fills in the numbers.
-        if (getString(R.string.f91_image_sending).equals(currentDevice().getBusyTask())) {
-            showUploadState(F91KeplerConstants.IMAGE_STATE_SENDING, 0);
-        }
+        // the next progress broadcast shows it.
     }
 
     @Override
@@ -225,26 +229,28 @@ public class F91KeplerImageActivity extends AbstractGBActivity {
     }
 
     private void showUploadState(final int state, final int percent) {
-        uploading = state == F91KeplerConstants.IMAGE_STATE_SENDING;
+        uploading = state == F91KeplerConstants.TRANSFER_STATE_SENDING;
+        awaiting = uploading || state == F91KeplerConstants.TRANSFER_STATE_WAITING
+                || state == F91KeplerConstants.TRANSFER_STATE_INTERRUPTED;
         progress.setVisibility(uploading ? View.VISIBLE : View.GONE);
         progress.setProgress(percent);
-        sendButton.setText(state == F91KeplerConstants.IMAGE_STATE_FAILED
-                ? R.string.f91_image_retry : R.string.f91_image_send);
+        sendButton.setText(state == F91KeplerConstants.TRANSFER_STATE_FAILED
+                ? R.string.f91_transfer_retry : R.string.f91_image_send);
         sendButton.setEnabled(!uploading && bits != null);
         switch (state) {
-            case F91KeplerConstants.IMAGE_STATE_SENDING:
+            case F91KeplerConstants.TRANSFER_STATE_SENDING:
                 status.setText(getString(R.string.f91_image_sending_percent, percent));
                 break;
-            case F91KeplerConstants.IMAGE_STATE_DONE:
+            case F91KeplerConstants.TRANSFER_STATE_DONE:
                 status.setText(R.string.f91_image_sent);
                 break;
-            case F91KeplerConstants.IMAGE_STATE_FAILED:
+            case F91KeplerConstants.TRANSFER_STATE_FAILED:
                 status.setText(R.string.f91_image_failed_retry);
                 break;
-            case F91KeplerConstants.IMAGE_STATE_INTERRUPTED:
+            case F91KeplerConstants.TRANSFER_STATE_INTERRUPTED:
                 status.setText(R.string.f91_image_interrupted);
                 break;
-            case F91KeplerConstants.IMAGE_STATE_WAITING:
+            case F91KeplerConstants.TRANSFER_STATE_WAITING:
                 status.setText(R.string.f91_image_saved_offline);
                 break;
             default:
@@ -399,6 +405,7 @@ public class F91KeplerImageActivity extends AbstractGBActivity {
         showPreview(bits);
         if (!uploading) {
             // A changed image is a new send, not a retry of the failed one.
+            awaiting = false;
             status.setText(R.string.f91_image_ready);
             sendButton.setText(R.string.f91_image_send);
             sendButton.setEnabled(true);
@@ -418,16 +425,19 @@ public class F91KeplerImageActivity extends AbstractGBActivity {
             return;
         }
 
+        // Every Send is a fresh start, also one saved while the watch is away.
+        GBApplication.getDeviceSpecificSharedPrefs(device.getAddress()).edit()
+                .putBoolean(F91KeplerConstants.PREF_IMAGE_GAVE_UP, false).apply();
         final GBDevice now = currentDevice();
         if (now.isInitialized()) {
             // Off until the service reports back, so a quick second tap is not a second upload.
-            showUploadState(F91KeplerConstants.IMAGE_STATE_SENDING, 0);
+            showUploadState(F91KeplerConstants.TRANSFER_STATE_SENDING, 0);
             GBApplication.deviceService(now)
                     .onSendConfiguration(F91KeplerConstants.PREF_IMAGE_UPLOAD);
         } else {
             // The stored frame is picked up by the reconnect check in the support
             // class, so there is nothing else to do here.
-            showUploadState(F91KeplerConstants.IMAGE_STATE_WAITING, 0);
+            showUploadState(F91KeplerConstants.TRANSFER_STATE_WAITING, 0);
         }
     }
 

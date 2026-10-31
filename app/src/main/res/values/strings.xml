@@ -2438,14 +2438,32 @@
     <string name="f91_image_store_failed">Could not save the image</string>
     <string name="f91_image_load_failed">Could not read that image</string>
     <string name="f91_image_no_device">No watch was passed to the image screen</string>
-    <string name="f91_image_notification_title">Kepler Watch image</string>
     <string name="f91_image_sending_percent">Sending the image to the watch… %1$d %%</string>
     <string name="f91_image_failed_retry">The watch did not confirm the image. Tap Try again.</string>
-    <string name="f91_image_retry">Try again</string>
-    <string name="f91_alarms_saved">Alarms saved on the watch</string>
-    <string name="f91_alarms_failed">The alarms did not reach the watch. They are sent again when it reconnects.</string>
-    <string name="f91_setting_failed">The watch did not take this change. Change it again once the watch is connected.</string>
     <string name="f91_image_interrupted">The watch disconnected. The image is sent again when it reconnects.</string>
+    <string name="f91_transfer_title">Kepler Watch</string>
+    <string name="f91_transfer_image">Sending the image to the watch…</string>
+    <string name="f91_transfer_image_failed">The image did not reach the watch</string>
+    <string name="f91_transfer_alarms">Sending alarms to the watch…</string>
+    <string name="f91_transfer_alarms_done">Alarms are on the watch</string>
+    <string name="f91_transfer_alarms_failed">The alarms did not reach the watch</string>
+    <string name="f91_transfer_sounds">Sending sound settings to the watch…</string>
+    <string name="f91_transfer_sounds_done">Sound settings are on the watch</string>
+    <string name="f91_transfer_sounds_failed">The sound settings did not reach the watch</string>
+    <string name="f91_transfer_settings">Sending settings to the watch…</string>
+    <string name="f91_transfer_settings_done">Settings are on the watch</string>
+    <string name="f91_transfer_settings_failed">The settings did not reach the watch</string>
+    <string name="f91_transfer_weather">Sending the weather to the watch…</string>
+    <string name="f91_transfer_weather_done">The weather is on the watch</string>
+    <string name="f91_transfer_weather_failed">The weather did not reach the watch</string>
+    <string name="f91_transfer_notifications">Sending notifications to the watch…</string>
+    <string name="f91_transfer_notifications_done">Notifications are on the watch</string>
+    <string name="f91_transfer_notifications_failed">The notifications did not reach the watch</string>
+    <string name="f91_transfer_time">Setting the time on the watch…</string>
+    <string name="f91_transfer_time_done">The time on the watch is set</string>
+    <string name="f91_transfer_time_failed">The time did not reach the watch</string>
+    <string name="f91_transfer_retry">Try again</string>
+    <string name="f91_transfer_retry_offline">The watch is not connected. Try again once it is.</string>
     <string name="devicetype_polarh9" translatable="false">Polar H9</string>
     <string name="devicetype_polarh10" translatable="false">Polar H10</string>
     <string name="devicetype_sonyswr12" translatable="false">Sony SWR12</string>

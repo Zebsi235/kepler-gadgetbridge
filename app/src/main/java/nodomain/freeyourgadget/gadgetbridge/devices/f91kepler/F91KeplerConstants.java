@@ -366,21 +366,29 @@ public final class F91KeplerConstants {
      *  activity uses to ask the service to upload the stored frame. */
     public static final String PREF_IMAGE_UPLOAD = "f91_image_upload";
 
-    /** Local broadcast: how the stored image is getting on its way to the watch. */
-    public static final String ACTION_IMAGE_STATUS = "nodomain.freeyourgadget.gadgetbridge.f91kepler.action.IMAGE_STATUS";
-    /** The watch's address, so an image screen only listens to its own watch. */
-    public static final String EXTRA_IMAGE_ADDRESS = "address";
-    /** One of the IMAGE_STATE_* values. */
-    public static final String EXTRA_IMAGE_STATE = "state";
-    /** 0-100 while {@link #IMAGE_STATE_SENDING}. */
-    public static final String EXTRA_IMAGE_PERCENT = "percent";
-    public static final int IMAGE_STATE_SENDING = 1;
-    /** The watch confirmed the checksum of the stored image. */
-    public static final int IMAGE_STATE_DONE = 2;
-    /** Two uploads were not confirmed; a new Send tries again. */
-    public static final int IMAGE_STATE_FAILED = 3;
-    /** The link dropped mid-upload; the next connect sends it again. */
-    public static final int IMAGE_STATE_INTERRUPTED = 4;
+    /** Internal, not a setting: the watch did not confirm the stored image twice, so
+     *  connects stop re-sending it. Cleared by every Send, also one while the watch is away. */
+    public static final String PREF_IMAGE_GAVE_UP = "f91_image_gave_up";
+
+    /** Local broadcast: how a transfer to the watch is getting on (see F91KeplerTransfer). */
+    public static final String ACTION_TRANSFER_STATUS = "nodomain.freeyourgadget.gadgetbridge.f91kepler.action.TRANSFER_STATUS";
+    /** The watch's address, so a screen only listens to its own watch. */
+    public static final String EXTRA_TRANSFER_ADDRESS = "address";
+    /** {@link F91KeplerTransfer#name()}. */
+    public static final String EXTRA_TRANSFER_KIND = "kind";
+    /** One of the TRANSFER_STATE_* values. */
+    public static final String EXTRA_TRANSFER_STATE = "state";
+    /** 0-100 while {@link #TRANSFER_STATE_SENDING}. */
+    public static final String EXTRA_TRANSFER_PERCENT = "percent";
+    public static final int TRANSFER_STATE_SENDING = 1;
+    /** The watch took it (the image: confirmed its checksum). */
+    public static final int TRANSFER_STATE_DONE = 2;
+    /** A write was refused or nothing moved for too long; Try again sends it anew. */
+    public static final int TRANSFER_STATE_FAILED = 3;
+    /** The link dropped mid-transfer; the next connect sends it again. */
+    public static final int TRANSFER_STATE_INTERRUPTED = 4;
     /** Saved while the watch is away; the next connect sends it. */
-    public static final int IMAGE_STATE_WAITING = 5;
+    public static final int TRANSFER_STATE_WAITING = 5;
+    /** onSendConfiguration key prefix + {@link F91KeplerTransfer#name()}: send that kind again. */
+    public static final String PREF_TRANSFER_RETRY_PREFIX = "f91_transfer_retry_";
 }

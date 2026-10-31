@@ -27,7 +27,6 @@ import android.os.Looper;
 import android.text.format.DateFormat;
 import android.widget.Toast;
 
-import androidx.annotation.StringRes;
 import androidx.localbroadcastmanager.content.LocalBroadcastManager;
 
 import org.apache.commons.lang3.StringUtils;
@@ -58,6 +57,7 @@ import nodomain.freeyourgadget.gadgetbridge.devices.f91kepler.F91KeplerFirmware;
 import nodomain.freeyourgadget.gadgetbridge.devices.f91kepler.F91KeplerImageCodec;
 import nodomain.freeyourgadget.gadgetbridge.devices.f91kepler.F91KeplerImageStore;
 import nodomain.freeyourgadget.gadgetbridge.devices.f91kepler.F91KeplerModes;
+import nodomain.freeyourgadget.gadgetbridge.devices.f91kepler.F91KeplerTransfer;
 import nodomain.freeyourgadget.gadgetbridge.externalevents.NotificationListener;
 import nodomain.freeyourgadget.gadgetbridge.impl.GBDevice;
 import nodomain.freeyourgadget.gadgetbridge.model.Alarm;
@@ -69,7 +69,6 @@ import nodomain.freeyourgadget.gadgetbridge.model.WeatherSpec;
 import nodomain.freeyourgadget.gadgetbridge.model.weather.Weather;
 import nodomain.freeyourgadget.gadgetbridge.util.AlarmUtils;
 import nodomain.freeyourgadget.gadgetbridge.util.GB;
-import nodomain.freeyourgadget.gadgetbridge.util.notifications.GBProgressNotification;
 import nodomain.freeyourgadget.gadgetbridge.service.btle.AbstractBTLESingleDeviceSupport;
 import nodomain.freeyourgadget.gadgetbridge.service.btle.GattService;
 import nodomain.freeyourgadget.gadgetbridge.service.btle.TransactionBuilder;
@@ -124,17 +123,11 @@ public class F91KeplerSupport extends AbstractBTLESingleDeviceSupport {
     /** Uploads spent on the current frame; reset once the watch confirms it.
      *  Touched from both the service thread and the GATT callback thread. */
     private volatile int imageAttempts;
-    /** The frame a round ran out of attempts on, so a watch that keeps refusing
-     *  it is not re-uploaded to (and re-toasted about) on every reconnect. A
-     *  different stored frame (a new image, also one saved while the watch was
-     *  away) or a new Send clears it. */
-    private volatile byte[] gaveUpFrame;
-    /** An upload is on the air: a second Send waits for it instead of queueing
-     *  another 28 writes whose trailing reads would confuse the first. */
-    private volatile boolean imageUploading;
-    /** Text for "this burst did not reach the watch" while a burst is on the air, else 0. */
-    private volatile int burstFailText;
-    private GBProgressNotification imageNotification;
+    /** The connect check's read is on its way: its answer uploads the stored
+     *  frame if needed, so a Send meanwhile must not start a second upload. */
+    private volatile boolean imageCheckPending;
+    /** Progress, done and failed for every transfer to the watch. */
+    private final F91KeplerTransfers transfers = new F91KeplerTransfers(this);
 
     /**
      * Firmware 3.1 alarm read-back: the five slots as the watch holds them,
@@ -238,15 +231,17 @@ public class F91KeplerSupport extends AbstractBTLESingleDeviceSupport {
         soundAdopt = false;
         builder.setDeviceState(GBDevice.State.INITIALIZING);
         if (GBApplication.getPrefs().syncTime()) {
-            addSetTime(builder);
+            transfers.add(builder, F91KeplerTransfer.TIME, false, this::addSetTime);
         }
-        addTimeMode(builder);
-        addDst(builder);
         // The sleep window is re-pushed on every connect (issue #213): a
         // reflashed watch or a wiped SNV would otherwise spend the night
         // reachable when it was asked to be quiet, and the user would have to
         // notice and toggle the setting to fix it.
-        addRadioSchedule(builder);
+        transfers.add(builder, F91KeplerTransfer.SETTINGS, false, b -> {
+            addTimeMode(b);
+            addDst(b);
+            addRadioSchedule(b);
+        });
         deviceInfoProfile.requestDeviceInfo(builder);
         builder.setDeviceState(GBDevice.State.INITIALIZED);
         // The encrypted writes above went through: the bond is good.
@@ -266,15 +261,14 @@ public class F91KeplerSupport extends AbstractBTLESingleDeviceSupport {
         // (RAM only, wiped on reset/reconnect), and GB otherwise only sends on a
         // weather refresh -- so without this a reconnect leaves the slot empty
         // until the next refresh. No-op if GB has no weather yet.
-        addWeather(builder);
+        transfers.add(builder, F91KeplerTransfer.WEATHER, false, this::addWeather);
         // Likewise re-push the notification history (also volatile on the watch),
         // and the face's notification mark with it: a notification dismissed on
         // the phone while the link was down would otherwise leave the mark lit.
         // GB drops removals for a device that is not connected, so first forget
         // the notifications the phone no longer shows.
         dropInactiveNotifications();
-        builder.write(F91KeplerConstants.UUID_CHAR_NOTIFICATION_BAR, notificationTracker.bitmask());
-        addRecentNotifications(builder);
+        transfers.add(builder, F91KeplerTransfer.NOTIFICATIONS, false, this::addNotificationState);
         // And the uploaded image -- but that one is 28 writes, so ask the watch
         // what it is holding first instead of re-sending it on every reconnect.
         addImageCheck(builder);
@@ -403,9 +397,7 @@ public class F91KeplerSupport extends AbstractBTLESingleDeviceSupport {
     @Override
     public void dispose() {
         stuckHandler.removeCallbacksAndMessages(null);
-        if (imageNotification != null) {
-            imageNotification.finish();
-        }
+        transfers.dispose();
         super.dispose();
     }
 
@@ -422,13 +414,10 @@ public class F91KeplerSupport extends AbstractBTLESingleDeviceSupport {
             bondWatch().onLinkUp();
         } else if (newState == BluetoothProfile.STATE_DISCONNECTED) {
             stuckHandler.removeCallbacksAndMessages(null);
-            failBurst();
-            if (imageUploading) {
-                // The queue is dropped without write callbacks, so nothing else
-                // would tell the user; the stored frame goes on the next connect.
-                LOG.info("F91 link dropped during an image upload, it is sent again on reconnect");
-                endImageUpload(F91KeplerConstants.IMAGE_STATE_INTERRUPTED);
-            }
+            // The queue is dropped without write callbacks, so nothing else would
+            // end a transfer that was on the air.
+            transfers.onLinkLost();
+            imageCheckPending = false;
             final boolean bonded = gatt.getDevice().getBondState() == BluetoothDevice.BOND_BONDED;
             final boolean offer = bondWatch().onLinkDown(status, bonded);
             LOG.info("F91 link down: status {} bonded {} failed links in a row {}",
@@ -493,7 +482,7 @@ public class F91KeplerSupport extends AbstractBTLESingleDeviceSupport {
             watchStuckLink(gatt);
         }
         if (status != BluetoothGatt.GATT_SUCCESS) {
-            failBurst();
+            transfers.onOperationFailed();
         }
         if (status != BluetoothGatt.GATT_SUCCESS && characteristic != null
                 && (F91KeplerConstants.UUID_CHAR_IMAGE_CHUNK.equals(characteristic.getUuid())
@@ -568,30 +557,25 @@ public class F91KeplerSupport extends AbstractBTLESingleDeviceSupport {
     private void restorePhoneOwnedConfig(final String fw) {
         final SharedPreferences prefs =
                 GBApplication.getDeviceSpecificSharedPrefs(getDevice().getAddress());
-        final TransactionBuilder builder = createTransactionBuilder("restore phone-owned config");
-        boolean any = false;
-        if (F91KeplerFirmware.atLeast(fw, F91KeplerFirmware.MIN_MODE_ORDER_10)) {
-            addModeOrder(builder);
-            any = true;
-        }
-        if (prefs.getBoolean(F91KeplerConstants.PREF_BRIGHTNESS_DIRTY, false)
-                && F91KeplerFirmware.atLeast(fw, F91KeplerFirmware.MIN_BRIGHTNESS)) {
-            addBrightness(builder);
-            prefs.edit().putBoolean(F91KeplerConstants.PREF_BRIGHTNESS_DIRTY, false).apply();
-            any = true;
-        }
-        if (any) {
-            builder.queue();
-        }
+        transfers.queue("restore phone-owned config", F91KeplerTransfer.SETTINGS, false, builder -> {
+            if (F91KeplerFirmware.atLeast(fw, F91KeplerFirmware.MIN_MODE_ORDER_10)) {
+                addModeOrder(builder);
+            }
+            if (prefs.getBoolean(F91KeplerConstants.PREF_BRIGHTNESS_DIRTY, false)
+                    && F91KeplerFirmware.atLeast(fw, F91KeplerFirmware.MIN_BRIGHTNESS)) {
+                addBrightness(builder);
+                prefs.edit().putBoolean(F91KeplerConstants.PREF_BRIGHTNESS_DIRTY, false).apply();
+            }
+        });
         if (F91KeplerFirmware.has31(fw)) {
             // Its own transaction: a refused 3.1 write must not cancel the
             // restores above. All of it is phone-owned and cheap to repeat --
             // the watch skips the flash write for an unchanged value.
-            final TransactionBuilder b31 = createTransactionBuilder("restore 3.1 config");
-            addUiOptions(b31);
-            addCounterNames(b31);
-            addForecastAndSun(b31);
-            b31.queue();
+            transfers.queue("restore 3.1 config", F91KeplerTransfer.SETTINGS, false, b31 -> {
+                addUiOptions(b31);
+                addCounterNames(b31);
+                addForecastAndSun(b31);
+            });
             if (F91KeplerFirmware.has32(fw)) {
                 soundAdopt = true;
                 readSoundCfg();             // before the alarm reads
@@ -681,26 +665,27 @@ public class F91KeplerSupport extends AbstractBTLESingleDeviceSupport {
             }
             return;
         }
-        int minutes;
+        int parsed;
         try {
-            minutes = Integer.parseInt(prefs.getString(F91KeplerConstants.PREF_SOUND_SNOOZE, "9"));
+            parsed = Integer.parseInt(prefs.getString(F91KeplerConstants.PREF_SOUND_SNOOZE, "9"));
         } catch (final NumberFormatException e) {
-            minutes = 9;
+            parsed = 9;
         }
-        final TransactionBuilder builder = startBurst("set snooze length", R.string.f91_setting_failed);
-        for (int i = 0; i < got.length; i++) {
-            builder.write(F91KeplerConstants.UUID_CHAR_RECORD, F91KeplerProtocol.alarmSoundSnooze(i, got[i], minutes));
-        }
-        // Done only when all five went through: a failed write or a dropped link aborts
-        // the transaction before this, and the change stays for the next connect.
-        final String written = String.valueOf(minutes);
-        builder.run(() -> {
-            // Changed again while these went out: that change keeps the flag (its own read follows).
-            if (written.equals(prefs.getString(F91KeplerConstants.PREF_SOUND_SNOOZE, "9"))) {
-                prefs.edit().putBoolean(F91KeplerConstants.PREF_SOUND_SNOOZE_DIRTY, false).apply();
+        final int minutes = parsed;
+        transfers.queue("set snooze length", F91KeplerTransfer.SOUNDS, true, builder -> {
+            for (int i = 0; i < got.length; i++) {
+                builder.write(F91KeplerConstants.UUID_CHAR_RECORD, F91KeplerProtocol.alarmSoundSnooze(i, got[i], minutes));
             }
+            // Done only when all five went through: a failed write or a dropped link aborts
+            // the transaction before this, and the change stays for the next connect.
+            final String written = String.valueOf(minutes);
+            builder.run(() -> {
+                // Changed again while these went out: that change keeps the flag (its own read follows).
+                if (written.equals(prefs.getString(F91KeplerConstants.PREF_SOUND_SNOOZE, "9"))) {
+                    prefs.edit().putBoolean(F91KeplerConstants.PREF_SOUND_SNOOZE_DIRTY, false).apply();
+                }
+            });
         });
-        queueBurst(builder, 0);
     }
 
     private void endSoundRead() {
@@ -828,9 +813,8 @@ public class F91KeplerSupport extends AbstractBTLESingleDeviceSupport {
     private void writeSoundCfg(final byte[] cfg, final int flags) {
         final byte[] frame = F91KeplerProtocol.soundCfgWrite(cfg, flags);
         soundCfg = java.util.Arrays.copyOfRange(frame, 2, frame.length);
-        final TransactionBuilder builder = startBurst("set sound switches", R.string.f91_setting_failed);
-        builder.write(F91KeplerConstants.UUID_CHAR_RECORD, frame);
-        queueBurst(builder, 0);
+        transfers.queue("set sound switches", F91KeplerTransfer.SOUNDS, true,
+                        builder -> builder.write(F91KeplerConstants.UUID_CHAR_RECORD, frame));
     }
 
     /** True when this connection's firmware is known to have the 3.1 surface. */
@@ -851,9 +835,7 @@ public class F91KeplerSupport extends AbstractBTLESingleDeviceSupport {
 
     @Override
     public void onSetTime() {
-        final TransactionBuilder builder = createTransactionBuilder("set time");
-        addSetTime(builder);
-        builder.queue();
+        transfers.queue("set time", F91KeplerTransfer.TIME, false, this::addSetTime);
     }
 
     private void addSetTime(final TransactionBuilder builder) {
@@ -973,6 +955,12 @@ public class F91KeplerSupport extends AbstractBTLESingleDeviceSupport {
 
     /** Push the current top-N recent notifications (or a clear when empty) to the
      *  watch's NotificationEntry char. */
+    /** The face's notification mark and the history list, as the phone has them now. */
+    private void addNotificationState(final TransactionBuilder builder) {
+        builder.write(F91KeplerConstants.UUID_CHAR_NOTIFICATION_BAR, notificationTracker.bitmask());
+        addRecentNotifications(builder);
+    }
+
     private void addRecentNotifications(final TransactionBuilder builder) {
         final int total = recent.size();
         if (total == 0) {
@@ -1051,12 +1039,16 @@ public class F91KeplerSupport extends AbstractBTLESingleDeviceSupport {
 
     @Override
     public void onSendWeather() {
-        final TransactionBuilder builder = createTransactionBuilder("send weather");
-        addWeather(builder);
-        if (has31()) {
-            addForecastAndSun(builder);
-        }
-        builder.queue();
+        sendWeather(false);
+    }
+
+    private void sendWeather(final boolean byUser) {
+        transfers.queue("send weather", F91KeplerTransfer.WEATHER, byUser, builder -> {
+            addWeather(builder);
+            if (has31()) {
+                addForecastAndSun(builder);
+            }
+        });
     }
 
     /**
@@ -1083,49 +1075,13 @@ public class F91KeplerSupport extends AbstractBTLESingleDeviceSupport {
         return "imperial".equals(GBApplication.getPrefs().getString("measurement_system", "metric"));
     }
 
-    // --- User-started write bursts --------------------------------------------
-
-    /**
-     * A write burst the user started (alarms, a setting). The marker is set by
-     * the burst's own first action, so it only stands while that transaction is
-     * on the air; a failed write or a dropped link aborts the transaction before
-     * its last action, which is how {@link #failBurst} knows it was ours.
-     */
-    private TransactionBuilder startBurst(final String taskName, @StringRes final int failText) {
-        final TransactionBuilder builder = createTransactionBuilder(taskName);
-        builder.run(() -> burstFailText = failText);
-        return builder;
-    }
-
-    /** Queue a burst; {@code doneText} (0: none) is shown once the watch took every write. */
-    private void queueBurst(final TransactionBuilder builder, @StringRes final int doneText) {
-        builder.run(() -> {
-            burstFailText = 0;
-            if (doneText != 0) {
-                GB.toast(getContext(), getContext().getString(doneText), Toast.LENGTH_SHORT, GB.INFO);
-            }
-        });
-        builder.queue();
-    }
-
-    /** A write failed or the link dropped: tell the user if a burst was on the air. */
-    private void failBurst() {
-        final int text = burstFailText;
-        if (text != 0) {
-            burstFailText = 0;
-            GB.toast(getContext(), getContext().getString(text), Toast.LENGTH_LONG, GB.WARN);
-        }
-    }
-
     // --- Alarms -------------------------------------------------------------
 
     @Override
     public void onSetAlarms(final ArrayList<? extends Alarm> alarms) {
         if (has31()) {
             alarmSetGen++;
-            final TransactionBuilder builder = startBurst("set alarm slots", R.string.f91_alarms_failed);
-            addAlarmSlots(builder, alarms);
-            queueBurst(builder, R.string.f91_alarms_saved);
+            transfers.queue("set alarm slots", F91KeplerTransfer.ALARMS, true, builder -> addAlarmSlots(builder, alarms));
             return;
         }
         // The firmware Alarm Service holds a single one-shot alarm: CHAR5
@@ -1145,20 +1101,21 @@ public class F91KeplerSupport extends AbstractBTLESingleDeviceSupport {
             }
         }
 
-        final TransactionBuilder builder = createTransactionBuilder("set alarms");
-        if (soonest == null) {
-            builder.write(F91KeplerConstants.UUID_CHAR_ALARM_ENABLED, F91KeplerProtocol.alarmEnabled(false));
-            builder.write(F91KeplerConstants.UUID_CHAR_ALARM_TIME, F91KeplerProtocol.alarmTime(0L));
-        } else {
-            // Write the time first, then enable: the firmware only arms when
-            // AlarmEnabled && AlarmTime != 0. getTimeInMillis() is UTC, matching
-            // the watch's UTC clock.
-            final long epochSeconds = soonest.getTimeInMillis() / 1000L;
-            builder.write(F91KeplerConstants.UUID_CHAR_ALARM_TIME, F91KeplerProtocol.alarmTime(epochSeconds));
-            builder.write(F91KeplerConstants.UUID_CHAR_ALARM_ENABLED, F91KeplerProtocol.alarmEnabled(true));
-            LOG.debug("F91 alarm armed for {} (epoch {})", soonest.getTime(), epochSeconds);
-        }
-        builder.queue();
+        final Calendar armed = soonest;
+        transfers.queue("set alarms", F91KeplerTransfer.ALARMS, true, builder -> {
+            if (armed == null) {
+                builder.write(F91KeplerConstants.UUID_CHAR_ALARM_ENABLED, F91KeplerProtocol.alarmEnabled(false));
+                builder.write(F91KeplerConstants.UUID_CHAR_ALARM_TIME, F91KeplerProtocol.alarmTime(0L));
+            } else {
+                // Write the time first, then enable: the firmware only arms when
+                // AlarmEnabled && AlarmTime != 0. getTimeInMillis() is UTC, matching
+                // the watch's UTC clock.
+                final long epochSeconds = armed.getTimeInMillis() / 1000L;
+                builder.write(F91KeplerConstants.UUID_CHAR_ALARM_TIME, F91KeplerProtocol.alarmTime(epochSeconds));
+                builder.write(F91KeplerConstants.UUID_CHAR_ALARM_ENABLED, F91KeplerProtocol.alarmEnabled(true));
+                LOG.debug("F91 alarm armed for {} (epoch {})", armed.getTime(), epochSeconds);
+            }
+        });
     }
 
     /**
@@ -1256,9 +1213,8 @@ public class F91KeplerSupport extends AbstractBTLESingleDeviceSupport {
             reconcileOneShots();
         }
         if (write) {
-            final TransactionBuilder builder = createTransactionBuilder("restore alarm slots");
-            addAlarmSlots(builder, DBHelper.getAlarms(getDevice()));
-            builder.queue();
+            transfers.queue("restore alarm slots", F91KeplerTransfer.ALARMS, false,
+                    builder -> addAlarmSlots(builder, DBHelper.getAlarms(getDevice())));
         }
     }
 
@@ -1390,10 +1346,12 @@ public class F91KeplerSupport extends AbstractBTLESingleDeviceSupport {
      */
     private void addImageCheck(final TransactionBuilder builder) {
         imageAttempts = 0;
-        final byte[] frame = F91KeplerImageStore.load(getDevice());
-        if (frame == null || java.util.Arrays.equals(frame, gaveUpFrame)) {
+        final SharedPreferences prefs = GBApplication.getDeviceSpecificSharedPrefs(getDevice().getAddress());
+        if (prefs.getBoolean(F91KeplerConstants.PREF_IMAGE_GAVE_UP, false)
+                || F91KeplerImageStore.load(getDevice()) == null) {
             return;
         }
+        imageCheckPending = true;
         builder.read(F91KeplerConstants.UUID_CHAR_IMAGE_CONTROL);
     }
 
@@ -1408,6 +1366,7 @@ public class F91KeplerSupport extends AbstractBTLESingleDeviceSupport {
      * confirms the checksum or it does not.
      */
     private void reconcileImage(final byte[] control) {
+        imageCheckPending = false;
         final byte[] frame = F91KeplerImageStore.load(getDevice());
         if (frame == null) {
             imageAttempts = 0;
@@ -1417,23 +1376,20 @@ public class F91KeplerSupport extends AbstractBTLESingleDeviceSupport {
             if (imageAttempts > 0) {
                 // The read that trails an upload: the watch latched what we sent.
                 LOG.debug("F91 image upload confirmed by the watch (attempt {})", imageAttempts);
-                GB.toast(getContext(), getContext().getString(R.string.f91_image_sent),
-                         Toast.LENGTH_SHORT, GB.INFO);
             } else {
                 LOG.debug("F91 watch already holds the stored image, skipping the upload");
             }
             imageAttempts = 0;
             // Also when it was already there: a screen waiting for the watch learns it is done.
-            endImageUpload(F91KeplerConstants.IMAGE_STATE_DONE);
+            transfers.finish(F91KeplerTransfer.IMAGE, true);
             return;
         }
         if (imageAttempts >= IMAGE_MAX_ATTEMPTS) {
             LOG.warn("F91 image not confirmed after {} upload attempts, giving up", imageAttempts);
             imageAttempts = 0;
-            gaveUpFrame = frame;
-            GB.toast(getContext(), getContext().getString(R.string.f91_image_upload_failed),
-                     Toast.LENGTH_LONG, GB.ERROR);
-            endImageUpload(F91KeplerConstants.IMAGE_STATE_FAILED);
+            GBApplication.getDeviceSpecificSharedPrefs(getDevice().getAddress()).edit()
+                    .putBoolean(F91KeplerConstants.PREF_IMAGE_GAVE_UP, true).apply();
+            transfers.finish(F91KeplerTransfer.IMAGE, false);
             return;
         }
         imageAttempts++;
@@ -1455,71 +1411,21 @@ public class F91KeplerSupport extends AbstractBTLESingleDeviceSupport {
      * instead.
      */
     private void sendImage(final byte[] frame) {
-        final byte[][] chunks = F91KeplerProtocol.imageChunks(frame);
-        // begin + chunks + commit; the trailing read is the confirmation, not progress.
-        final int total = chunks.length + 2;
-        startImageUpload(total);
-        final TransactionBuilder builder = createTransactionBuilder("send image");
-        builder.write(F91KeplerConstants.UUID_CHAR_IMAGE_CONTROL, F91KeplerProtocol.imageBegin());
-        for (int i = 0; i < chunks.length; i++) {
-            builder.write(F91KeplerConstants.UUID_CHAR_IMAGE_CHUNK, chunks[i]);
-            final int done = i + 2;
-            builder.run(() -> reportImageProgress(done, total));
-        }
-        builder.write(F91KeplerConstants.UUID_CHAR_IMAGE_CONTROL,
-                      F91KeplerProtocol.imageCommit(F91KeplerImageCodec.xor8(frame)));
-        builder.run(() -> reportImageProgress(total, total));
-        builder.read(F91KeplerConstants.UUID_CHAR_IMAGE_CONTROL);
-        builder.queue();
-    }
-
-    /** Device card shows "busy", a progress notification starts, an open image screen hears 0 %. */
-    private void startImageUpload(final int total) {
-        imageUploading = true;
-        if (!getDevice().isBusy()) {
-            getDevice().setBusyTask(R.string.f91_image_sending, getContext());
-            getDevice().sendDeviceUpdateIntent(getContext());
-        }
-        if (imageNotification == null) {
-            imageNotification = new GBProgressNotification(getContext(), GB.NOTIFICATION_CHANNEL_ID_TRANSFER);
-        }
-        imageNotification.start(R.string.f91_image_notification_title, R.string.f91_image_sending, total);
-        broadcastImageState(F91KeplerConstants.IMAGE_STATE_SENDING, 0);
-    }
-
-    private void reportImageProgress(final int done, final int total) {
-        if (!imageUploading) {
+        if (getCharacteristic(F91KeplerConstants.UUID_CHAR_IMAGE_CHUNK) == null) {
+            // Firmware without Image mode: the writes would be dropped and nothing would answer.
+            LOG.warn("F91 watch has no image characteristic, not uploading");
+            transfers.finish(F91KeplerTransfer.IMAGE, false);
             return;
         }
-        if (imageNotification != null) {
-            imageNotification.setTotalProgress(done);
-        }
-        broadcastImageState(F91KeplerConstants.IMAGE_STATE_SENDING,
-                            F91KeplerProtocol.imageProgressPercent(done, total));
-    }
-
-    /** End of an upload (or of waiting for one): clear "busy" and say how it went. */
-    private void endImageUpload(final int state) {
-        final boolean wasUploading = imageUploading;
-        imageUploading = false;
-        if (wasUploading) {
-            if (getContext().getString(R.string.f91_image_sending).equals(getDevice().getBusyTask())) {
-                getDevice().unsetBusyTask();
-                getDevice().sendDeviceUpdateIntent(getContext());
+        transfers.queue("send image", F91KeplerTransfer.IMAGE, true, builder -> {
+            builder.write(F91KeplerConstants.UUID_CHAR_IMAGE_CONTROL, F91KeplerProtocol.imageBegin());
+            for (final byte[] chunk : F91KeplerProtocol.imageChunks(frame)) {
+                builder.write(F91KeplerConstants.UUID_CHAR_IMAGE_CHUNK, chunk);
             }
-            if (imageNotification != null) {
-                imageNotification.finish();
-            }
-        }
-        broadcastImageState(state, state == F91KeplerConstants.IMAGE_STATE_DONE ? 100 : 0);
-    }
-
-    private void broadcastImageState(final int state, final int percent) {
-        final Intent intent = new Intent(F91KeplerConstants.ACTION_IMAGE_STATUS)
-                .putExtra(F91KeplerConstants.EXTRA_IMAGE_ADDRESS, getDevice().getAddress())
-                .putExtra(F91KeplerConstants.EXTRA_IMAGE_STATE, state)
-                .putExtra(F91KeplerConstants.EXTRA_IMAGE_PERCENT, percent);
-        LocalBroadcastManager.getInstance(getContext()).sendBroadcast(intent);
+            builder.write(F91KeplerConstants.UUID_CHAR_IMAGE_CONTROL,
+                          F91KeplerProtocol.imageCommit(F91KeplerImageCodec.xor8(frame)));
+            builder.read(F91KeplerConstants.UUID_CHAR_IMAGE_CONTROL);
+        });
     }
 
     // --- Settings -----------------------------------------------------------
@@ -1536,9 +1442,7 @@ public class F91KeplerSupport extends AbstractBTLESingleDeviceSupport {
             }
             case F91KeplerModes.PREF_MODES:
             case F91KeplerModes.PREF_MODES_31: {
-                final TransactionBuilder builder = startBurst("set mode order", R.string.f91_setting_failed);
-                addModeOrder(builder);
-                queueBurst(builder, 0);
+                transfers.queue("set mode order", F91KeplerTransfer.SETTINGS, true, builder -> addModeOrder(builder));
                 warnIfModesDropped();
                 break;
             }
@@ -1549,9 +1453,7 @@ public class F91KeplerSupport extends AbstractBTLESingleDeviceSupport {
                 // Away or pre-3.1: nothing to do now -- the next 3.1 connect
                 // re-pushes every option (restorePhoneOwnedConfig).
                 if (has31()) {
-                    final TransactionBuilder builder = startBurst("set ui options", R.string.f91_setting_failed);
-                    addUiOptions(builder);
-                    queueBurst(builder, 0);
+                    transfers.queue("set ui options", F91KeplerTransfer.SETTINGS, true, builder -> addUiOptions(builder));
                 }
                 break;
             }
@@ -1559,9 +1461,8 @@ public class F91KeplerSupport extends AbstractBTLESingleDeviceSupport {
             case F91KeplerConstants.PREF_COUNTER_NAME_PREFIX + "1":
             case F91KeplerConstants.PREF_COUNTER_NAME_PREFIX + "2": {
                 if (has31()) {
-                    final TransactionBuilder builder = startBurst("set counter name", R.string.f91_setting_failed);
-                    addCounterName(builder, config.charAt(config.length() - 1) - '0');
-                    queueBurst(builder, 0);
+                    transfers.queue("set counter name", F91KeplerTransfer.SETTINGS, true,
+                            builder -> addCounterName(builder, config.charAt(config.length() - 1) - '0'));
                 }
                 break;
             }
@@ -1574,17 +1475,13 @@ public class F91KeplerSupport extends AbstractBTLESingleDeviceSupport {
                             .edit().putBoolean(F91KeplerConstants.PREF_BRIGHTNESS_DIRTY, true).apply();
                     break;
                 }
-                final TransactionBuilder builder = startBurst("set brightness", R.string.f91_setting_failed);
-                addBrightness(builder);
-                queueBurst(builder, 0);
+                transfers.queue("set brightness", F91KeplerTransfer.SETTINGS, true, builder -> addBrightness(builder));
                 break;
             }
             case F91KeplerConstants.PREF_SLEEP_ENABLED:
             case F91KeplerConstants.PREF_SLEEP_START:
             case F91KeplerConstants.PREF_SLEEP_END: {
-                final TransactionBuilder builder = startBurst("set sleep window", R.string.f91_setting_failed);
-                addRadioSchedule(builder);
-                queueBurst(builder, 0);
+                transfers.queue("set sleep window", F91KeplerTransfer.SETTINGS, true, builder -> addRadioSchedule(builder));
                 break;
             }
             case F91KeplerConstants.PREF_SOUND_LOST:
@@ -1631,31 +1528,109 @@ public class F91KeplerSupport extends AbstractBTLESingleDeviceSupport {
                 }
                 break;
             }
-            case F91KeplerConstants.PREF_IMAGE_UPLOAD: {
-                // The activity has already stored the packed frame; this is just
-                // "send it now". Counts as the first of the two attempts.
-                final byte[] frame = F91KeplerImageStore.load(getDevice());
-                if (frame == null) {
-                    LOG.warn("F91 image upload requested but no frame is stored");
-                    break;
-                }
-                // An explicit send is also the way out of a given-up round.
-                gaveUpFrame = null;
-                if (!getDevice().isInitialized()) {
-                    // The connect check sends the stored frame.
-                    broadcastImageState(F91KeplerConstants.IMAGE_STATE_WAITING, 0);
-                    break;
-                }
-                if (imageUploading) {
-                    // Its trailing read compares against the newest stored frame,
-                    // and a mismatch spends the retry on it.
-                    LOG.debug("F91 image upload already running, not starting a second one");
-                    break;
-                }
-                imageAttempts = 1;
-                sendImage(frame);
+            case F91KeplerConstants.PREF_IMAGE_UPLOAD:
+                sendStoredImage();
                 break;
-            }
+            default:
+                if (config.startsWith(F91KeplerConstants.PREF_TRANSFER_RETRY_PREFIX)) {
+                    retryTransfer(config.substring(F91KeplerConstants.PREF_TRANSFER_RETRY_PREFIX.length()));
+                }
+                break;
+        }
+    }
+
+    /**
+     * The activity has already stored the packed frame; this is "send it now",
+     * and the first of the two attempts. Also Try again after a failed upload.
+     */
+    private void sendStoredImage() {
+        final byte[] frame = F91KeplerImageStore.load(getDevice());
+        if (frame == null) {
+            LOG.warn("F91 image upload requested but no frame is stored");
+            return;
+        }
+        // An explicit send is also the way out of a given-up round.
+        GBApplication.getDeviceSpecificSharedPrefs(getDevice().getAddress()).edit()
+                .putBoolean(F91KeplerConstants.PREF_IMAGE_GAVE_UP, false).apply();
+        if (!getDevice().isInitialized()) {
+            // The connect check sends the stored frame.
+            transfers.waiting(F91KeplerTransfer.IMAGE);
+            return;
+        }
+        if (transfers.isRunning(F91KeplerTransfer.IMAGE) || imageCheckPending) {
+            // Its trailing read (or the connect check's) compares against the newest
+            // stored frame, and a mismatch spends an upload on it.
+            LOG.debug("F91 image upload already running, not starting a second one");
+            return;
+        }
+        imageAttempts = 1;
+        sendImage(frame);
+    }
+
+    /**
+     * Try again, from a failed transfer's notification: send that kind anew from
+     * what the app holds now (not a replay of the old writes, which may be stale).
+     */
+    private void retryTransfer(final String kindName) {
+        final F91KeplerTransfer kind;
+        try {
+            kind = F91KeplerTransfer.valueOf(kindName);
+        } catch (final IllegalArgumentException e) {
+            LOG.warn("F91 retry for an unknown transfer {}", kindName);
+            return;
+        }
+        if (!getDevice().isInitialized()) {
+            return;
+        }
+        LOG.info("F91 trying the {} transfer again", kind);
+        switch (kind) {
+            case IMAGE:
+                sendStoredImage();
+                break;
+            case ALARMS:
+                onSetAlarms(new ArrayList<>(DBHelper.getAlarms(getDevice())));
+                break;
+            case SOUNDS:
+                if (has32()) {
+                    // Every switch as the app shows it, into a fresh read of the watch's
+                    // record (read-modify-write as for a single change), and the snooze.
+                    soundWriteKeys.addAll(java.util.Arrays.asList(
+                            F91KeplerConstants.PREF_SOUND_MUTE, F91KeplerConstants.PREF_SOUND_CALL,
+                            F91KeplerConstants.PREF_SOUND_TEXT, F91KeplerConstants.PREF_SOUND_LOWBATT,
+                            F91KeplerConstants.PREF_SOUND_LOST));
+                    markSnoozeDirty();
+                    if (alarmReadGen < 0) {
+                        readSoundCfg();
+                        readAlarmSounds();
+                    }
+                }
+                break;
+            case SETTINGS:
+                transfers.queue("set settings again", F91KeplerTransfer.SETTINGS, true, builder -> {
+                    addTimeMode(builder);
+                    addDst(builder);
+                    addRadioSchedule(builder);
+                    if (F91KeplerFirmware.atLeast(connectedFw, F91KeplerFirmware.MIN_MODE_ORDER_10)) {
+                        addModeOrder(builder);
+                    }
+                    if (F91KeplerFirmware.atLeast(connectedFw, F91KeplerFirmware.MIN_BRIGHTNESS)) {
+                        addBrightness(builder);
+                    }
+                    if (has31()) {
+                        addUiOptions(builder);
+                        addCounterNames(builder);
+                    }
+                });
+                break;
+            case WEATHER:
+                sendWeather(true);
+                break;
+            case NOTIFICATIONS:
+                transfers.queue("notifications again", F91KeplerTransfer.NOTIFICATIONS, true, this::addNotificationState);
+                break;
+            case TIME:
+                transfers.queue("set time again", F91KeplerTransfer.TIME, true, this::addSetTime);
+                break;
             default:
                 break;
         }
