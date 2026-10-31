@@ -95,7 +95,9 @@ public class GB {
     public static final int NOTIFICATION_ID_PEBBLE_JS = 10;
     public static final int NOTIFICATION_ID_WIFI_FTP = 11;
     public static final int NOTIFICATION_ID_ERROR = 42;
-    public static final int NOTIFICATION_ID_MUSIC_ACCESS = 43;
+    // Kepler fork: its own ids start at 0x4B500000, far from upstream's small fixed
+    // ids, so the next id upstream adds cannot take the same number.
+    public static final int NOTIFICATION_ID_MUSIC_ACCESS = 0x4B50_0001;
 
     private static final Logger LOG = LoggerFactory.getLogger(GB.class);
     public static final int INFO = 1;

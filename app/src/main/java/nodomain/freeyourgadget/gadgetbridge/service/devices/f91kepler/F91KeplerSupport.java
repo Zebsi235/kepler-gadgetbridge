@@ -519,7 +519,7 @@ public class F91KeplerSupport extends AbstractBTLESingleDeviceSupport {
     private void onLinkInitialized() {
         unbondedDrops = 0;
         bondWatch().onInitialized();
-        F91KeplerPairAgainReceiver.cancelNotification(getContext());
+        F91KeplerPairAgainReceiver.cancelNotification(getContext(), getDevice().getAddress());
     }
 
     @Override
