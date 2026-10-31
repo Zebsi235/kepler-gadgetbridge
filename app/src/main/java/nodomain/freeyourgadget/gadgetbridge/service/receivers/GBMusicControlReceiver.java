@@ -224,8 +224,13 @@ public class GBMusicControlReceiver extends BroadcastReceiver {
                 // media key still reaches whichever player Android routes keys
                 // to, and the user learns why it may be the wrong one.
                 LOG.warn("Failed to get media controller - did not grant notification access?", e);
-                broadcastMediaKeyEvent(eventTime, keyCode, audioManager);
-                notifyMissingNotificationAccess(context);
+                try {
+                    broadcastMediaKeyEvent(eventTime, keyCode, audioManager);
+                    notifyMissingNotificationAccess(context);
+                } catch (final Exception e2) {
+                    // thrown from here it would pass the catch below and crash the app
+                    LOG.error("Failed to fall back to a media key", e2);
+                }
             } catch (final Exception e) {
                 LOG.error("Failed to get media controller", e);
             }
