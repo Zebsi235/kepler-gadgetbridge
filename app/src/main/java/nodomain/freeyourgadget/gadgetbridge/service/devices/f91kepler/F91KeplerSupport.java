@@ -444,14 +444,25 @@ public class F91KeplerSupport extends AbstractBTLESingleDeviceSupport {
         });
     }
 
-    /** FindPhoneActivity calls this with false when it closes (Found tapped or a STOP). */
+    /**
+     * FindPhoneActivity calls this with false when it closes (Found tapped or a
+     * STOP). Found on a ring a watch alert started also stops the alert on the
+     * watch (firmware 3.3.2); a ring the watch already ended writes nothing.
+     */
     @Override
     public void onFindPhone(final boolean start) {
         if (!start) {
             alertHandler.post(() -> {
+                final boolean stopWatch = F91KeplerProtocol.stopWatchAlertToo(alertRinging, connectedFw);
                 userFindPhoneSince = 0;
                 alertRinging = false;
                 alertHandler.removeCallbacks(alertRingTimeout);
+                if (stopWatch && getDevice().isInitialized()) {
+                    LOG.info("F91 alert stopped on the phone: stopping it on the watch too");
+                    final TransactionBuilder builder = createTransactionBuilder("stop watch alert");
+                    builder.write(F91KeplerConstants.UUID_CHAR_ALERT_EVENT, F91KeplerProtocol.alertStop());
+                    builder.queue();
+                }
             });
         }
     }
