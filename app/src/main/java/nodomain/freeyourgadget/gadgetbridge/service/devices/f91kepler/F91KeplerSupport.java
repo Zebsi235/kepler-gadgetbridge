@@ -24,6 +24,7 @@ import android.content.Intent;
 import android.content.SharedPreferences;
 import android.os.Handler;
 import android.os.Looper;
+import android.os.SystemClock;
 import android.text.format.DateFormat;
 import android.widget.Toast;
 
@@ -568,7 +569,6 @@ public class F91KeplerSupport extends AbstractBTLESingleDeviceSupport {
         }
         if (F91KeplerFirmware.has31(fw)) {
             prefs.edit().remove(F91KeplerConstants.PREF_LEGACY_ARMED_AT)
-                    .remove(F91KeplerConstants.PREF_LEGACY_SIGNATURE)
                     .remove(F91KeplerConstants.PREF_LEGACY_ONCE_POS)
                     .remove(F91KeplerConstants.PREF_LEGACY_ONCE_HM).apply();
             // Its own transaction: a refused 3.1 write must not cancel the
@@ -1087,6 +1087,8 @@ public class F91KeplerSupport extends AbstractBTLESingleDeviceSupport {
 
     /** Runs the pre-3.1 alarm work on the main thread, one call at a time. */
     private final Handler legacyAlarmHandler = new Handler(Looper.getMainLooper());
+    /** Marks the re-arm timer, so a new sync cancels it but not a queued save. */
+    private static final Object LEGACY_TIMER = new Object();
     private static final long LEGACY_REARM_AFTER_MS = 90_000;
     /** Checks the wall clock this often: a delayed post does not count the time the phone sleeps. */
     private static final long LEGACY_CHECK_MAX_MS = 15 * 60_000;
@@ -1101,14 +1103,17 @@ public class F91KeplerSupport extends AbstractBTLESingleDeviceSupport {
      * app, not armed for the next day.
      *
      * @param alarms the app's alarms, or null to read them from the database
-     * @param force  write even if the watch holds this list's next ring already
-     *               (the user saved the alarms). Otherwise the watch keeps what
-     *               it has until that ring has passed, so switching the alarm
+     * @param force  write even if the watch holds this ring already (the user
+     *               saved the alarms). Otherwise the watch keeps what it has while
+     *               the ring to arm is the one it holds, so switching the alarm
      *               off on the watch skips that ring instead of being undone at
      *               the next connect.
      */
     private void syncLegacyAlarm(@Nullable final List<? extends Alarm> alarms, final boolean force) {
-        legacyAlarmHandler.removeCallbacksAndMessages(null);
+        if (connectedFw != null && has31()) {
+            return;   // queued before the version was known: the 3.1 path owns the alarms
+        }
+        legacyAlarmHandler.removeCallbacksAndMessages(LEGACY_TIMER);
         final List<? extends Alarm> list = alarms != null ? alarms : DBHelper.getAlarms(getDevice());
         final SharedPreferences prefs = GBApplication.getDeviceSpecificSharedPrefs(getDevice().getAddress());
         final long nowMillis = System.currentTimeMillis();
@@ -1117,7 +1122,6 @@ public class F91KeplerSupport extends AbstractBTLESingleDeviceSupport {
         final int rangPos = passed ? prefs.getInt(F91KeplerConstants.PREF_LEGACY_ONCE_POS, -1) : -1;
         final int rangHm = prefs.getInt(F91KeplerConstants.PREF_LEGACY_ONCE_HM, -1);
 
-        final StringBuilder signature = new StringBuilder();
         final Calendar now = Calendar.getInstance();
         now.setTimeInMillis(nowMillis);
         Calendar soonest = null;
@@ -1126,8 +1130,6 @@ public class F91KeplerSupport extends AbstractBTLESingleDeviceSupport {
             if (alarm == null || alarm.getUnused() || !alarm.getEnabled() || isRungOneShot(alarm, rangPos, rangHm)) {
                 continue;
             }
-            signature.append(alarm.getPosition()).append(':').append(alarm.getHour()).append(':')
-                    .append(alarm.getMinute()).append(':').append(alarm.getRepetition()).append(';');
             final Calendar next = F91KeplerProtocol.nextAlarm(now, alarm.getHour(), alarm.getMinute(),
                                                               alarm.getRepetition());
             if (soonest == null || next.before(soonest)) {
@@ -1135,7 +1137,9 @@ public class F91KeplerSupport extends AbstractBTLESingleDeviceSupport {
                 armed = alarm;
             }
         }
-        if (!force && !passed && signature.toString().equals(prefs.getString(F91KeplerConstants.PREF_LEGACY_SIGNATURE, null))) {
+        final long nextAt = soonest == null ? 0L : soonest.getTimeInMillis() / 1000L;
+        if (!force && !passed && nextAt == armedAt) {
+            // Same ring as armed (a new time zone or list would change it)
             LOG.debug("F91 alarm unchanged and not rung yet: the watch keeps what it has");
             if (armedAt > 0) {
                 scheduleLegacyCheck(armedAt * 1000L + LEGACY_REARM_AFTER_MS);
@@ -1147,7 +1151,6 @@ public class F91KeplerSupport extends AbstractBTLESingleDeviceSupport {
         }
 
         final SharedPreferences.Editor edit = prefs.edit()
-                .putString(F91KeplerConstants.PREF_LEGACY_SIGNATURE, signature.toString())
                 .remove(F91KeplerConstants.PREF_LEGACY_ONCE_POS)
                 .remove(F91KeplerConstants.PREF_LEGACY_ONCE_HM);
         final TransactionBuilder builder = createTransactionBuilder("set alarms");
@@ -1171,7 +1174,8 @@ public class F91KeplerSupport extends AbstractBTLESingleDeviceSupport {
             // After it rang: off for a one-shot, the next ring for a repeating one
             scheduleLegacyCheck(soonest.getTimeInMillis() + LEGACY_REARM_AFTER_MS);
         }
-        edit.apply();
+        // Stored only once the watch took it: a dropped write is written again on connect
+        builder.run(edit::apply);
         builder.queue();
     }
 
@@ -1181,8 +1185,8 @@ public class F91KeplerSupport extends AbstractBTLESingleDeviceSupport {
      * of a 3.1 link also comes this way, before the version is known).
      */
     private void scheduleLegacyCheck(final long dueMillis) {
-        final long wait = dueMillis - System.currentTimeMillis();
-        legacyAlarmHandler.postDelayed(() -> {
+        final long wait = Math.max(1000L, Math.min(dueMillis - System.currentTimeMillis(), LEGACY_CHECK_MAX_MS));
+        legacyAlarmHandler.postAtTime(() -> {
             if (!getDevice().isInitialized() || connectedFw == null || has31()) {
                 return;
             }
@@ -1191,7 +1195,7 @@ public class F91KeplerSupport extends AbstractBTLESingleDeviceSupport {
             } else {
                 scheduleLegacyCheck(dueMillis);
             }
-        }, Math.max(1000L, Math.min(wait, LEGACY_CHECK_MAX_MS)));
+        }, LEGACY_TIMER, SystemClock.uptimeMillis() + wait);
     }
 
     /** Still the one-shot the app armed and the watch rang: same slot, no repeat days, same time. */
