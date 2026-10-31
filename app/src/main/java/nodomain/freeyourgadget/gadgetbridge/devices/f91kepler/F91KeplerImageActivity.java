@@ -79,6 +79,7 @@ public class F91KeplerImageActivity extends AbstractGBActivity {
 
     private static final String STATE_SOURCE_URI = "f91_image_source_uri";
     private static final String STATE_CROP = "f91_image_crop";
+    private static final String STATE_AWAITING = "f91_image_awaiting";
 
     private GBDevice device;
 
@@ -198,6 +199,8 @@ public class F91KeplerImageActivity extends AbstractGBActivity {
         // The switches and the slider restore themselves (after this, each one
         // re-rendering through its listener).
         if (savedInstanceState != null) {
+            // Turned mid-upload: the outcome that follows is still this screen's news.
+            awaiting = savedInstanceState.getBoolean(STATE_AWAITING, false);
             final Uri uri = savedInstanceState.getParcelable(STATE_SOURCE_URI);
             if (uri != null) {
                 loadSource(uri, savedInstanceState.getFloatArray(STATE_CROP));
@@ -261,6 +264,7 @@ public class F91KeplerImageActivity extends AbstractGBActivity {
     @Override
     protected void onSaveInstanceState(@NonNull final Bundle outState) {
         super.onSaveInstanceState(outState);
+        outState.putBoolean(STATE_AWAITING, awaiting);
         if (source != null && sourceUri != null) {
             outState.putParcelable(STATE_SOURCE_URI, sourceUri);
             outState.putFloatArray(STATE_CROP, cropView.getCropState());

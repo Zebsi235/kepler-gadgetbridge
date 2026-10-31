@@ -60,7 +60,7 @@ public class F91KeplerTransferRetryReceiver extends BroadcastReceiver {
             GB.toast(context, context.getString(R.string.f91_transfer_retry_offline), Toast.LENGTH_LONG, GB.INFO);
             return;
         }
-        GB.removeNotification(F91KeplerTransfers.failedNotificationId(kind), context);
+        GB.removeNotification(F91KeplerTransfers.failedNotificationId(kind, address), context);
         GBApplication.deviceService(device)
                 .onSendConfiguration(F91KeplerConstants.PREF_TRANSFER_RETRY_PREFIX + kind.name());
     }

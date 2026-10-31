@@ -26,18 +26,18 @@ import nodomain.freeyourgadget.gadgetbridge.R;
  * with Try again), so a new transfer only has to pick its kind.
  */
 public enum F91KeplerTransfer {
-    IMAGE(R.string.f91_transfer_image, R.string.f91_image_sent, R.string.f91_transfer_image_failed, true),
-    ALARMS(R.string.f91_transfer_alarms, R.string.f91_transfer_alarms_done, R.string.f91_transfer_alarms_failed, true),
-    SOUNDS(R.string.f91_transfer_sounds, R.string.f91_transfer_sounds_done, R.string.f91_transfer_sounds_failed, false),
-    SETTINGS(R.string.f91_transfer_settings, R.string.f91_transfer_settings_done, R.string.f91_transfer_settings_failed, false),
-    WEATHER(R.string.f91_transfer_weather, R.string.f91_transfer_weather_done, R.string.f91_transfer_weather_failed, true),
-    NOTIFICATIONS(R.string.f91_transfer_notifications, R.string.f91_transfer_notifications_done, R.string.f91_transfer_notifications_failed, true),
-    TIME(R.string.f91_transfer_time, R.string.f91_transfer_time_done, R.string.f91_transfer_time_failed, true);
+    IMAGE(R.string.f91_transfer_image, R.string.f91_image_sent, R.string.f91_transfer_image_failed, true, true),
+    ALARMS(R.string.f91_transfer_alarms, R.string.f91_transfer_alarms_done, R.string.f91_transfer_alarms_failed, true, true),
+    SOUNDS(R.string.f91_transfer_sounds, R.string.f91_transfer_sounds_done, R.string.f91_transfer_sounds_failed, false, false),
+    SETTINGS(R.string.f91_transfer_settings, R.string.f91_transfer_settings_done, R.string.f91_transfer_settings_failed, false, false),
+    WEATHER(R.string.f91_transfer_weather, R.string.f91_transfer_weather_done, R.string.f91_transfer_weather_failed, true, false),
+    NOTIFICATIONS(R.string.f91_transfer_notifications, R.string.f91_transfer_notifications_done, R.string.f91_transfer_notifications_failed, true, false),
+    TIME(R.string.f91_transfer_time, R.string.f91_transfer_time_done, R.string.f91_transfer_time_failed, true, false);
 
     /** "Sending … to the watch", on the device card and the progress notification. */
     @StringRes
     public final int busyText;
-    /** Shown once the watch took a transfer the user started. */
+    /** Shown once the watch took a transfer the user started, if {@link #toastWhenDone}. */
     @StringRes
     public final int doneText;
     /** The failure notification's text. */
@@ -45,12 +45,17 @@ public enum F91KeplerTransfer {
     public final int failedText;
     /** The next connect sends it anyway, so a dropped link is not a failure to report. */
     public final boolean resentOnConnect;
+    /** A done message is worth it for a deliberate action (an image, the alarms),
+     *  not for every switch flipped in the settings. */
+    public final boolean toastWhenDone;
 
     F91KeplerTransfer(@StringRes final int busyText, @StringRes final int doneText,
-                      @StringRes final int failedText, final boolean resentOnConnect) {
+                      @StringRes final int failedText, final boolean resentOnConnect,
+                      final boolean toastWhenDone) {
         this.busyText = busyText;
         this.doneText = doneText;
         this.failedText = failedText;
         this.resentOnConnect = resentOnConnect;
+        this.toastWhenDone = toastWhenDone;
     }
 }

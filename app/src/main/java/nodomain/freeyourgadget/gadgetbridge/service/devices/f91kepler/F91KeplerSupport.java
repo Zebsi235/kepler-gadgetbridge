@@ -564,7 +564,8 @@ public class F91KeplerSupport extends AbstractBTLESingleDeviceSupport {
             if (prefs.getBoolean(F91KeplerConstants.PREF_BRIGHTNESS_DIRTY, false)
                     && F91KeplerFirmware.atLeast(fw, F91KeplerFirmware.MIN_BRIGHTNESS)) {
                 addBrightness(builder);
-                prefs.edit().putBoolean(F91KeplerConstants.PREF_BRIGHTNESS_DIRTY, false).apply();
+                // Cleared once the watch took it, so a failed write tries again next connect.
+                builder.run(() -> prefs.edit().putBoolean(F91KeplerConstants.PREF_BRIGHTNESS_DIRTY, false).apply());
             }
         });
         if (F91KeplerFirmware.has31(fw)) {
@@ -1351,8 +1352,12 @@ public class F91KeplerSupport extends AbstractBTLESingleDeviceSupport {
                 || F91KeplerImageStore.load(getDevice()) == null) {
             return;
         }
-        imageCheckPending = true;
+        // Set and cleared by the transaction itself: a connect write refused before
+        // it (the queue then skips the rest), or a watch without the characteristic
+        // (no read is added), must not leave Send waiting for an answer that never comes.
+        builder.run(() -> imageCheckPending = true);
         builder.read(F91KeplerConstants.UUID_CHAR_IMAGE_CONTROL);
+        builder.run(() -> imageCheckPending = false);
     }
 
     /**
@@ -1434,12 +1439,9 @@ public class F91KeplerSupport extends AbstractBTLESingleDeviceSupport {
     public void onSendConfiguration(final String config) {
         super.onSendConfiguration(config);
         switch (config) {
-            case DeviceSettingsPreferenceConst.PREF_TIMEFORMAT: {
-                final TransactionBuilder builder = createTransactionBuilder("set time mode");
-                addTimeMode(builder);
-                builder.queue();
+            case DeviceSettingsPreferenceConst.PREF_TIMEFORMAT:
+                transfers.queue("set time mode", F91KeplerTransfer.SETTINGS, true, this::addTimeMode);
                 break;
-            }
             case F91KeplerModes.PREF_MODES:
             case F91KeplerModes.PREF_MODES_31: {
                 transfers.queue("set mode order", F91KeplerTransfer.SETTINGS, true, builder -> addModeOrder(builder));
@@ -1475,7 +1477,14 @@ public class F91KeplerSupport extends AbstractBTLESingleDeviceSupport {
                             .edit().putBoolean(F91KeplerConstants.PREF_BRIGHTNESS_DIRTY, true).apply();
                     break;
                 }
-                transfers.queue("set brightness", F91KeplerTransfer.SETTINGS, true, builder -> addBrightness(builder));
+                // Dirty until the watch took it: a failed write is then sent by Try
+                // again or the next connect, like a change made while away.
+                final SharedPreferences prefs = GBApplication.getDeviceSpecificSharedPrefs(getDevice().getAddress());
+                prefs.edit().putBoolean(F91KeplerConstants.PREF_BRIGHTNESS_DIRTY, true).apply();
+                transfers.queue("set brightness", F91KeplerTransfer.SETTINGS, true, builder -> {
+                    addBrightness(builder);
+                    builder.run(() -> prefs.edit().putBoolean(F91KeplerConstants.PREF_BRIGHTNESS_DIRTY, false).apply());
+                });
                 break;
             }
             case F91KeplerConstants.PREF_SLEEP_ENABLED:
@@ -1613,8 +1622,13 @@ public class F91KeplerSupport extends AbstractBTLESingleDeviceSupport {
                     if (F91KeplerFirmware.atLeast(connectedFw, F91KeplerFirmware.MIN_MODE_ORDER_10)) {
                         addModeOrder(builder);
                     }
-                    if (F91KeplerFirmware.atLeast(connectedFw, F91KeplerFirmware.MIN_BRIGHTNESS)) {
+                    // Only a brightness change that did not get through: SW3 on the
+                    // Flashlight screen sets it on the watch, so it is never pushed blindly.
+                    final SharedPreferences prefs = GBApplication.getDeviceSpecificSharedPrefs(getDevice().getAddress());
+                    if (prefs.getBoolean(F91KeplerConstants.PREF_BRIGHTNESS_DIRTY, false)
+                            && F91KeplerFirmware.atLeast(connectedFw, F91KeplerFirmware.MIN_BRIGHTNESS)) {
                         addBrightness(builder);
+                        builder.run(() -> prefs.edit().putBoolean(F91KeplerConstants.PREF_BRIGHTNESS_DIRTY, false).apply());
                     }
                     if (has31()) {
                         addUiOptions(builder);

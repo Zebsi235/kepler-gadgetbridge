@@ -47,8 +47,10 @@ import nodomain.freeyourgadget.gadgetbridge.util.notifications.GBProgressNotific
 /**
  * One way to show every transfer from the app to the watch: a notification
  * says what is being sent and counts the writes, and the end is
- * either done (a short message for what the user started) or failed (a
- * notification with Try again). A new transfer gets all of this by going
+ * either done (a short message for a deliberate action) or failed (a
+ * notification with Try again for what the user started; an automatic
+ * transfer, such as the connect-time re-sends, fails quietly and goes again
+ * on the next connect). A new transfer gets all of this by going
  * through {@link #queue} or {@link #add}; nothing else to wire up.
  *
  * <p>The markers are actions inside the transfer's own transaction, so a
@@ -69,8 +71,9 @@ final class F91KeplerTransfers {
     private static final long SHOW_PROGRESS_AFTER_MS = 1_000L;
     /** Nothing moved for this long: the transaction was dropped without a callback. */
     private static final long STALL_MS = 30_000L;
-    /** Failure notifications, one per kind, far from GB's fixed ids (2..43) and pair-again (44). */
+    /** Failure notifications, one per kind and watch, far from GB's fixed ids (2..43) and pair-again (44). */
     private static final int FAILED_NOTIFICATION_BASE = 19_100;
+    private static final int KINDS = F91KeplerTransfer.values().length;
 
     /** Fills a transaction with the writes (and reads) of one transfer. */
     interface Body {
@@ -146,9 +149,12 @@ final class F91KeplerTransfers {
     private synchronized void begin(final F91KeplerTransfer kind, final boolean byUser, final int total) {
         if (current != null && current != kind) {
             // Its transaction stopped without a refused write or a drop we heard
-            // of (an action the queue could not run): end it without a verdict.
-            LOG.debug("F91 transfer {} ended without its last step", current);
+            // of (an action the queue could not run): end it quietly, but let a
+            // screen waiting for it know it is over.
+            final F91KeplerTransfer orphan = current;
+            LOG.debug("F91 transfer {} ended without its last step", orphan);
             clear();
+            broadcast(orphan, F91KeplerConstants.TRANSFER_STATE_FAILED, 0);
         }
         current = kind;
         currentByUser = byUser;
@@ -186,15 +192,21 @@ final class F91KeplerTransfers {
             clear();
         }
         final Context context = support.getContext();
+        final String address = support.getDevice().getAddress();
         if (ok) {
-            GB.removeNotification(failedNotificationId(kind), context);
-            if (byUser) {
+            GB.removeNotification(failedNotificationId(kind, address), context);
+            if (byUser && kind.toastWhenDone) {
                 GB.toast(context, context.getString(kind.doneText), Toast.LENGTH_SHORT, GB.INFO);
             }
             broadcast(kind, F91KeplerConstants.TRANSFER_STATE_DONE, 100);
         } else {
             LOG.warn("F91 transfer {} did not reach the watch", kind);
-            showFailed(kind);
+            // Automatic ones (connect-time re-sends, the weather) would otherwise warn on
+            // every reconnect of a watch that keeps refusing; the next connect sends them.
+            // The image also fails here when it is not on the air (its own retries ran out).
+            if (byUser || (!wasCurrent && kind == F91KeplerTransfer.IMAGE)) {
+                showFailed(kind);
+            }
             broadcast(kind, F91KeplerConstants.TRANSFER_STATE_FAILED, 0);
         }
     }
@@ -212,7 +224,7 @@ final class F91KeplerTransfers {
         if (kind == null) {
             return;
         }
-        if (kind.resentOnConnect) {
+        if (kind.resentOnConnect || !currentByUser) {
             LOG.info("F91 transfer {} interrupted by the link, it goes again on connect", kind);
             clear();
             broadcast(kind, F91KeplerConstants.TRANSFER_STATE_INTERRUPTED, 0);
@@ -280,8 +292,8 @@ final class F91KeplerTransfers {
         final Intent retry = new Intent(context, F91KeplerTransferRetryReceiver.class)
                 .putExtra(F91KeplerTransferRetryReceiver.EXTRA_ADDRESS, device.getAddress())
                 .putExtra(F91KeplerTransferRetryReceiver.EXTRA_KIND, kind.name());
-        final PendingIntent action = PendingIntent.getBroadcast(context,
-                failedNotificationId(kind) ^ device.getAddress().hashCode(), retry,
+        final int id = failedNotificationId(kind, device.getAddress());
+        final PendingIntent action = PendingIntent.getBroadcast(context, id, retry,
                 PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
         final String text = context.getString(kind.failedText);
         final Notification notification = new NotificationCompat.Builder(context, GB.NOTIFICATION_CHANNEL_ID_DEVICE_WARNINGS)
@@ -291,12 +303,13 @@ final class F91KeplerTransfers {
                 .setStyle(new NotificationCompat.BigTextStyle().bigText(text))
                 .addAction(0, context.getString(R.string.f91_transfer_retry), action)
                 .setAutoCancel(true)
+                .setOnlyAlertOnce(true)
                 .build();
-        GB.notify(failedNotificationId(kind), notification, context);
+        GB.notify(id, notification, context);
     }
 
-    static int failedNotificationId(final F91KeplerTransfer kind) {
-        return FAILED_NOTIFICATION_BASE + kind.ordinal();
+    static int failedNotificationId(final F91KeplerTransfer kind, final String address) {
+        return FAILED_NOTIFICATION_BASE + (address.hashCode() & 0x3FF) * KINDS + kind.ordinal();
     }
 
     private void broadcast(final F91KeplerTransfer kind, final int state, final int percent) {
