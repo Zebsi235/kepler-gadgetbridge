@@ -126,6 +126,11 @@ jobs:
         if: ${{ github.event_name == 'workflow_dispatch' && inputs.release_build }}
         id: release_apk
         run: |
+          # An unsigned release APK must never look like a real one (no "-unsigned" in OUT below).
+          if [ "${{ steps.signing.outputs.signed }}" != "true" ]; then
+            echo "No Kepler signing key: refusing to build an unsigned release APK" >&2
+            exit 1
+          fi
           ./gradlew :app:assembleMainlineRelease --stacktrace
           SRC=$(find app/build/outputs/apk/mainline/release -name "*.apk" | head -1)
           if [ -z "$SRC" ]; then echo "No release APK produced" >&2; exit 1; fi

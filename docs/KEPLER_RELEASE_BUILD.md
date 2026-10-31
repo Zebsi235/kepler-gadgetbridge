@@ -99,7 +99,7 @@ the Kepler code; the ones that touch a Kepler user:
 |---|---|---|
 | `service/DeviceCommunicationService.java` (`connectToDevice`, reconnect path) | `stressTestConnect()`: calls `connect()` on a helper object that **catches and logs exceptions** and returns `false` | `deviceSupport.connect()` directly; an exception now reaches the outer `catch`, which disposes the support. Default stress prefs are 0 extra / serial, so normally the same single `connect()` call |
 | `DeviceCommunicationService.java` (`connectToDevice` dispose, `removeDeviceSupport`) | `stressTestDispose()`: `dispose()`, plus a second one if the stress pref is set | plain `dispose()` |
-| `Logging.java` `resolveRootLevel` | root log level DEBUG always | **INFO in logcat unless "write log files" is on**; with file logging it stays DEBUG. Users must turn on file logging before sending a log |
+| `Logging.java` `resolveRootLevel` | root log level DEBUG (TRACE when trace logging is on) | **INFO in logcat unless "write log files" is on**; with file logging it stays DEBUG. Users must turn on file logging before sending a log |
 | `Logging.java` rolling policy | 100 MB per file, 200 MB cap | 10 MB per file, 100 MB cap |
 | `GBApplication` constructor | StrictMode thread + VM policies (log only) | off |
 | `GBApplication.isDebug()` → default of the "crash notification" pref | on by default | off by default (only for users who never touched the pref) |
