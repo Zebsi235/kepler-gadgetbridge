@@ -598,7 +598,8 @@ public class F91KeplerSupport extends AbstractBTLESingleDeviceSupport {
         }
         // A refused 4-byte time zone is not a failed transfer: the 2-byte fallback below sends it.
         if (status != BluetoothGatt.GATT_SUCCESS && !(tzWideInFlight && characteristic != null
-                && F91KeplerConstants.UUID_CHAR_TIMEZONE.equals(characteristic.getUuid()))) {
+                && F91KeplerConstants.UUID_CHAR_TIMEZONE.equals(characteristic.getUuid())
+                && (status == ATT_INVALID_VALUE_LENGTH || status == ATT_INVALID_VALUE))) {
             transfers.onOperationFailed();
             imageCheckPending = false;
         }

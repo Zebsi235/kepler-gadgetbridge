@@ -153,7 +153,7 @@ android {
         // notification mark re-sent on connect (259-262 earlier CI builds of it),
         // 264 the 0.95.1 base, 265 the next Kepler release (Kepler Watch name,
         // image upload progress, alarm-stopped, wide time zones, notification
-        // fixes, release build prepared).
+        // fixes, release build switched on).
         // Release tags: v0.92.2-kepler (252), -kepler-2 (253), -kepler-3 (254),
         // v0.94.0-kepler (255), v0.94.0-kepler-2 (256), v0.94.0-kepler-3 (258).
         versionName "0.95.1"

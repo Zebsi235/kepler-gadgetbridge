@@ -1,8 +1,7 @@
-# Kepler release build (prepared, not switched on)
+# Kepler release build (switched on with v0.95.1-kepler-1)
 
-Status: **prepared on a branch, not used by CI for published APKs.** The owner
-decision (31 Oct 2026) is that the release build ships only with the next
-Gadgetbridge release, after a full phone + rig check.
+Status: **switched on in rc/v0.95.1-kepler-1** (see "Status" below); the sections
+about the opt-in workflow_dispatch path describe how it was checked first.
 
 ## Why
 
