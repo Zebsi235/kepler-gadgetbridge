@@ -76,8 +76,12 @@ public class F91KeplerPairAgainReceiver extends BroadcastReceiver {
         GB.notify(id, notification, context);
     }
 
+    /** The single id used up to v0.94: an offer shown before the update goes too. */
+    private static final int OLD_NOTIFICATION_ID = 44;
+
     static void cancelNotification(final Context context, final String address) {
         GB.removeNotification(notificationId(address), context);
+        GB.removeNotification(OLD_NOTIFICATION_ID, context);
     }
 
     static int notificationId(final String address) {
