@@ -24,6 +24,7 @@ import android.content.Intent;
 import android.content.SharedPreferences;
 import android.os.Handler;
 import android.os.Looper;
+import android.os.SystemClock;
 import android.text.format.DateFormat;
 import android.widget.Toast;
 
@@ -294,10 +295,11 @@ public class F91KeplerSupport extends AbstractBTLESingleDeviceSupport {
             final GBDeviceEventFindPhone.Event event = F91KeplerProtocol.findPhoneCommand(value[0]);
             if (event != GBDeviceEventFindPhone.Event.UNKNOWN) {
                 // The user's own find-phone now owns the ring: no alert stop or
-                // timeout may end it until the user does.
-                final boolean userStart = event != GBDeviceEventFindPhone.Event.STOP;
+                // timeout may end it until the user does (or it expires).
+                final long userSince = event != GBDeviceEventFindPhone.Event.STOP
+                        ? SystemClock.elapsedRealtime() : 0;
                 alertHandler.post(() -> {
-                    userFindPhone = userStart;
+                    userFindPhoneSince = userSince;
                     alertRinging = false;
                     alertHandler.removeCallbacks(alertRingTimeout);
                 });
@@ -351,6 +353,9 @@ public class F91KeplerSupport extends AbstractBTLESingleDeviceSupport {
         final GBDeviceEventFindPhone.Event event =
                 F91KeplerProtocol.alertEvent(ev, vibrateOnly);
         if (event != GBDeviceEventFindPhone.Event.UNKNOWN) {
+            // Marked here, not in the posted part, so a dispose() that drops the
+            // pending post still knows this ring is running.
+            alertRinging = true;
             sendFindPhone(event);
             startAlertRingTimeout();
         }
@@ -367,15 +372,21 @@ public class F91KeplerSupport extends AbstractBTLESingleDeviceSupport {
     private final Handler alertHandler = new Handler(Looper.getMainLooper());
     /** True while the phone ring is the one the last alert started. */
     private volatile boolean alertRinging;
-    /** True while a find-phone the user started from the watch is ringing. */
-    private volatile boolean userFindPhone;
+    /**
+     * elapsedRealtime when the user started a find-phone from the watch, 0 when
+     * none. It expires (F91KeplerProtocol.USER_FIND_PHONE_MAX_MS) because the
+     * clearing calls can be lost: a Found tapped while the link is down, or
+     * Android showing only a notification and never the find-phone screen.
+     */
+    private volatile long userFindPhoneSince;
     private final Runnable alertRingTimeout =
             () -> stopAlertRing("no stop from the watch within its ring time");
 
     /** Stops the phone ring an alert started, unless the user's find-phone owns it. */
     private void stopAlertRing(final String why) {
         alertHandler.removeCallbacks(alertRingTimeout);
-        final boolean stop = F91KeplerProtocol.shouldStopAlertRing(alertRinging, userFindPhone);
+        final boolean stop = F91KeplerProtocol.shouldStopAlertRing(
+                alertRinging, userFindPhoneSince, SystemClock.elapsedRealtime());
         alertRinging = false;
         if (stop) {
             LOG.info("F91 alert ring stopped on the phone: {}", why);
@@ -387,7 +398,6 @@ public class F91KeplerSupport extends AbstractBTLESingleDeviceSupport {
     private void startAlertRingTimeout() {
         alertHandler.post(() -> {
             alertHandler.removeCallbacks(alertRingTimeout);
-            alertRinging = true;
             alertHandler.postDelayed(alertRingTimeout, F91KeplerConstants.ALERT_RING_TIMEOUT_MS);
         });
     }
@@ -397,7 +407,7 @@ public class F91KeplerSupport extends AbstractBTLESingleDeviceSupport {
     public void onFindPhone(final boolean start) {
         if (!start) {
             alertHandler.post(() -> {
-                userFindPhone = false;
+                userFindPhoneSince = 0;
                 alertRinging = false;
                 alertHandler.removeCallbacks(alertRingTimeout);
             });

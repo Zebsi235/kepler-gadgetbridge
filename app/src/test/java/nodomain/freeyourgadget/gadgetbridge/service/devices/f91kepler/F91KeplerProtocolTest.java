@@ -168,14 +168,27 @@ public class F91KeplerProtocolTest {
 
     @Test
     public void shouldStopAlertRing_onlyTheAlertsOwnRing() {
+        final long now = 5_000_000L;
+        final long userStarted = now - 30_000;     // 30 s ago
         // The alert started the ring and nothing else took it over: stop.
-        assertTrue(F91KeplerProtocol.shouldStopAlertRing(true, false));
+        assertTrue(F91KeplerProtocol.shouldStopAlertRing(true, 0, now));
         // The phone alert was off for this event (no ring started): leave the phone alone.
-        assertFalse(F91KeplerProtocol.shouldStopAlertRing(false, false));
+        assertFalse(F91KeplerProtocol.shouldStopAlertRing(false, 0, now));
         // The user rang the phone from the watch before or after the alarm:
         // ending the alarm must not end the search.
-        assertFalse(F91KeplerProtocol.shouldStopAlertRing(true, true));
-        assertFalse(F91KeplerProtocol.shouldStopAlertRing(false, true));
+        assertFalse(F91KeplerProtocol.shouldStopAlertRing(true, userStarted, now));
+        assertFalse(F91KeplerProtocol.shouldStopAlertRing(false, userStarted, now));
+    }
+
+    @Test
+    public void shouldStopAlertRing_userFindPhoneExpires() {
+        // Its end can be lost (Found tapped while the link is down), so after the
+        // bound it no longer blocks the alarm's stop.
+        final long now = 5_000_000L;
+        final long max = F91KeplerProtocol.USER_FIND_PHONE_MAX_MS;
+        assertFalse(F91KeplerProtocol.shouldStopAlertRing(true, now - max + 1, now));
+        assertTrue(F91KeplerProtocol.shouldStopAlertRing(true, now - max, now));
+        assertTrue(F91KeplerProtocol.shouldStopAlertRing(true, now - 3 * max, now));
     }
 
     @Test
