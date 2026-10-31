@@ -629,6 +629,21 @@ final class F91KeplerProtocol {
     }
 
     /**
+     * A one-shot the watch is ringing right now: the app's alarm is on, used,
+     * has no repeat days and is set to the minute the alarm alert started in,
+     * and that minute is still running ({@code nowHm}, less than a minute after
+     * the alert). Written as on, the watch would arm it again in the very
+     * minute it rings and ring once more after it is stopped.
+     */
+    static boolean ringingOneShot(final boolean appEnabled, final boolean appUnused,
+                                  final int appHour, final int appMinute, final int appRepetition,
+                                  final int rangHm, final long sinceRangMs, final int nowHm) {
+        return appEnabled && !appUnused && appRepetition == 0 && rangHm >= 0
+                && sinceRangMs >= 0 && sinceRangMs < 60_000L && nowHm == rangHm
+                && appHour * 60 + appMinute == rangHm;
+    }
+
+    /**
      * What the watch can show of a counter name: printable ASCII only (the
      * watch refuses anything else), folded with the firmware's table
      * ({@link F91KeplerText}: ä→ae, é→e, ...) so accents are spelled, not
