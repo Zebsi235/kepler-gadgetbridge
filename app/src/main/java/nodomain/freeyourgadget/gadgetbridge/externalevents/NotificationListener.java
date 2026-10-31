@@ -69,10 +69,8 @@ import java.io.FileOutputStream;
 import java.io.InputStream;
 import java.time.LocalTime;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
-import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
@@ -158,7 +156,7 @@ public class NotificationListener extends NotificationListenerService {
      * made meanwhile and can check the ids it got from here on reconnect.
      */
     public static boolean isNotificationActive(final int id) {
-        synchronized (notificationsActive) {   // read from the device's thread
+        synchronized (notificationsActive) {
             return notificationsActive.contains(id);
         }
     }
@@ -166,11 +164,27 @@ public class NotificationListener extends NotificationListenerService {
     // The ids this listener posted lately, active or not, so a device can tell
     // them from notifications of other sources (SMS, intents, the debug screen).
     private static final int POSTED_IDS_MAX = 256;
-    private static final Set<Integer> notificationsPosted = Collections.synchronizedSet(new LinkedHashSet<>());
+    private static final HashMap<Integer, Integer> notificationsPosted = new java.util.LinkedHashMap<>();
+    private static int listenerRun;   // stored per posted id; bumped when the active list is lost
+    private static volatile NotificationListener running;
 
-    /** Whether this listener posted the notification with this id (recently, since it last started). */
+    /** Whether this listener posted the notification with this id (recently). */
     public static boolean isPostedNotification(final int id) {
-        return notificationsPosted.contains(id);
+        synchronized (notificationsPosted) {
+            return notificationsPosted.containsKey(id);
+        }
+    }
+
+    /** Whether the running listener posted it, so isNotificationActive vouches for it. */
+    public static boolean isPostedByRunningListener(final int id) {
+        synchronized (notificationsPosted) {
+            return Integer.valueOf(listenerRun).equals(notificationsPosted.get(id));
+        }
+    }
+
+    @Nullable
+    public static NotificationListener getRunning() {
+        return running;
     }
 
     private static final Set<String> supportedPictureMimeTypes = new HashSet<>() {{
@@ -354,6 +368,7 @@ public class NotificationListener extends NotificationListenerService {
 
         createNotificationPictureCacheDirectory();
         cleanUpNotificationPictureProvider();
+        running = this;
     }
 
     @Override
@@ -362,9 +377,10 @@ public class NotificationListener extends NotificationListenerService {
         LocalBroadcastManager.getInstance(this).unregisterReceiver(mReceiver);
         unregisterReceiver(mExportedReceiver);
         notificationStack.clear();
-        // A restarted listener cannot match the old notifications any more, so
-        // it stops vouching for them before the active list forgets them.
-        notificationsPosted.clear();
+        running = null;
+        synchronized (notificationsPosted) {
+            listenerRun++;   // before the clear, so no id counts as vouched-for but inactive
+        }
         synchronized (notificationsActive) {
             notificationsActive.clear();
         }
@@ -655,9 +671,9 @@ public class NotificationListener extends NotificationListenerService {
             notificationsActive.add(notificationSpec.getId());
         }
         synchronized (notificationsPosted) {
-            notificationsPosted.add(notificationSpec.getId());
+            notificationsPosted.put(notificationSpec.getId(), listenerRun);
             if (notificationsPosted.size() > POSTED_IDS_MAX) {
-                notificationsPosted.remove(notificationsPosted.iterator().next());   // oldest
+                notificationsPosted.remove(notificationsPosted.keySet().iterator().next());   // oldest
             }
         }
         // NOTE for future developers: this call goes to implementations of DeviceService.onNotification(NotificationSpec), like in GBDeviceService
@@ -1150,7 +1166,7 @@ public class NotificationListener extends NotificationListenerService {
 
         // Build list of notifications that aren't active anymore
         ArrayList<Integer> notificationsToRemove = new ArrayList<>();
-        for (int notificationId : notificationsActive) {
+        for (int notificationId : notificationsActive) {   // unlocked: only this (main) thread changes it
             if (!activeNotificationsIds.contains(notificationId)) {
                 notificationsToRemove.add(notificationId);
                 deleteNotificationPicture(notificationId);
