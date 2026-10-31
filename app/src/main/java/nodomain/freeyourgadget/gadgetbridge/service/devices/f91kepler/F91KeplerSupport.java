@@ -565,9 +565,10 @@ public class F91KeplerSupport extends AbstractBTLESingleDeviceSupport {
                 // narrower range: fall back to the clamped 2-byte value.
                 LOG.warn("F91 watch refused the 4-byte time zone (status {}), sending 2 bytes", status);
                 tzWideRefused = true;
-                final TransactionBuilder builder = createTransactionBuilder("set time zone (2 bytes)");
-                addTimezone(builder, currentSecondsWest());
-                builder.queue();
+                // As a TIME transfer: it ends the one the refusal cut short (its done
+                // marker was skipped with the rest of that transaction).
+                transfers.queue("set time zone (2 bytes)", F91KeplerTransfer.TIME, false,
+                        builder -> addTimezone(builder, currentSecondsWest()));
             }
         }
         return super.onCharacteristicWrite(gatt, characteristic, status);
