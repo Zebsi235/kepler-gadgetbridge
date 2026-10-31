@@ -886,12 +886,14 @@ public class F91KeplerSupport extends AbstractBTLESingleDeviceSupport {
         // still pops up, but leaves no mark and no history entry behind.
         final boolean fromListener = NotificationListener.isPostedNotification(notificationSpec.getId());
         final String key = notificationSpec.getKey() != null ? notificationSpec.getKey() : "";
-        if (!fromListener || isStillShowing(notificationSpec.getId(), key)) {
+        dropOldNotifications();
+        if (!fromListener) {
+            notificationTracker.addUntracked(notificationSpec.getId(), category, System.currentTimeMillis());
+            addRecent(notificationSpec);
+        } else if (isStillShowing(notificationSpec.getId(), key)) {
             notificationTracker.add(notificationSpec.getId(), category);
             addRecent(notificationSpec);
-            if (fromListener) {
-                listenerNotificationIds.put(notificationSpec.getId(), key);
-            }
+            listenerNotificationIds.put(notificationSpec.getId(), key);
         }
 
         final TransactionBuilder builder = createTransactionBuilder("notification");
@@ -938,7 +940,19 @@ public class F91KeplerSupport extends AbstractBTLESingleDeviceSupport {
         }
     }
 
+    /**
+     * Notifications from other sources than the listener (SMS receiver,
+     * intents) are hardly ever reported dismissed: after a day they no longer
+     * keep the mark lit or stay in the history.
+     */
+    private void dropOldNotifications() {
+        for (final int id : notificationTracker.expire(System.currentTimeMillis())) {
+            removeRecent(id);
+        }
+    }
+
     private void dropInactiveNotifications() {
+        dropOldNotifications();
         Set<String> phoneKeys = null;
         boolean phoneKeysRead = false;   // read once, and only if needed
         for (final Iterator<Map.Entry<Integer, String>> it = listenerNotificationIds.entrySet().iterator(); it.hasNext(); ) {
