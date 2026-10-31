@@ -80,6 +80,7 @@ public class F91KeplerImageActivity extends AbstractGBActivity {
     private static final String STATE_SOURCE_URI = "f91_image_source_uri";
     private static final String STATE_CROP = "f91_image_crop";
     private static final String STATE_AWAITING = "f91_image_awaiting";
+    private static final String STATE_UPLOADING = "f91_image_uploading";
 
     private GBDevice device;
 
@@ -211,8 +212,12 @@ public class F91KeplerImageActivity extends AbstractGBActivity {
         final IntentFilter filter = new IntentFilter(F91KeplerConstants.ACTION_TRANSFER_STATUS);
         filter.addAction(GBDevice.ACTION_DEVICE_CHANGED);
         LocalBroadcastManager.getInstance(this).registerReceiver(imageStatusReceiver, filter);
-        // Opened while an upload runs (a reconnect re-send, or a rotation mid-send):
-        // the next progress broadcast shows it.
+        // Turned mid-upload: Send stays off and the outcome is awaited; the next
+        // progress broadcast fills in the numbers. (Opened while a reconnect
+        // re-send runs: that broadcast shows it.)
+        if (savedInstanceState != null && savedInstanceState.getBoolean(STATE_UPLOADING, false)) {
+            showUploadState(F91KeplerConstants.TRANSFER_STATE_SENDING, 0);
+        }
     }
 
     @Override
@@ -265,6 +270,7 @@ public class F91KeplerImageActivity extends AbstractGBActivity {
     protected void onSaveInstanceState(@NonNull final Bundle outState) {
         super.onSaveInstanceState(outState);
         outState.putBoolean(STATE_AWAITING, awaiting);
+        outState.putBoolean(STATE_UPLOADING, uploading);
         if (source != null && sourceUri != null) {
             outState.putParcelable(STATE_SOURCE_URI, sourceUri);
             outState.putFloatArray(STATE_CROP, cropView.getCropState());
