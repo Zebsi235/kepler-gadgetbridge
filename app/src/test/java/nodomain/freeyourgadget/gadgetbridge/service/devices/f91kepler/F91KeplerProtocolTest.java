@@ -167,6 +167,18 @@ public class F91KeplerProtocolTest {
     }
 
     @Test
+    public void shouldStopAlertRing_onlyTheAlertsOwnRing() {
+        // The alert started the ring and nothing else took it over: stop.
+        assertTrue(F91KeplerProtocol.shouldStopAlertRing(true, false));
+        // The phone alert was off for this event (no ring started): leave the phone alone.
+        assertFalse(F91KeplerProtocol.shouldStopAlertRing(false, false));
+        // The user rang the phone from the watch before or after the alarm:
+        // ending the alarm must not end the search.
+        assertFalse(F91KeplerProtocol.shouldStopAlertRing(true, true));
+        assertFalse(F91KeplerProtocol.shouldStopAlertRing(false, true));
+    }
+
+    @Test
     public void alertEvent_wireValuesMatchTheFirmware() {
         // f91_alert.h: ALERT_EVENT_TIMER = 0, ALERT_EVENT_ALARM = 1,
         // ALERT_EVENT_STOPPED = 2. If these drift the phone alerts for the

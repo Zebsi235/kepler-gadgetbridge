@@ -238,6 +238,15 @@ final class F91KeplerProtocol {
         }
     }
 
+    /**
+     * Whether an alert stop (the watch's STOPPED or the phone-side timeout) may
+     * stop the phone ring: only if an alert started it, and never while a
+     * find-phone the user started from the watch is ringing.
+     */
+    static boolean shouldStopAlertRing(final boolean alertRinging, final boolean userFindPhone) {
+        return alertRinging && !userFindPhone;
+    }
+
     /** Displayed widths the watch truncates to; we pre-truncate to keep the
      *  write within the firmware's NotificationEntry max (3 + app + sender). */
     private static final int NOTIF_APP_MAX = 11;
