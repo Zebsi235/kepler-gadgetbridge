@@ -392,8 +392,7 @@ public class F91KeplerSupport extends AbstractBTLESingleDeviceSupport {
             now.add(Calendar.SECOND, RANG_SKEW_S);
             alarmRangHmLate = now.get(Calendar.HOUR_OF_DAY) * 60 + now.get(Calendar.MINUTE);
             alarmRangAt = SystemClock.elapsedRealtime();
-            readAlarmSlots(false);     // a one-shot just switched itself off
-            alarmReadAfterRing = true;
+            readAlarmSlots(false, true);     // a one-shot just switched itself off
         }
         final SharedPreferences prefs =
                 GBApplication.getDeviceSpecificSharedPrefs(getDevice().getAddress());
@@ -845,7 +844,7 @@ public class F91KeplerSupport extends AbstractBTLESingleDeviceSupport {
             // The slots last, and only after reading them: a one-shot that rang
             // while the phone was away is off on the watch, and writing the
             // app's list blindly would re-arm it for tomorrow.
-            readAlarmSlots(true);
+            readAlarmSlots(true, false);
         }
     }
 
@@ -1719,11 +1718,12 @@ public class F91KeplerSupport extends AbstractBTLESingleDeviceSupport {
      * with no payload). The answers arrive in {@link #onAlarmSlotRead}, in
      * order. {@code thenWrite}: write the app's slots once all five are in (the
      * connect path); otherwise only reconcile (after the watch rang one).
+     * {@code afterRing}: started by an alarm alert, see {@link #finishAlarmRead}.
      */
-    private void readAlarmSlots(final boolean thenWrite) {
+    private void readAlarmSlots(final boolean thenWrite, final boolean afterRing) {
         java.util.Arrays.fill(alarmReadSlots, null);
         alarmReadWrite = thenWrite;
-        alarmReadAfterRing = false;
+        alarmReadAfterRing = afterRing;
         alarmReadGen = alarmSetGen;
         final TransactionBuilder builder = createTransactionBuilder("read alarm slots");
         // Transactions run one at a time: a sound read still "on the air" here was
@@ -1782,7 +1782,9 @@ public class F91KeplerSupport extends AbstractBTLESingleDeviceSupport {
             // list may be the alarm screen's, left as the ring opened the find-phone
             // screen, with the rung one-shot still on: it is switched off and the
             // list written again (a one-shot rung on the watch is never an edit).
-            if (afterRing && complete && reconcileOneShots() > 0) {
+            // Only at the minute that rang: a slot read off at another time may be
+            // one the user has just switched on again.
+            if (afterRing && complete && reconcileOneShots(alarmRangHm, alarmRangHmLate) > 0) {
                 transfers.queue("restore alarm slots", F91KeplerTransfer.ALARMS, false,
                         builder -> addAlarmSlots(builder, DBHelper.getAlarms(getDevice())));
             } else {
@@ -1791,7 +1793,7 @@ public class F91KeplerSupport extends AbstractBTLESingleDeviceSupport {
             return;
         }
         if (complete) {
-            reconcileOneShots();
+            reconcileOneShots(-1, -1);
         }
         if (write) {
             transfers.queue("restore alarm slots", F91KeplerTransfer.ALARMS, false,
@@ -1799,12 +1801,18 @@ public class F91KeplerSupport extends AbstractBTLESingleDeviceSupport {
         }
     }
 
-    /** One-shots the watch has rung are switched off in the app too; how many. */
-    private int reconcileOneShots() {
+    /**
+     * One-shots the watch has rung are switched off in the app too; how many.
+     * {@code hm}, {@code hmLate}: only alarms set to one of these minutes, or
+     * any when both are -1.
+     */
+    private int reconcileOneShots(final int hm, final int hmLate) {
         int changed = 0;
         for (final nodomain.freeyourgadget.gadgetbridge.entities.Alarm a : DBHelper.getAlarms(getDevice())) {
             final int pos = a.getPosition();
-            if (pos < 0 || pos >= alarmReadSlots.length) {
+            final int aHm = a.getHour() * 60 + a.getMinute();
+            if (pos < 0 || pos >= alarmReadSlots.length
+                    || ((hm >= 0 || hmLate >= 0) && aHm != hm && aHm != hmLate)) {
                 continue;
             }
             if (F91KeplerProtocol.watchRangOneShot(a.getEnabled(), a.getUnused(), a.getHour(),
