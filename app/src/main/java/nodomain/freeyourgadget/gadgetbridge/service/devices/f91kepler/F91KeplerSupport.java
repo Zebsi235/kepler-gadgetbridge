@@ -960,18 +960,29 @@ public class F91KeplerSupport extends AbstractBTLESingleDeviceSupport {
 
     private final Handler notificationExpiryHandler = new Handler(Looper.getMainLooper());
 
-    /** Also ends them while the watch stays connected without new notifications. */
+    /**
+     * Also ends them while the watch stays connected without new notifications.
+     * Hourly, because a delayed post does not count the time the phone sleeps.
+     */
     private void scheduleNotificationExpiry() {
         notificationExpiryHandler.removeCallbacksAndMessages(null);
-        notificationExpiryHandler.postDelayed(() -> {
-            if (dropOldNotifications() && getDevice().isInitialized()) {
-                final TransactionBuilder builder = createTransactionBuilder("expire old notifications");
-                builder.write(F91KeplerConstants.UUID_CHAR_NOTIFICATION_BAR, notificationTracker.bitmask());
-                addRecentNotifications(builder);
-                builder.queue();
+        notificationExpiryHandler.postDelayed(new Runnable() {
+            @Override
+            public void run() {
+                if (dropOldNotifications() && getDevice().isInitialized()) {
+                    final TransactionBuilder builder = createTransactionBuilder("expire old notifications");
+                    builder.write(F91KeplerConstants.UUID_CHAR_NOTIFICATION_BAR, notificationTracker.bitmask());
+                    addRecentNotifications(builder);
+                    builder.queue();
+                }
+                if (notificationTracker.hasUntracked()) {
+                    notificationExpiryHandler.postDelayed(this, NOTIFICATION_EXPIRY_CHECK_MS);
+                }
             }
-        }, F91KeplerNotificationTracker.UNTRACKED_MAX_AGE_MS + 60_000);
+        }, NOTIFICATION_EXPIRY_CHECK_MS);
     }
+
+    private static final long NOTIFICATION_EXPIRY_CHECK_MS = 60 * 60 * 1000L;
 
     private void dropInactiveNotifications() {
         dropOldNotifications();

@@ -87,6 +87,10 @@ class F91KeplerNotificationTracker {
         }
     }
 
+    synchronized boolean hasUntracked() {
+        return !untracked.isEmpty();
+    }
+
     /**
      * Removes the untracked notifications that are too old; returns their ids.
      * Times are {@code SystemClock.elapsedRealtime()}, which never goes back.
