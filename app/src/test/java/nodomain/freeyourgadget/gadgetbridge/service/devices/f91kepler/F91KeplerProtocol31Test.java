@@ -249,4 +249,20 @@ public class F91KeplerProtocol31Test {
         assertFalse(F91KeplerProtocol.watchRangOneShot(true, false, 6, 45, 0, null));
     }
 
+    @Test
+    public void testRingingOneShot() {
+        final int hm = 17 * 60 + 16;
+        // the one-shot set to the ringing minute, 14 s into the ring
+        assertTrue(F91KeplerProtocol.ringingOneShot(true, false, 17, 16, Alarm.ALARM_ONCE, hm, 14_000));
+        // another time, a repeating alarm, an alarm already off or unused
+        assertFalse(F91KeplerProtocol.ringingOneShot(true, false, 17, 20, Alarm.ALARM_ONCE, hm, 14_000));
+        assertFalse(F91KeplerProtocol.ringingOneShot(true, false, 17, 16, Alarm.ALARM_MON, hm, 14_000));
+        assertFalse(F91KeplerProtocol.ringingOneShot(false, false, 17, 16, Alarm.ALARM_ONCE, hm, 14_000));
+        assertFalse(F91KeplerProtocol.ringingOneShot(true, true, 17, 16, Alarm.ALARM_ONCE, hm, 14_000));
+        // a minute after the alert it no longer rings
+        assertFalse(F91KeplerProtocol.ringingOneShot(true, false, 17, 16, Alarm.ALARM_ONCE, hm, 60_000));
+        // no alarm alert seen yet
+        assertFalse(F91KeplerProtocol.ringingOneShot(true, false, 17, 16, Alarm.ALARM_ONCE, -1, 0));
+    }
+
 }
