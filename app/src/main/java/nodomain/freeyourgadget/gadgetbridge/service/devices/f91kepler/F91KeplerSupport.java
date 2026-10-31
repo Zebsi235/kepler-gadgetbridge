@@ -375,7 +375,7 @@ public class F91KeplerSupport extends AbstractBTLESingleDeviceSupport {
                 } catch (final SecurityException e) {
                     // Bluetooth permission taken away while connected: this runs on
                     // the main thread, where it would crash the app.
-                    LOG.warn("F91 stuck-link check stopped: no Bluetooth permission", e);
+                    LOG.warn("F91 stuck-link check stopped: no Bluetooth permission, the link is left as it is", e);
                 }
             }
 
@@ -424,8 +424,8 @@ public class F91KeplerSupport extends AbstractBTLESingleDeviceSupport {
             try {
                 bonded = gatt.getDevice().getBondState() == BluetoothDevice.BOND_BONDED;
             } catch (final SecurityException e) {
-                // No Bluetooth permission: pairing again could not help, so the
-                // link is not counted towards the offer (as without a bond)
+                // No Bluetooth permission: pairing again could not help, so no
+                // offer, and the streak of failed links starts again (as without a bond)
                 LOG.warn("F91 cannot read the bond state: no Bluetooth permission", e);
                 bonded = false;
             }
