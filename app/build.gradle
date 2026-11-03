@@ -157,12 +157,13 @@ android {
         // with the audit fixes, 267 the release for firmware 3.3.2 (alarm stop
         // from the phone, second time zone, reconnect when Bluetooth comes on),
         // 268 settings the watch's firmware lacks are hidden, alarm and hourly
-        // chime tone choice.
+        // chime tone choice, 269 the same with changes made while the phone's
+        // Bluetooth is off kept, and the new logo colours on the device icon.
         // Release tags: v0.92.2-kepler (252), -kepler-2 (253), -kepler-3 (254),
         // v0.94.0-kepler (255), v0.94.0-kepler-2 (256), v0.94.0-kepler-3 (258),
         // v0.95.1-kepler-1 (266), v0.95.1-kepler-2 (267).
         versionName "0.95.1"
-        versionCode 268
+        versionCode 269
         vectorDrawables.useSupportLibrary = true
         buildConfigField "String", "GIT_HASH_SHORT", "\"${getGitHashShort()}\""
         buildConfigField "String", "GIT_DIRTY_STATUS", "\"${getGitDirtyFlag()}\""
