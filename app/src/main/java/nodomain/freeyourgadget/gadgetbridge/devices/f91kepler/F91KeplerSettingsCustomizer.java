@@ -64,6 +64,13 @@ public class F91KeplerSettingsCustomizer implements DeviceSpecificSettingsCustom
                                    final DeviceSpecificSettingsHandler handler) {
         // Beyond forwarding (SEND_KEYS) the support class does the rest in
         // onSendConfiguration. A new zone changes the name the watch would show.
+        final GBDevice device = handler.getDevice();
+        if (device != null && !device.isConnected()) {
+            // With the phone's Bluetooth off Gadgetbridge has no support object for
+            // the watch, so onSendConfiguration never runs: remember the change here.
+            markChangedWhileAway(GBApplication.getDeviceSpecificSharedPrefs(device.getAddress()),
+                                 preference.getKey());
+        }
         if (F91KeplerConstants.PREF_SECOND_ZONE_ID.equals(preference.getKey())) {
             final EditTextPreference name = handler.findPreference(F91KeplerConstants.PREF_SECOND_ZONE_NAME);
             if (name != null && name.getSummaryProvider() != null) {
@@ -160,6 +167,45 @@ public class F91KeplerSettingsCustomizer implements DeviceSpecificSettingsCustom
         // firmware version was read on connect (GBDeviceEventVersionInfo).
         applyFirmwareVisibility(handler);
         showSoundSwitches(handler);
+    }
+
+    /**
+     * A setting the watch also holds, changed while it is not connected: flagged so
+     * the next connect writes it instead of adopting the watch's value. The flags
+     * are the ones the support class sets when it gets the change itself.
+     */
+    static void markChangedWhileAway(final SharedPreferences prefs, @Nullable final String key) {
+        if (key == null) {
+            return;
+        }
+        switch (key) {
+            case F91KeplerConstants.PREF_BRIGHTNESS:
+                prefs.edit().putBoolean(F91KeplerConstants.PREF_BRIGHTNESS_DIRTY, true).apply();
+                break;
+            case F91KeplerConstants.PREF_SOUND_SNOOZE:
+                prefs.edit().putBoolean(F91KeplerConstants.PREF_SOUND_SNOOZE_DIRTY, true).apply();
+                break;
+            case F91KeplerConstants.PREF_SOUND_ALARM_TONE:
+                prefs.edit().putBoolean(F91KeplerConstants.PREF_SOUND_ALARM_TONE_DIRTY, true).apply();
+                break;
+            case F91KeplerConstants.PREF_SOUND_CHIME_TONE:
+                prefs.edit().putBoolean(F91KeplerConstants.PREF_SOUND_CHIME_TONE_DIRTY, true).apply();
+                break;
+            case F91KeplerConstants.PREF_SOUND_MUTE:
+            case F91KeplerConstants.PREF_SOUND_CALL:
+            case F91KeplerConstants.PREF_SOUND_TEXT:
+            case F91KeplerConstants.PREF_SOUND_LOWBATT:
+            case F91KeplerConstants.PREF_SOUND_LOST: {
+                final Set<String> dirty = new java.util.HashSet<>(prefs.getStringSet(
+                        F91KeplerConstants.PREF_SOUND_DIRTY_KEYS, Collections.emptySet()));
+                if (dirty.add(key)) {
+                    prefs.edit().putStringSet(F91KeplerConstants.PREF_SOUND_DIRTY_KEYS, dirty).apply();
+                }
+                break;
+            }
+            default:
+                break;
+        }
     }
 
     /** The sound switches as stored: the support class adopts the watch's values on connect. */

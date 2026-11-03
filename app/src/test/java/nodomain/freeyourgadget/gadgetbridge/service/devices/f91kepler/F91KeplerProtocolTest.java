@@ -541,6 +541,20 @@ public class F91KeplerProtocolTest {
         assertFalse(F91KeplerConstants.isToneChoice(0xFF));
     }
 
+    /** A watch that never had a tone chosen reads 0xFF ("the event's default"): that is its own tone. */
+    @Test
+    public void defaultToneRefIsTheEventsTone() {
+        // as read on 3.3.2-bl: 0800FF0900 (alarm 0) and 0700FF (hourly chime)
+        assertEquals(F91KeplerConstants.TONE_ALARM_DEFAULT, F91KeplerConstants.resolveTone(
+                F91KeplerProtocol.alarmSound(new byte[]{0x08, 0x00, (byte) 0xFF, 0x09, 0x00}, 0)[0] & 0xFF,
+                F91KeplerConstants.TONE_ALARM_DEFAULT));
+        assertEquals(F91KeplerConstants.TONE_CHIME_DEFAULT, F91KeplerConstants.resolveTone(
+                F91KeplerProtocol.eventToneRead(new byte[]{0x07, 0x00, (byte) 0xFF}, 0),
+                F91KeplerConstants.TONE_CHIME_DEFAULT));
+        assertEquals(11, F91KeplerConstants.resolveTone(11, F91KeplerConstants.TONE_CHIME_DEFAULT));
+        assertEquals(0, F91KeplerConstants.resolveTone(0, F91KeplerConstants.TONE_CHIME_DEFAULT));   // silent stays silent
+    }
+
     @Test
     public void soundWritesKeepAllAlarmsOff() {
         // firmware 3.2.2: bit 14 = all alarms off, set on the watch

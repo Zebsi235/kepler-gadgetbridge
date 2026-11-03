@@ -936,7 +936,8 @@ public class F91KeplerSupport extends AbstractBTLESingleDeviceSupport {
             writeChimeTone(false);
             return;
         }
-        final int tone = F91KeplerProtocol.eventToneRead(value, F91KeplerConstants.EVENT_HOURLY_CHIME);
+        final int read = F91KeplerProtocol.eventToneRead(value, F91KeplerConstants.EVENT_HOURLY_CHIME);
+        final int tone = read < 0 ? read : F91KeplerConstants.resolveTone(read, F91KeplerConstants.TONE_CHIME_DEFAULT);
         if (tone < 0) {
             LOG.warn("F91 chime tone read failed; the setting stays as it is");
         } else if (F91KeplerConstants.isToneChoice(tone)) {
@@ -1014,10 +1015,11 @@ public class F91KeplerSupport extends AbstractBTLESingleDeviceSupport {
             }
         }
         if (tones && !toneDirty) {
-            final int first = got[0][0] & 0xFF;
+            final int def = F91KeplerConstants.TONE_ALARM_DEFAULT;
+            final int first = F91KeplerConstants.resolveTone(got[0][0] & 0xFF, def);
             boolean same = true;
             for (final byte[] p : got) {
-                same &= (p[0] & 0xFF) == first;
+                same &= F91KeplerConstants.resolveTone(p[0] & 0xFF, def) == first;
             }
             if (same && F91KeplerConstants.isToneChoice(first)) {
                 evaluateGBDeviceEvent(new GBDeviceEventUpdatePreferences(
