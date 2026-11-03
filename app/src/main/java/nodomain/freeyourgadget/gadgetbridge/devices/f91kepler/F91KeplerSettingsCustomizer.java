@@ -64,13 +64,6 @@ public class F91KeplerSettingsCustomizer implements DeviceSpecificSettingsCustom
                                    final DeviceSpecificSettingsHandler handler) {
         // Beyond forwarding (SEND_KEYS) the support class does the rest in
         // onSendConfiguration. A new zone changes the name the watch would show.
-        final GBDevice device = handler.getDevice();
-        if (device != null && !device.isConnected()) {
-            // With the phone's Bluetooth off Gadgetbridge has no support object for
-            // the watch, so onSendConfiguration never runs: remember the change here.
-            markChangedWhileAway(GBApplication.getDeviceSpecificSharedPrefs(device.getAddress()),
-                                 preference.getKey());
-        }
         if (F91KeplerConstants.PREF_SECOND_ZONE_ID.equals(preference.getKey())) {
             final EditTextPreference name = handler.findPreference(F91KeplerConstants.PREF_SECOND_ZONE_NAME);
             if (name != null && name.getSummaryProvider() != null) {
@@ -288,7 +281,16 @@ public class F91KeplerSettingsCustomizer implements DeviceSpecificSettingsCustom
                                   final String rootKey) {
         applyFirmwareVisibility(handler);
         for (final String key : SEND_KEYS) {
-            handler.addPreferenceHandlerFor(key);
+            // The listener runs only for a change the user makes (not when the screen
+            // loads). With the phone's Bluetooth off Gadgetbridge has no support object
+            // for the watch, so onSendConfiguration never runs: remember it here.
+            handler.addPreferenceHandlerFor(key, (preference, newValue) -> {
+                final GBDevice device = handler.getDevice();
+                if (device != null && !device.isConnected()) {
+                    markChangedWhileAway(GBApplication.getDeviceSpecificSharedPrefs(device.getAddress()), key);
+                }
+                return true;
+            });
         }
         // Counter names: at most 10 characters on the watch. The field stops
         // there; the support class still sanitizes (ASCII only) before sending.
