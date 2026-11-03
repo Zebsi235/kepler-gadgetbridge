@@ -60,6 +60,17 @@
     <string name="f91_pref_summary_sound_text">Piepen, wenn eine Benachrichtigung eintrifft.</string>
     <string name="f91_pref_title_sound_lowbatt">Ton bei schwachem Akku</string>
     <string name="f91_pref_summary_sound_lowbatt">Einmal piepen, wenn der Akku schwach wird.</string>
+    <string name="f91_pref_title_sound_alarm_tone">Weckton</string>
+    <string name="f91_pref_title_sound_chime_tone">Ton des Stundensignals</string>
+    <string name="f91_tone_double_beep">Doppelpiep (F-91W-Stundensignal)</string>
+    <string name="f91_tone_beep">Piep</string>
+    <string name="f91_tone_alarm">Alarm (F-91W)</string>
+    <string name="f91_tone_ring">Klingeln</string>
+    <string name="f91_tone_find">Suchton</string>
+    <string name="f91_tone_elise">Für Elise</string>
+    <string name="f91_tone_rising">Aufsteigende Melodie</string>
+    <string name="f91_tone_falling">Absteigende Melodie</string>
+    <string name="f91_tone_buzz">Tiefes Brummen</string>
     <string name="f91_pref_title_sound_test">Ton auf der Uhr testen</string>
     <string name="f91_pref_summary_sound_test">Spielt einen Piepton auf der Uhr ab.</string>
     <string name="f91_pref_header_screens_31">Zähler</string>

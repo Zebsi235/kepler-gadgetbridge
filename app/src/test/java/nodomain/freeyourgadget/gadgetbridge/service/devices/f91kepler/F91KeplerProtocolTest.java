@@ -511,6 +511,37 @@ public class F91KeplerProtocolTest {
     }
 
     @Test
+    public void alarmSoundWriteChangesOnlyWhatWasPicked() {
+        final byte[] p = {0x41, 0x09, 0x01};   // melody slot 1, snooze 9, escalation on
+        // new tone, snooze and escalation stay
+        assertArrayEquals(new byte[]{0x08, 0x03, 0x0A, 0x09, 0x01}, F91KeplerProtocol.alarmSoundWrite(3, p, 10, -1));
+        // both
+        assertArrayEquals(new byte[]{0x08, 0x03, 0x02, 0x05, 0x01}, F91KeplerProtocol.alarmSoundWrite(3, p, 2, 5));
+        // neither: written back as read
+        assertArrayEquals(new byte[]{0x08, 0x03, 0x41, 0x09, 0x01}, F91KeplerProtocol.alarmSoundWrite(3, p, -1, -1));
+        assertArrayEquals(new byte[]{0x41, 0x09, 0x01}, p);   // the read copy is not changed in place
+        // rc1 two-byte payload stays two bytes
+        assertArrayEquals(new byte[]{0x08, 0x00, 0x04, 0x09}, F91KeplerProtocol.alarmSoundWrite(0, new byte[]{0x03, 0x09}, 4, -1));
+    }
+
+    @Test
+    public void hourlyChimeToneRecord() {
+        assertArrayEquals(new byte[]{0x07, 0x00, 0x0B},
+                F91KeplerProtocol.eventTone(F91KeplerConstants.EVENT_HOURLY_CHIME, 11));
+        assertEquals(2, F91KeplerProtocol.eventToneRead(new byte[]{0x07, 0x00, 0x02}, 0));
+        assertEquals(0x41, F91KeplerProtocol.eventToneRead(new byte[]{0x07, 0x00, 0x41}, 0));
+        assertEquals(-1, F91KeplerProtocol.eventToneRead(new byte[]{0x07, 0x04, 0x05}, 0));   // another event
+        assertEquals(-1, F91KeplerProtocol.eventToneRead(new byte[]{0x08, 0x00, 0x03, 0x09}, 0));
+        assertEquals(-1, F91KeplerProtocol.eventToneRead(new byte[]{0x07, 0x00}, 0));
+        assertEquals(-1, F91KeplerProtocol.eventToneRead(null, 0));
+        assertTrue(F91KeplerConstants.isToneChoice(F91KeplerConstants.TONE_CHIME_DEFAULT));
+        assertTrue(F91KeplerConstants.isToneChoice(F91KeplerConstants.TONE_ALARM_DEFAULT));
+        assertFalse(F91KeplerConstants.isToneChoice(0x41));   // a melody slot: not offered here
+        assertFalse(F91KeplerConstants.isToneChoice(0));
+        assertFalse(F91KeplerConstants.isToneChoice(0xFF));
+    }
+
+    @Test
     public void soundWritesKeepAllAlarmsOff() {
         // firmware 3.2.2: bit 14 = all alarms off, set on the watch
         final byte[] cfg = {0x0C, 0x40, 0x28, 0x05, (byte) 0xA4, 0x01, 0x0F, 0x3C};

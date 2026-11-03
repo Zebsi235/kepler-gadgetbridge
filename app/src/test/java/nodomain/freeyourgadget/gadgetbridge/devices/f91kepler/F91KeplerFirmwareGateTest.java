@@ -188,8 +188,13 @@ public class F91KeplerFirmwareGateTest {
         assertTrue(s321.contains(F91KeplerConstants.PREF_SOUND_MUTE));
         assertTrue(s321.contains(F91KeplerConstants.PREF_SOUND_SNOOZE));
         assertFalse("lost-phone alert needs 3.2.2", s321.contains(F91KeplerConstants.PREF_SOUND_LOST));
+        assertFalse("tone choice needs 3.3.0", s321.contains(F91KeplerConstants.PREF_SOUND_ALARM_TONE));
+        assertFalse("tone choice needs 3.3.0", s321.contains(F91KeplerConstants.PREF_SOUND_CHIME_TONE));
+        assertFalse(shown("3.2.2").contains(F91KeplerConstants.PREF_SOUND_CHIME_TONE));
         final Set<String> s330 = shown("3.3.0");
         assertTrue(s330.contains(F91KeplerConstants.PREF_SOUND_LOST));
+        assertTrue(s330.contains(F91KeplerConstants.PREF_SOUND_ALARM_TONE));
+        assertTrue(s330.contains(F91KeplerConstants.PREF_SOUND_CHIME_TONE));
         assertFalse(s330.contains(F91KeplerConstants.PREF_SECOND_ZONE));
     }
 
@@ -208,6 +213,33 @@ public class F91KeplerFirmwareGateTest {
         assertEquals(R.string.f91_pref_summary_hourly_chime, F91KeplerSettingsCustomizer.hourlyChimeSummary(null));
         assertEquals(R.string.f91_pref_summary_hourly_chime, F91KeplerSettingsCustomizer.hourlyChimeSummary("3.1.24"));
         assertEquals(R.string.f91_pref_summary_hourly_chime_beep, F91KeplerSettingsCustomizer.hourlyChimeSummary("3.3.0"));
+    }
+
+    /** The tone lists offer exactly F91KeplerConstants.TONE_CHOICES, one name per tone. */
+    @Test
+    public void toneListMatchesTheOfferedTones() throws Exception {
+        final NodeList arrays = DocumentBuilderFactory.newInstance().newDocumentBuilder()
+                .parse(new File(resDir(), "values/arrays.xml")).getElementsByTagName("string-array");
+        int names = -1;
+        java.util.List<Integer> values = null;
+        for (int i = 0; i < arrays.getLength(); i++) {
+            final Element a = (Element) arrays.item(i);
+            final NodeList items = a.getElementsByTagName("item");
+            if ("f91_sound_tones".equals(a.getAttribute("name"))) {
+                names = items.getLength();
+            } else if ("f91_sound_tones_values".equals(a.getAttribute("name"))) {
+                values = new java.util.ArrayList<>();
+                for (int j = 0; j < items.getLength(); j++) {
+                    values.add(Integer.parseInt(items.item(j).getTextContent().trim()));
+                }
+            }
+        }
+        final java.util.List<Integer> offered = new java.util.ArrayList<>();
+        for (final int t : F91KeplerConstants.TONE_CHOICES) {
+            offered.add(t);
+        }
+        assertEquals(offered, values);
+        assertEquals(offered.size(), names);
     }
 
     /** No "needs firmware ..." or "from 3.2" hints in any Kepler text, in any language. */

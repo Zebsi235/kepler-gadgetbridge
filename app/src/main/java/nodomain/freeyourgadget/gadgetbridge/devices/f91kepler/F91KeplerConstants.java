@@ -193,6 +193,23 @@ public final class F91KeplerConstants {
     public static final byte REC_ZONE = 0x0E;
     /** ALARM_SOUND idx 0..4: {@code [toneRef][snoozeMin][flags]} (rc1: the first 2 bytes). */
     public static final byte REC_ALARM_SOUND = 0x08;
+    /** EVENT_TONE idx 0..11: {@code [toneRef]}; event 0 is the hourly chime. */
+    public static final byte REC_EVENT_TONE = 0x07;
+    public static final int EVENT_HOURLY_CHIME = 0;
+    /** The watch's defaults: the F-91W double beep for the chime, the F-91W alarm pattern. */
+    public static final int TONE_CHIME_DEFAULT = 2;
+    public static final int TONE_ALARM_DEFAULT = 3;
+    /** The built-in tones the app offers (arrays.xml f91_sound_tones_values, same order). */
+    public static final int[] TONE_CHOICES = {2, 1, 3, 4, 5, 10, 11, 12, 13};
+
+    public static boolean isToneChoice(final int toneRef) {
+        for (final int t : TONE_CHOICES) {
+            if (t == toneRef) {
+                return true;
+            }
+        }
+        return false;
+    }
     public static final int SND_SILENT = 1;          // mutes everything except alarms
     public static final int SND_CALL = 1 << 2;       // call ring (default on)
     public static final int SND_TEXT = 1 << 3;       // text beeps (default on from 3.2.0-rc7)
@@ -291,6 +308,12 @@ public final class F91KeplerConstants {
     /** The snooze length changed while the watch was away: written after the next connect. */
     public static final String PREF_SOUND_SNOOZE_DIRTY = "f91_sound_snooze_dirty";
     public static final String PREF_SOUND_TEST = "f91_sound_test";
+    /** The tone of all five alarms (a toneRef, ALARM_SOUND byte 0), firmware 3.3.0. */
+    public static final String PREF_SOUND_ALARM_TONE = "f91_sound_alarm_tone";
+    public static final String PREF_SOUND_ALARM_TONE_DIRTY = "f91_sound_alarm_tone_dirty";
+    /** The hourly chime's tone (a toneRef, EVENT_TONE 0), firmware 3.3.0. */
+    public static final String PREF_SOUND_CHIME_TONE = "f91_sound_chime_tone";
+    public static final String PREF_SOUND_CHIME_TONE_DIRTY = "f91_sound_chime_tone_dirty";
     /** The sound switches changed while the watch was away (a string set): only
      *  these are written after the next connect read, the others take the watch's. */
     public static final String PREF_SOUND_DIRTY_KEYS = "f91_sound_dirty_keys";
