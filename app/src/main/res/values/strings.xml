@@ -2408,6 +2408,17 @@
     <string name="f91_snooze_5">5 minutes</string>
     <string name="f91_snooze_9">9 minutes</string>
     <string name="f91_snooze_15">15 minutes</string>
+    <string name="f91_pref_title_sound_alarm_tone">Alarm tone</string>
+    <string name="f91_pref_title_sound_chime_tone">Hourly chime tone</string>
+    <string name="f91_tone_double_beep">Double beep (F-91W chime)</string>
+    <string name="f91_tone_beep">Beep</string>
+    <string name="f91_tone_alarm">Alarm (F-91W)</string>
+    <string name="f91_tone_ring">Ring</string>
+    <string name="f91_tone_find">Find</string>
+    <string name="f91_tone_elise">Für Elise</string>
+    <string name="f91_tone_rising">Rising tune</string>
+    <string name="f91_tone_falling">Falling tune</string>
+    <string name="f91_tone_buzz">Low buzz</string>
     <string name="f91_pref_title_sound_test">Test sound on watch</string>
     <string name="f91_pref_summary_sound_test">Plays one beep on the watch.</string>
     <string name="f91_pref_header_screens_31">Counters</string>

@@ -5402,4 +5402,27 @@
         <item>9</item>
         <item>15</item>
     </string-array>
+    <!-- F91 Kepler built-in tones (toneRef) for the alarm and the hourly chime. -->
+    <string-array name="f91_sound_tones">
+        <item>@string/f91_tone_double_beep</item>
+        <item>@string/f91_tone_beep</item>
+        <item>@string/f91_tone_alarm</item>
+        <item>@string/f91_tone_ring</item>
+        <item>@string/f91_tone_find</item>
+        <item>@string/f91_tone_elise</item>
+        <item>@string/f91_tone_rising</item>
+        <item>@string/f91_tone_falling</item>
+        <item>@string/f91_tone_buzz</item>
+    </string-array>
+    <string-array name="f91_sound_tones_values" translatable="false">
+        <item>2</item>
+        <item>1</item>
+        <item>3</item>
+        <item>4</item>
+        <item>5</item>
+        <item>10</item>
+        <item>11</item>
+        <item>12</item>
+        <item>13</item>
+    </string-array>
 </resources>

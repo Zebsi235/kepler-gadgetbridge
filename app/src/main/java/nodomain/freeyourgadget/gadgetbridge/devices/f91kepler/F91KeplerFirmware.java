@@ -81,6 +81,11 @@ public final class F91KeplerFirmware {
     public static final int[] MIN_TEXT_FOLD = {3, 1, 14};
     /** Sound: the case-back piezo and its Record types (SOUND_CFG, PLAY, ...). */
     public static final int[] MIN_32 = {3, 2, 0};
+    /**
+     * The tone choice: the hourly chime's tone (EVENT_TONE 0) and the alarm tone
+     * (ALARM_SOUND toneRef). 3.1.x has no sound records at all.
+     */
+    public static final int[] MIN_TONE_CHOICE = {3, 3, 0};
     /** The lost-phone alert: 3.2.1 can beep falsely ~90 s after the radio comes back on. */
     public static final int[] MIN_LOST_ALERT = {3, 2, 2};
     /**
@@ -167,5 +172,9 @@ public final class F91KeplerFirmware {
 
     public static boolean hasSecondZone(@Nullable final String firmware) {
         return atLeast(firmware, MIN_SECOND_ZONE);
+    }
+
+    public static boolean hasToneChoice(@Nullable final String firmware) {
+        return atLeast(firmware, MIN_TONE_CHOICE);
     }
 }

@@ -93,6 +93,7 @@ public class F91KeplerSettingsCustomizer implements DeviceSpecificSettingsCustom
             F91KeplerConstants.PREF_SOUND_MUTE, F91KeplerConstants.PREF_SOUND_CALL,
             F91KeplerConstants.PREF_SOUND_TEXT, F91KeplerConstants.PREF_SOUND_LOWBATT,
             F91KeplerConstants.PREF_SOUND_LOST, F91KeplerConstants.PREF_SOUND_SNOOZE,
+            F91KeplerConstants.PREF_SOUND_ALARM_TONE, F91KeplerConstants.PREF_SOUND_CHIME_TONE,
             F91KeplerConstants.PREF_COUNTER_NAME_PREFIX + "0",
             F91KeplerConstants.PREF_COUNTER_NAME_PREFIX + "1",
             F91KeplerConstants.PREF_COUNTER_NAME_PREFIX + "2",
@@ -117,6 +118,8 @@ public class F91KeplerSettingsCustomizer implements DeviceSpecificSettingsCustom
         // 3.2: the case-back piezo and its Record types
         GATES.put(F91KeplerConstants.PREF_CATEGORY_SOUND_32, F91KeplerFirmware.MIN_32);
         GATES.put(F91KeplerConstants.PREF_SOUND_LOST, F91KeplerFirmware.MIN_LOST_ALERT);
+        GATES.put(F91KeplerConstants.PREF_SOUND_ALARM_TONE, F91KeplerFirmware.MIN_TONE_CHOICE);
+        GATES.put(F91KeplerConstants.PREF_SOUND_CHIME_TONE, F91KeplerFirmware.MIN_TONE_CHOICE);
         // 3.3.2: UiOptions bit 4 + Record ZONE
         GATES.put(F91KeplerConstants.PREF_SECOND_ZONE, F91KeplerFirmware.MIN_SECOND_ZONE);
         GATES.put(F91KeplerConstants.PREF_SECOND_ZONE_ID, F91KeplerFirmware.MIN_SECOND_ZONE);

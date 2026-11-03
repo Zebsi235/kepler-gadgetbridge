@@ -170,6 +170,8 @@ public class F91KeplerSupport extends AbstractBTLESingleDeviceSupport {
     private volatile boolean alarmSoundInFlight;
     private final byte[][] alarmSounds = new byte[F91KeplerConstants.ALARM_SLOTS_31][];
     private int alarmSoundsGot;
+    /** The hourly chime's EVENT_TONE read (firmware 3.3.0) is on the air, behind the alarm sounds. */
+    private volatile boolean chimeToneInFlight;
     /** The connect read adopts the watch's values into the switches; later reads only refresh. */
     private volatile boolean soundAdopt;
     /** The switches to write once the fresh SOUND_CFG arrives (empty: just adopt the watch's). */
@@ -254,6 +256,7 @@ public class F91KeplerSupport extends AbstractBTLESingleDeviceSupport {
         // A snooze change still to send keeps its dirty flag (set on the change, cleared
         // only after all five writes); a read that only showed the watch's value marks nothing.
         alarmSoundInFlight = false;
+        chimeToneInFlight = false;
         soundAdopt = false;
         builder.setDeviceState(GBDevice.State.INITIALIZING);
         renameOldDefault();
@@ -648,6 +651,15 @@ public class F91KeplerSupport extends AbstractBTLESingleDeviceSupport {
                 return true;
             }
         }
+        if (F91KeplerConstants.UUID_CHAR_RECORD.equals(characteristic.getUuid()) && chimeToneInFlight) {
+            final boolean ours = status != BluetoothGatt.GATT_SUCCESS
+                    || (value != null && value.length > 0 && value[0] == F91KeplerConstants.REC_EVENT_TONE);
+            chimeToneInFlight = false;
+            onChimeToneRead(ours && status == BluetoothGatt.GATT_SUCCESS ? value : null);
+            if (ours) {
+                return true;
+            }
+        }
         if (F91KeplerConstants.UUID_CHAR_RECORD.equals(characteristic.getUuid()) && soundInFlight) {
             // The answer of the sound read on the air (transactions run one at a time).
             endSoundRead();
@@ -699,6 +711,14 @@ public class F91KeplerSupport extends AbstractBTLESingleDeviceSupport {
                 && alarmSoundInFlight) {
             LOG.warn("F91 alarm sound select failed with status {}", status);
             onAlarmSoundRead(null);
+            return super.onCharacteristicWrite(gatt, characteristic, status);
+        }
+        if (status != BluetoothGatt.GATT_SUCCESS && characteristic != null
+                && F91KeplerConstants.UUID_CHAR_RECORD.equals(characteristic.getUuid())
+                && chimeToneInFlight) {
+            LOG.warn("F91 chime tone select failed with status {}", status);
+            chimeToneInFlight = false;
+            onChimeToneRead(null);
             return super.onCharacteristicWrite(gatt, characteristic, status);
         }
         if (status != BluetoothGatt.GATT_SUCCESS && characteristic != null
@@ -885,6 +905,72 @@ public class F91KeplerSupport extends AbstractBTLESingleDeviceSupport {
                           F91KeplerProtocol.record(F91KeplerConstants.REC_ALARM_SOUND, i, new byte[0]));
             builder.read(F91KeplerConstants.UUID_CHAR_RECORD);
         }
+        if (F91KeplerFirmware.hasToneChoice(connectedFw)) {
+            // Reached only when the five went through; onChimeToneRead adopts or writes it.
+            builder.run(() -> chimeToneInFlight = true);
+            builder.write(F91KeplerConstants.UUID_CHAR_RECORD,
+                          F91KeplerProtocol.record(F91KeplerConstants.REC_EVENT_TONE,
+                                                   F91KeplerConstants.EVENT_HOURLY_CHIME, new byte[0]));
+            builder.read(F91KeplerConstants.UUID_CHAR_RECORD);
+        }
+        builder.queue();
+    }
+
+    /** A tone setting as a toneRef; anything not offered falls back to {@code def}. */
+    private static int toneSetting(final SharedPreferences prefs, final String key, final int def) {
+        try {
+            final int t = Integer.parseInt(prefs.getString(key, String.valueOf(def)));
+            return F91KeplerConstants.isToneChoice(t) ? t : def;
+        } catch (final NumberFormatException e) {
+            return def;
+        }
+    }
+
+    /**
+     * The hourly chime's tone as the watch has it (null: failed). A change made here
+     * while the watch was away is written; otherwise the watch's tone is shown.
+     */
+    private void onChimeToneRead(final byte[] value) {
+        final SharedPreferences prefs = GBApplication.getDeviceSpecificSharedPrefs(getDevice().getAddress());
+        if (prefs.getBoolean(F91KeplerConstants.PREF_SOUND_CHIME_TONE_DIRTY, false)) {
+            writeChimeTone(false);
+            return;
+        }
+        final int tone = F91KeplerProtocol.eventToneRead(value, F91KeplerConstants.EVENT_HOURLY_CHIME);
+        if (tone < 0) {
+            LOG.warn("F91 chime tone read failed; the setting stays as it is");
+        } else if (F91KeplerConstants.isToneChoice(tone)) {
+            evaluateGBDeviceEvent(new GBDeviceEventUpdatePreferences(
+                    F91KeplerConstants.PREF_SOUND_CHIME_TONE, String.valueOf(tone)));
+        }
+    }
+
+    /** EVENT_TONE 0 from the setting (and, when picked just now, the tone played once). */
+    private void writeChimeTone(final boolean play) {
+        final SharedPreferences prefs = GBApplication.getDeviceSpecificSharedPrefs(getDevice().getAddress());
+        final String written = prefs.getString(F91KeplerConstants.PREF_SOUND_CHIME_TONE,
+                String.valueOf(F91KeplerConstants.TONE_CHIME_DEFAULT));
+        final int tone = toneSetting(prefs, F91KeplerConstants.PREF_SOUND_CHIME_TONE,
+                F91KeplerConstants.TONE_CHIME_DEFAULT);
+        transfers.queue("set hourly chime tone", F91KeplerTransfer.SOUNDS, true, builder -> {
+            builder.write(F91KeplerConstants.UUID_CHAR_RECORD,
+                          F91KeplerProtocol.eventTone(F91KeplerConstants.EVENT_HOURLY_CHIME, tone));
+            builder.run(() -> {
+                if (written.equals(prefs.getString(F91KeplerConstants.PREF_SOUND_CHIME_TONE,
+                        String.valueOf(F91KeplerConstants.TONE_CHIME_DEFAULT)))) {
+                    prefs.edit().putBoolean(F91KeplerConstants.PREF_SOUND_CHIME_TONE_DIRTY, false).apply();
+                }
+            });
+            if (play) {
+                builder.write(F91KeplerConstants.UUID_CHAR_RECORD, F91KeplerProtocol.soundPlay((byte) tone));
+            }
+        });
+    }
+
+    /** Plays a just-picked tone once on the watch. */
+    private void previewTone(final int tone) {
+        final TransactionBuilder builder = createTransactionBuilder("preview tone");
+        builder.write(F91KeplerConstants.UUID_CHAR_RECORD, F91KeplerProtocol.soundPlay((byte) tone));
         builder.queue();
     }
 
@@ -910,9 +996,12 @@ public class F91KeplerSupport extends AbstractBTLESingleDeviceSupport {
             got = alarmSounds.clone();
         }
         final SharedPreferences prefs = GBApplication.getDeviceSpecificSharedPrefs(getDevice().getAddress());
-        if (!prefs.getBoolean(F91KeplerConstants.PREF_SOUND_SNOOZE_DIRTY, false)) {
-            // Nothing to write: show the watch's snooze when all five alarms share it
-            // (the companion app can set them one by one).
+        final boolean snoozeDirty = prefs.getBoolean(F91KeplerConstants.PREF_SOUND_SNOOZE_DIRTY, false);
+        final boolean tones = F91KeplerFirmware.hasToneChoice(connectedFw);
+        final boolean toneDirty = tones && prefs.getBoolean(F91KeplerConstants.PREF_SOUND_ALARM_TONE_DIRTY, false);
+        // Not changed here: show the watch's value when all five alarms share it
+        // (the companion app can set them one by one).
+        if (!snoozeDirty) {
             final int first = got[0][1] & 0xFF;
             boolean same = true;
             for (final byte[] p : got) {
@@ -922,6 +1011,19 @@ public class F91KeplerSupport extends AbstractBTLESingleDeviceSupport {
                 evaluateGBDeviceEvent(new GBDeviceEventUpdatePreferences(
                         F91KeplerConstants.PREF_SOUND_SNOOZE, String.valueOf(first)));
             }
+        }
+        if (tones && !toneDirty) {
+            final int first = got[0][0] & 0xFF;
+            boolean same = true;
+            for (final byte[] p : got) {
+                same &= (p[0] & 0xFF) == first;
+            }
+            if (same && F91KeplerConstants.isToneChoice(first)) {
+                evaluateGBDeviceEvent(new GBDeviceEventUpdatePreferences(
+                        F91KeplerConstants.PREF_SOUND_ALARM_TONE, String.valueOf(first)));
+            }
+        }
+        if (!snoozeDirty && !toneDirty) {
             return;
         }
         int parsed;
@@ -930,19 +1032,30 @@ public class F91KeplerSupport extends AbstractBTLESingleDeviceSupport {
         } catch (final NumberFormatException e) {
             parsed = 9;
         }
-        final int minutes = parsed;
-        transfers.queue("set snooze length", F91KeplerTransfer.SOUNDS, true, builder -> {
+        final int minutes = snoozeDirty ? parsed : -1;
+        final String written = String.valueOf(parsed);
+        final String toneWritten = prefs.getString(F91KeplerConstants.PREF_SOUND_ALARM_TONE,
+                String.valueOf(F91KeplerConstants.TONE_ALARM_DEFAULT));
+        final int tone = toneDirty ? toneSetting(prefs, F91KeplerConstants.PREF_SOUND_ALARM_TONE,
+                F91KeplerConstants.TONE_ALARM_DEFAULT) : -1;
+        transfers.queue("set alarm sounds", F91KeplerTransfer.SOUNDS, true, builder -> {
             for (int i = 0; i < got.length; i++) {
-                builder.write(F91KeplerConstants.UUID_CHAR_RECORD, F91KeplerProtocol.alarmSoundSnooze(i, got[i], minutes));
+                builder.write(F91KeplerConstants.UUID_CHAR_RECORD,
+                              F91KeplerProtocol.alarmSoundWrite(i, got[i], tone, minutes));
             }
             // Done only when all five went through: a failed write or a dropped link aborts
             // the transaction before this, and the change stays for the next connect.
-            final String written = String.valueOf(minutes);
             builder.run(() -> {
                 // Changed again while these went out: that change keeps the flag (its own read follows).
-                if (written.equals(prefs.getString(F91KeplerConstants.PREF_SOUND_SNOOZE, "9"))) {
-                    prefs.edit().putBoolean(F91KeplerConstants.PREF_SOUND_SNOOZE_DIRTY, false).apply();
+                final SharedPreferences.Editor e = prefs.edit();
+                if (snoozeDirty && written.equals(prefs.getString(F91KeplerConstants.PREF_SOUND_SNOOZE, "9"))) {
+                    e.putBoolean(F91KeplerConstants.PREF_SOUND_SNOOZE_DIRTY, false);
                 }
+                if (toneDirty && toneWritten.equals(prefs.getString(F91KeplerConstants.PREF_SOUND_ALARM_TONE,
+                        String.valueOf(F91KeplerConstants.TONE_ALARM_DEFAULT)))) {
+                    e.putBoolean(F91KeplerConstants.PREF_SOUND_ALARM_TONE_DIRTY, false);
+                }
+                e.apply();
             });
         });
     }
@@ -1736,6 +1849,7 @@ public class F91KeplerSupport extends AbstractBTLESingleDeviceSupport {
             if (alarmSoundInFlight) {
                 onAlarmSoundRead(null);
             }
+            chimeToneInFlight = false;
         });
         for (int i = 0; i < F91KeplerConstants.ALARM_SLOTS_31; i++) {
             builder.write(F91KeplerConstants.UUID_CHAR_RECORD,
@@ -1771,8 +1885,10 @@ public class F91KeplerSupport extends AbstractBTLESingleDeviceSupport {
         if (!soundWriteKeys.isEmpty() && !soundReadDue()) {
             readSoundCfg();
         }
-        if (has32() && GBApplication.getDeviceSpecificSharedPrefs(getDevice().getAddress())
-                .getBoolean(F91KeplerConstants.PREF_SOUND_SNOOZE_DIRTY, false)) {
+        final SharedPreferences soundPrefs = GBApplication.getDeviceSpecificSharedPrefs(getDevice().getAddress());
+        if (has32() && (soundPrefs.getBoolean(F91KeplerConstants.PREF_SOUND_SNOOZE_DIRTY, false)
+                || (F91KeplerFirmware.hasToneChoice(connectedFw)
+                    && soundPrefs.getBoolean(F91KeplerConstants.PREF_SOUND_ALARM_TONE_DIRTY, false)))) {
             readAlarmSounds();
         }
         final boolean afterRing = alarmReadAfterRing;
@@ -2173,6 +2289,26 @@ public class F91KeplerSupport extends AbstractBTLESingleDeviceSupport {
                 }
                 break;
             }
+            case F91KeplerConstants.PREF_SOUND_ALARM_TONE: {
+                // Like the snooze: read the five alarms, then write each with the new tone.
+                final SharedPreferences prefs = GBApplication.getDeviceSpecificSharedPrefs(getDevice().getAddress());
+                prefs.edit().putBoolean(F91KeplerConstants.PREF_SOUND_ALARM_TONE_DIRTY, true).apply();
+                if (getDevice().isInitialized() && F91KeplerFirmware.hasToneChoice(connectedFw)) {
+                    if (alarmReadGen < 0) {
+                        readAlarmSounds();
+                    }
+                    previewTone(toneSetting(prefs, config, F91KeplerConstants.TONE_ALARM_DEFAULT));
+                }
+                break;
+            }
+            case F91KeplerConstants.PREF_SOUND_CHIME_TONE: {
+                GBApplication.getDeviceSpecificSharedPrefs(getDevice().getAddress()).edit()
+                        .putBoolean(F91KeplerConstants.PREF_SOUND_CHIME_TONE_DIRTY, true).apply();
+                if (getDevice().isInitialized() && F91KeplerFirmware.hasToneChoice(connectedFw)) {
+                    writeChimeTone(true);
+                }
+                break;
+            }
             case F91KeplerConstants.PREF_SOUND_TEST: {
                 if (getDevice().isInitialized() && has32()) {
                     final TransactionBuilder builder = createTransactionBuilder("test sound");
@@ -2253,6 +2389,11 @@ public class F91KeplerSupport extends AbstractBTLESingleDeviceSupport {
                             F91KeplerConstants.PREF_SOUND_TEXT, F91KeplerConstants.PREF_SOUND_LOWBATT,
                             F91KeplerConstants.PREF_SOUND_LOST));
                     markSnoozeDirty();
+                    if (F91KeplerFirmware.hasToneChoice(connectedFw)) {
+                        GBApplication.getDeviceSpecificSharedPrefs(getDevice().getAddress()).edit()
+                                .putBoolean(F91KeplerConstants.PREF_SOUND_ALARM_TONE_DIRTY, true)
+                                .putBoolean(F91KeplerConstants.PREF_SOUND_CHIME_TONE_DIRTY, true).apply();
+                    }
                     if (alarmReadGen < 0) {
                         readSoundCfg();
                         readAlarmSounds();
