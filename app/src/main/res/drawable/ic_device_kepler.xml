@@ -1,25 +1,31 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- The Kepler logo mark (orbit, core, satellite), as on the shop's logo-kepler.svg
-     and the companion app's kepler_mark. Greyed by the device list while offline. -->
+<!-- The Kepler logo mark (company brand/logo/mark.svg): cyan orbit and core, yellow
+     moon with a gap cut around it, scaled from the 235x127 mark to a 40x40 box.
+     The mark's shading is left out at this size. Greyed by the device list while offline. -->
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
     android:width="45sp"
     android:height="45sp"
     android:viewportWidth="40"
     android:viewportHeight="40">
-    <group
-        android:pivotX="20"
-        android:pivotY="20"
-        android:rotation="-22">
+    <group>
+        <!-- The gap: everything but a disc around the moon (non-zero rule, the
+             circle runs against the box). -->
+        <clip-path android:pathData="M0,0H40V40H0Z M30.88,12.31a3.23,3.23 0,1 0,6.46 0a3.23,3.23 0,1 0,-6.46 0z" />
+        <group
+            android:pivotX="20.04"
+            android:pivotY="20"
+            android:rotation="-12">
+            <path
+                android:fillColor="#00000000"
+                android:pathData="M1.69,20a18.35,8.41 0,1 0,36.7 0a18.35,8.41 0,1 0,-36.7 0z"
+                android:strokeWidth="1.46"
+                android:strokeColor="#FF45F3FF" />
+        </group>
         <path
-            android:fillColor="#00000000"
-            android:pathData="M3,20a17,8 0,1 0,34 0a17,8 0,1 0,-34 0z"
-            android:strokeWidth="2"
-            android:strokeColor="#FF6EE7D6" />
+            android:fillColor="#FF45F3FF"
+            android:pathData="M14.7,20a5.34,5.34 0,1 0,10.68 0a5.34,5.34 0,1 0,-10.68 0z" />
     </group>
     <path
-        android:fillColor="#FF6EE7D6"
-        android:pathData="M15.5,20a4.5,4.5 0,1 0,9 0a4.5,4.5 0,1 0,-9 0z" />
-    <path
-        android:fillColor="#FFF5B14C"
-        android:pathData="M32,11a2,2 0,1 0,4 0a2,2 0,1 0,-4 0z" />
+        android:fillColor="#FFFFC400"
+        android:pathData="M31.52,12.31a2.59,2.59 0,1 0,5.18 0a2.59,2.59 0,1 0,-5.18 0z" />
 </vector>
