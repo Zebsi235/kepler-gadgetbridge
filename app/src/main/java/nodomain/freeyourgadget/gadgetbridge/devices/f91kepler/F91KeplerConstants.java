@@ -202,6 +202,14 @@ public final class F91KeplerConstants {
     /** The built-in tones the app offers (arrays.xml f91_sound_tones_values, same order). */
     public static final int[] TONE_CHOICES = {2, 1, 3, 4, 5, 10, 11, 12, 13};
 
+    /** toneRef 0xFF: "the default for that event", what a watch holds until a tone is chosen. */
+    public static final int TONE_EVENT_DEFAULT = 0xFF;
+
+    /** A toneRef as read from the watch, with 0xFF resolved to that event's own tone. */
+    public static int resolveTone(final int toneRef, final int eventDefault) {
+        return toneRef == TONE_EVENT_DEFAULT ? eventDefault : toneRef;
+    }
+
     public static boolean isToneChoice(final int toneRef) {
         for (final int t : TONE_CHOICES) {
             if (t == toneRef) {
