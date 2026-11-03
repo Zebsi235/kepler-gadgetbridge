@@ -148,7 +148,8 @@ public class F91KeplerCoordinator extends AbstractBLEDeviceCoordinator {
         // TransactionBuilder, which showed the user a setting that never took.
         //
         // The 2.x groups are left out only when the version is known to be
-        // older (every shipped watch has them; unknown -> shown). The 3.1 groups
+        // older: they are the 3.0.3 baseline every shipped watch has, which is
+        // what a watch whose version is not known yet is shown. The 3.1 groups
         // are always loaded but start HIDDEN: F91KeplerSettingsCustomizer shows
         // them only once the watch has reported 3.1, and reveals them live when
         // the version arrives while the screen is open. Loading them here is
@@ -169,7 +170,7 @@ public class F91KeplerCoordinator extends AbstractBLEDeviceCoordinator {
         // After devicesettings_f91kepler: its quiet switch depends on the popup
         // switch defined there. Hidden until the watch reports 3.1.
         xml.add(R.xml.devicesettings_f91kepler_31_face);
-        // Hidden until the watch reports 3.2 (F91KeplerSettingsCustomizer.KEYS_32).
+        // Hidden until the watch reports 3.2 (F91KeplerSettingsCustomizer.GATES).
         xml.add(R.xml.devicesettings_f91kepler_32_sound);
         if (!F91KeplerFirmware.knownBelow(fw, F91KeplerFirmware.MIN_ALERTS)) {
             xml.add(R.xml.devicesettings_f91kepler_alerts);
@@ -196,7 +197,7 @@ public class F91KeplerCoordinator extends AbstractBLEDeviceCoordinator {
     public DeviceSpecificSettingsCustomizer getDeviceSpecificSettingsCustomizer(
             @NonNull final GBDevice device) {
         // Opens the image screen, forwards watch-side changes (SEND_KEYS) and
-        // shows the firmware 3.1 groups only on a watch known to run 3.1.
+        // shows each newer group only on a watch known to have it (GATES).
         return new F91KeplerSettingsCustomizer();
     }
 

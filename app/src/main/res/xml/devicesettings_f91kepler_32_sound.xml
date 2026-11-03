@@ -4,7 +4,7 @@
     xmlns:app="http://schemas.android.com/apk/res-auto">
     <!-- Firmware 3.2 sound (Record SOUND_CFG / PLAY). Always loaded by
          F91KeplerCoordinator, shown by F91KeplerSettingsCustomizer only once
-         the watch has reported firmware 3.2.0 or newer (KEYS_32). The switches
+         the watch has reported firmware 3.2.0 or newer (GATES). The switches
          take the watch's values on every connect (silent mode can also be
          switched on the watch); a change writes only these four bits. -->
     <PreferenceCategory

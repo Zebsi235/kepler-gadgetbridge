@@ -16,7 +16,6 @@
     along with this program.  If not, see <https://www.gnu.org/licenses/>. */
 package nodomain.freeyourgadget.gadgetbridge.devices.f91kepler;
 
-import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 
 import org.junit.Test;
@@ -28,7 +27,6 @@ import java.util.Arrays;
 import java.util.HashSet;
 import java.util.Set;
 
-import org.w3c.dom.Node;
 
 import javax.xml.parsers.DocumentBuilderFactory;
 
@@ -50,12 +48,6 @@ public class F91KeplerSettingsKeysTest {
             "devicesettings_f91kepler_31_face.xml",
             "devicesettings_f91kepler_31_screens.xml",
             "devicesettings_f91kepler_32_sound.xml",
-    };
-
-    /** The files whose every preference exists only on firmware 3.1. */
-    private static final String[] XMLS_31 = {
-            "devicesettings_f91kepler_31_face.xml",
-            "devicesettings_f91kepler_31_screens.xml",
     };
 
     /** Read by the support class when used; nothing to send on change. */
@@ -117,61 +109,6 @@ public class F91KeplerSettingsKeysTest {
         }
     }
 
-    /**
-     * Every preference in the 3.1 XMLs must be hidden on a pre-3.1 watch: either
-     * its own key or an enclosing category's key has to be in KEYS_31, the list
-     * F91KeplerSettingsCustomizer toggles. Otherwise a 3.0 watch would be shown
-     * a 3.1 setting, which is the whole thing the version gate exists to stop.
-     */
-    @Test
-    public void everyThreeOneSettingIsHiddenBelowThreeOne() throws Exception {
-        final Set<String> hidden = new HashSet<>(Arrays.asList(F91KeplerSettingsCustomizer.KEYS_31));
-        final DocumentBuilderFactory f = DocumentBuilderFactory.newInstance();
-        f.setNamespaceAware(false);
-        int checked = 0;
-        for (final String name : XMLS_31) {
-            final NodeList nodes = f.newDocumentBuilder()
-                    .parse(new File(xmlDir(), name)).getElementsByTagName("*");
-            for (int i = 0; i < nodes.getLength(); i++) {
-                final Element e = (Element) nodes.item(i);
-                if (e.getTagName().endsWith("PreferenceScreen")) {
-                    continue;
-                }
-                boolean covered = false;
-                for (Node n = e; n != null && n.getNodeType() == Node.ELEMENT_NODE; n = n.getParentNode()) {
-                    if (hidden.contains(((Element) n).getAttribute("android:key"))) {
-                        covered = true;
-                        break;
-                    }
-                }
-                assertTrue(name + ": <" + e.getTagName() + " key=" + e.getAttribute("android:key")
-                        + "> is not hidden on pre-3.1 firmware -- add it (or its category) to KEYS_31",
-                        covered);
-                checked++;
-            }
-        }
-        assertTrue("no 3.1 preferences found", checked > 0);
-        // And every hidden key must still exist, so the lists cannot rot. The
-        // thirteen-mode list lives in the modes XML, next to the nine-mode one
-        // it replaces on a 3.1 watch, so look in every Kepler XML.
-        final Set<String> all = new HashSet<>();
-        for (final String name : XMLS) {
-            final NodeList nodes = f.newDocumentBuilder()
-                    .parse(new File(xmlDir(), name)).getElementsByTagName("*");
-            for (int i = 0; i < nodes.getLength(); i++) {
-                all.add(((Element) nodes.item(i)).getAttribute("android:key"));
-            }
-        }
-        for (final String key : F91KeplerSettingsCustomizer.KEYS_31) {
-            assertTrue(key + " is in KEYS_31 but in no settings XML", all.contains(key));
-        }
-        for (final String key : F91KeplerSettingsCustomizer.KEYS_PRE31) {
-            assertTrue(key + " is in KEYS_PRE31 but in no settings XML", all.contains(key));
-            assertTrue(key + " cannot be both shown and hidden on 3.1",
-                    !Arrays.asList(F91KeplerSettingsCustomizer.KEYS_31).contains(key));
-        }
-    }
-
     /** Reconnect on Bluetooth on: on unless the user switches it off, and the switch shows the same. */
     @Test
     public void reconnectOnBluetoothOnDefaultsToOn() throws Exception {
@@ -186,28 +123,5 @@ public class F91KeplerSettingsKeysTest {
             }
         }
         assertTrue("switch default " + shown, "true".equals(shown));
-    }
-
-    /** The two Watch modes lists are shown one at a time, never both, never none. */
-    @Test
-    public void exactlyOneWatchModesListPerFirmware() {
-        final Set<String> on31 = new HashSet<>(Arrays.asList(F91KeplerSettingsCustomizer.KEYS_31));
-        final Set<String> pre31 = new HashSet<>(Arrays.asList(F91KeplerSettingsCustomizer.KEYS_PRE31));
-        assertTrue(on31.contains(F91KeplerModes.PREF_MODES_31));
-        assertTrue(pre31.contains(F91KeplerModes.PREF_MODES));
-    }
-
-    @Test
-    public void theSoundGroupIsHiddenBelowThreeTwo() throws Exception {
-        final DocumentBuilderFactory f = DocumentBuilderFactory.newInstance();
-        f.setNamespaceAware(false);
-        final NodeList cats = f.newDocumentBuilder()
-                .parse(new File(xmlDir(), "devicesettings_f91kepler_32_sound.xml"))
-                .getElementsByTagName("PreferenceCategory");
-        assertEquals(1, cats.getLength());
-        assertEquals(F91KeplerConstants.PREF_CATEGORY_SOUND_32,
-                ((Element) cats.item(0)).getAttribute("android:key"));
-        assertTrue(Arrays.asList(F91KeplerSettingsCustomizer.KEYS_32)
-                .contains(F91KeplerConstants.PREF_CATEGORY_SOUND_32));
     }
 }

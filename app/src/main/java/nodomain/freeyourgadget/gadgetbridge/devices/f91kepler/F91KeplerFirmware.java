@@ -40,11 +40,12 @@ import java.util.regex.Pattern;
  * Two policies, on purpose. The settings every shipped watch has (the 2.x
  * thresholds: every customer watch runs 3.0.3 or newer) are hidden only when
  * the version is known to be older ({@link #knownBelow}): a device that has
- * never connected shows the base set rather than nothing. The firmware 3.1
- * surface is the other way round ({@link #has31}): it is offered only once the
- * watch has reported 3.1 or newer, so a 3.0 watch -- or one not read yet --
- * is never shown a mode or option it cannot act on. The settings screen
- * reveals it live when the version arrives (F91KeplerSettingsCustomizer).
+ * never connected shows the base set rather than nothing. Everything newer
+ * than that baseline is the other way round ({@link #atLeast}): it is offered
+ * only once the watch has reported a version that has it, so an older watch --
+ * or one not read yet -- is never shown a mode or option it cannot act on, not
+ * even as a hint or a disabled row. F91KeplerSettingsCustomizer.GATES lists each
+ * such setting with its version and reveals it live when the version arrives.
  */
 public final class F91KeplerFirmware {
     private F91KeplerFirmware() {
