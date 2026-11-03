@@ -2390,7 +2390,8 @@
     <string name="f91_weekday_lang_en">English</string>
     <string name="f91_weekday_lang_de">German</string>
     <string name="f91_pref_title_hourly_chime">Hourly chime</string>
-    <string name="f91_pref_summary_hourly_chime">Flash the screen briefly at the top of every hour, like the F-91W\'s hourly beep; from firmware 3.2 it also beeps. Stays dark during sleep times.</string>
+    <string name="f91_pref_summary_hourly_chime">Flash the screen briefly at the top of every hour, like the F-91W\'s hourly beep. Stays dark during sleep times.</string>
+    <string name="f91_pref_summary_hourly_chime_beep">Beep and flash the screen briefly at the top of every hour, like the F-91W\'s hourly beep. Stays dark during sleep times.</string>
     <string name="f91_pref_header_sound">Sounds</string>
     <string name="f91_pref_title_sound_mute">Mute</string>
     <string name="f91_pref_summary_sound_mute">Silences every sound except alarms. Can also be switched on the watch (Info screen, lower-left button). Alarms can be switched off separately on the watch (Info screen, right button).</string>
