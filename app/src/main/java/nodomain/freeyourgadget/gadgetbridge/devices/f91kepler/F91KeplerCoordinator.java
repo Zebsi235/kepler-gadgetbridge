@@ -197,7 +197,7 @@ public class F91KeplerCoordinator extends AbstractBLEDeviceCoordinator {
     public DeviceSpecificSettingsCustomizer getDeviceSpecificSettingsCustomizer(
             @NonNull final GBDevice device) {
         // Opens the image screen, forwards watch-side changes (SEND_KEYS) and
-        // shows the firmware 3.1 groups only on a watch known to run 3.1.
+        // shows each newer group only on a watch known to have it (GATES).
         return new F91KeplerSettingsCustomizer();
     }
 
