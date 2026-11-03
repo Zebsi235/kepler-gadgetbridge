@@ -945,7 +945,7 @@ public class F91KeplerSupport extends AbstractBTLESingleDeviceSupport {
         }
     }
 
-    /** EVENT_TONE 0 from the setting (and, when picked just now, the tone played once). */
+    /** EVENT_TONE 0 from the setting (and, when picked just now, the tone played once after it). */
     private void writeChimeTone(final boolean play) {
         final SharedPreferences prefs = GBApplication.getDeviceSpecificSharedPrefs(getDevice().getAddress());
         final String written = prefs.getString(F91KeplerConstants.PREF_SOUND_CHIME_TONE,
@@ -961,10 +961,11 @@ public class F91KeplerSupport extends AbstractBTLESingleDeviceSupport {
                     prefs.edit().putBoolean(F91KeplerConstants.PREF_SOUND_CHIME_TONE_DIRTY, false).apply();
                 }
             });
-            if (play) {
-                builder.write(F91KeplerConstants.UUID_CHAR_RECORD, F91KeplerProtocol.soundPlay((byte) tone));
-            }
         });
+        if (play) {
+            // Its own transaction: a refused preview (the watch is ringing) is not a failed setting.
+            previewTone(tone);
+        }
     }
 
     /** Plays a just-picked tone once on the watch. */
@@ -2389,11 +2390,9 @@ public class F91KeplerSupport extends AbstractBTLESingleDeviceSupport {
                             F91KeplerConstants.PREF_SOUND_TEXT, F91KeplerConstants.PREF_SOUND_LOWBATT,
                             F91KeplerConstants.PREF_SOUND_LOST));
                     markSnoozeDirty();
-                    if (F91KeplerFirmware.hasToneChoice(connectedFw)) {
-                        GBApplication.getDeviceSpecificSharedPrefs(getDevice().getAddress()).edit()
-                                .putBoolean(F91KeplerConstants.PREF_SOUND_ALARM_TONE_DIRTY, true)
-                                .putBoolean(F91KeplerConstants.PREF_SOUND_CHIME_TONE_DIRTY, true).apply();
-                    }
+                    // A tone is resent only if its own change is still pending (its flag is
+                    // kept until the watch took it); forcing it here would overwrite tones
+                    // the companion app set per alarm or as a melody.
                     if (alarmReadGen < 0) {
                         readSoundCfg();
                         readAlarmSounds();
