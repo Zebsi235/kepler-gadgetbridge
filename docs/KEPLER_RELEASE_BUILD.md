@@ -1,12 +1,13 @@
-# Kepler release build (switched on with v0.95.1-kepler-1)
+# Kepler release build (runbook)
 
-Status: **switched on in rc/v0.95.1-kepler-1** (see "Status" below); the sections
-about the opt-in workflow_dispatch path describe how it was checked first.
+The published Kepler APK is the **release** build (not debuggable), signed with
+the Kepler key. This page says why, what the fork changes for it, how CI builds
+it, and what to check before each release. Developer entry point: `docs/KEPLER.md`.
 
 ## Why
 
-Every APK the fork has published so far is `assembleMainlineDebug`, signed with
-the Kepler key through the *debug* signing config. A debug build is
+Up to v0.94.0-kepler-3 every published APK was `assembleMainlineDebug`, signed
+with the Kepler key through the *debug* signing config. A debug build is
 `android:debuggable="true"`, which means anyone with USB access to an unlocked
 phone can use `adb shell run-as nodomain.freeyourgadget.gadgetbridge` (or
 `adb backup` on older Android) to read the app's private data: the Gadgetbridge
@@ -14,7 +15,7 @@ database with health data and the notification history, preferences, and log
 files. `BuildConfig.DEBUG` is also `true`, which turns on developer-only code
 paths (listed below). A release build closes both.
 
-## What this branch adds
+## What the fork changes
 
 1. `app/build.gradle`: a `keplerRelease` signing config that reads the same
    system properties as the Kepler debug signing config (`kepler_store_file`,
@@ -24,14 +25,9 @@ paths (listed below). A release build closes both.
    behaves exactly as upstream: an unsigned release APK.
    (When the property is set, the `banglejs` flavor's release is also signed with
    the Kepler key; the fork does not build that flavor.)
-2. `.github/workflows/build.yml`: a `workflow_dispatch` input `release_build`
-   (default `false`). When ticked on a manual run, the job additionally runs
-   `assembleMainlineRelease` and uploads the APK as the workflow artifact
-   `kepler-mainline-release`. It is never attached to a GitHub Release. Push,
-   pull request and tag runs are unchanged: the two extra steps are skipped.
-
-Nothing else changes: the debug build, its signing, the unit tests and what CI
-publishes on a `v*` tag are the same as before.
+2. `.github/workflows/build.yml`: builds `assembleMainlineRelease` when the
+   signing secrets are present, else `assembleMainlineDebug` (see "How CI builds
+   it"). The unit tests stay `testMainlineDebugUnitTest`.
 
 ## Same app, same key: updating in place works
 
@@ -65,7 +61,7 @@ release {
   code is exercised minified every night. **The Kepler code is not**: it has
   only ever run in debug (unminified) builds.
 
-This branch does not change any of these settings.
+The fork does not change any of these settings.
 
 ### R8 risk review for the Kepler code
 
@@ -91,10 +87,10 @@ phone + rig check below is for.
 
 ## `BuildConfig.DEBUG` paths that change behaviour
 
-`BuildConfig.DEBUG` is `true` in today's APKs and becomes `false`. None are in
+`BuildConfig.DEBUG` was `true` in the debug-built APKs and is `false` in the release build. None are in
 the Kepler code; the ones that touch a Kepler user:
 
-| Where | Debug (today) | Release |
+| Where | Debug (before) | Release |
 |---|---|---|
 | `service/DeviceCommunicationService.java` (`connectToDevice`, reconnect path) | `stressTestConnect()`: calls `connect()` on a helper object that **catches and logs exceptions** and returns `false` | `deviceSupport.connect()` directly; an exception now reaches the outer `catch`, which disposes the support. Default stress prefs are 0 extra / serial, so normally the same single `connect()` call |
 | `DeviceCommunicationService.java` (`connectToDevice` dispose, `removeDeviceSupport`) | `stressTestDispose()`: `dispose()`, plus a second one if the stress pref is set | plain `dispose()` |
@@ -112,45 +108,33 @@ the Kepler code; the ones that touch a Kepler user:
 The rest (Garmin, Zepp OS, Fossil, Ultrahuman, Xiaomi, OneTouch, PineTime DFU)
 does not affect the Kepler Watch.
 
-## Status
+## How CI builds it
 
-Switched on with v0.95.1-kepler-1: CI builds and publishes the release APK
-whenever the signing key is present (every build in this repository); without
-the key it falls back to the debug build so a fork's PR is still checked, and a
-tag build refuses to publish. The certificate of the first release APK was
-checked against v0.94.0-kepler-3 (identical, SHA-256 C3:3B:9E:5A:...:A0:8E).
+CI builds and publishes the release APK whenever the signing key is present
+(every build in this repository); without the key it falls back to the debug
+build so a fork's PR is still checked, and a tag build refuses to publish. The
+artifact is `kepler-mainline-release` (`Gadgetbridge-Kepler-<version>-vc<code>.apk`).
+A release build also runs lint-vital (`lintVitalAnalyzeRelease`) with
+`abortOnError = true`.
 
-## How it was switched on (kept for reference)
+History: the switch from debug to release builds came with v0.95.1-kepler-1; the
+certificate of the first release APK matched v0.94.0-kepler-3 (SHA-256
+C3:3B:9E:5A:...:A0:8E).
 
-In `.github/workflows/build.yml`, change the build step from
-`./gradlew :app:assembleMainlineDebug --stacktrace` to
-`./gradlew :app:assembleMainlineRelease --stacktrace`, and in "Locate & name the
-APK" change the search path `app/build/outputs/apk/mainline/debug` to
-`app/build/outputs/apk/mainline/release`. Optionally rename the artifact
-`kepler-mainline-debug` to `kepler-mainline-release`. Keep the unit test step
-(`testMainlineDebugUnitTest`) as it is. Then remove the opt-in steps, which are
-redundant afterwards.
+## Steps per release
 
-Note that a release build also runs lint-vital (`lintVitalAnalyzeRelease`) with
-`abortOnError = true`; the opt-in run shows whether it passes before the switch.
-
-Steps:
-
-1. Run the workflow by hand with **release_build** ticked on the branch to be
-   released. Download `kepler-mainline-release` and the matching
-   `kepler-mainline-debug`.
-2. Check the release APK:
-   - `apksigner verify --print-certs Gadgetbridge-Kepler-*-release.apk` and the
-     same for the current public APK: the SHA-256 certificate digests must match.
+1. Download `kepler-mainline-release` from the CI run of the commit to be
+   released (`rc/*` branch).
+2. Check the APK:
+   - `apksigner verify --print-certs Gadgetbridge-Kepler-*.apk` and the same
+     for the current public APK: the SHA-256 certificate digests must match.
    - `aapt dump badging <apk>`: `package: name='nodomain.freeyourgadget.gadgetbridge'`,
      the expected versionCode, and **no** `application-debuggable` line.
-   - The CI log line "Built ... (signed=true)" shows the secrets were present;
-     an unsigned APK (`*-unsigned.apk`) must never be handed out.
-3. Full phone + rig check (below) with the release APK installed **over** the
-   current public debug-built APK, without uninstalling.
-4. Make the workflow change above, bump versionCode as for any release, tag.
-5. Mention it in the release notes: same app, updates in place, logs need
-   "write log files" on.
+   - The CI log line "Built ... (release, signed=true)" shows the secrets were
+     present; an unsigned APK (`*-unsigned.apk`) must never be handed out.
+3. Full phone + rig check (below) with the APK installed **over** the current
+   public APK, without uninstalling.
+4. The owner tags; CI publishes the GitHub Release. Release notes: `docs/KEPLER.md`.
 
 ## Required check before shipping
 
