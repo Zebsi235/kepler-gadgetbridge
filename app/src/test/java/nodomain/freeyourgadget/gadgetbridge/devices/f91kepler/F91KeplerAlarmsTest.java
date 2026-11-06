@@ -38,8 +38,8 @@ public class F91KeplerAlarmsTest {
             assertEquals(pos, a.getPosition());
             assertTrue("slot " + pos + " repeats another slot",
                     seen.add(a.getHour() + ":" + a.getMinute() + "/" + a.getRepetition()));
-            assertFalse(F91KeplerAlarms.isStockDefault(a.getEnabled(), a.getHour(), a.getMinute(),
-                    a.getRepetition(), a.getSmartWakeup(), a.getSnooze(), a.getTitle()));
+            assertFalse("slot " + pos + " is the old stock 06:30 once",
+                    a.getHour() == 6 && a.getMinute() == 30 && a.getRepetition() == 0);
         }
     }
 
