@@ -182,6 +182,10 @@ public class F91KeplerSupport extends AbstractBTLESingleDeviceSupport {
      *  watch reflashed to older firmware since the last connect must never be
      *  sent a characteristic it no longer has. */
     private volatile String connectedFw;
+    /** The firmware revision was read on THIS connection. The device information
+     *  profile keeps the last connection's values, so reports before this read
+     *  can carry the old version (a watch reflashed while away). */
+    private volatile boolean fwRevisionRead;
 
     /** A 4-byte TimeZone write is waiting for its answer (fallback below). */
     private volatile boolean tzWideInFlight;
@@ -243,6 +247,7 @@ public class F91KeplerSupport extends AbstractBTLESingleDeviceSupport {
         // A new connection: forget the previous one's firmware version, so the
         // 3.1 gate (has31) is closed until THIS watch has reported its version.
         connectedFw = null;
+        fwRevisionRead = false;
         tzWideInFlight = false;
         tzWideRefused = false;
         soundCfg = null;
@@ -638,6 +643,11 @@ public class F91KeplerSupport extends AbstractBTLESingleDeviceSupport {
         if (status != BluetoothGatt.GATT_SUCCESS && bondWatch().onOperationStatus(status)) {
             watchStuckLink(gatt);
         }
+        if (DeviceInfoProfile.UUID_CHARACTERISTIC_FIRMWARE_REVISION_STRING.equals(characteristic.getUuid())) {
+            // Before super: the profile reports (handleDeviceInfo) from within it.
+            // A failed read leaves the old value in the profile: keep waiting.
+            fwRevisionRead = status == BluetoothGatt.GATT_SUCCESS;
+        }
         if (F91KeplerConstants.UUID_CHAR_IMAGE_CONTROL.equals(characteristic.getUuid())) {
             reconcileImage(status == BluetoothGatt.GATT_SUCCESS ? value : null);
             return true;
@@ -775,9 +785,12 @@ public class F91KeplerSupport extends AbstractBTLESingleDeviceSupport {
         // The firmware DIS exposes the firmware-revision string (0x2A26) only;
         // hardware revision is absent, so leave versionCmd.hwVersion at its default.
         final String fw = info.getFirmwareRevision();
-        if (fw != null) {
-            versionCmd.fwVersion = fw;
+        // One report per characteristic read, and the profile keeps the last
+        // connection's values: set up once, when THIS watch's version arrives.
+        if (!fwRevisionRead || !F91KeplerFirmware.isNewReport(connectedFw, fw)) {
+            return;
         }
+        versionCmd.fwVersion = fw;
         connectedFw = fw;
         handleGBDeviceEvent(versionCmd);
         resendWideTimezone(fw);
