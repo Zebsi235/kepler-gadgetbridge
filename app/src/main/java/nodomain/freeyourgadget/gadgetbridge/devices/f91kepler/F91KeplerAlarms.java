@@ -16,23 +16,7 @@
     along with this program.  If not, see <https://www.gnu.org/licenses/>. */
 package nodomain.freeyourgadget.gadgetbridge.devices.f91kepler;
 
-import android.content.Context;
-import android.content.Intent;
-import android.content.SharedPreferences;
-
-import androidx.annotation.NonNull;
-import androidx.localbroadcastmanager.content.LocalBroadcastManager;
-
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
-import java.util.List;
-
-import nodomain.freeyourgadget.gadgetbridge.GBApplication;
-import nodomain.freeyourgadget.gadgetbridge.database.DBHelper;
 import nodomain.freeyourgadget.gadgetbridge.entities.Alarm;
-import nodomain.freeyourgadget.gadgetbridge.impl.GBDevice;
-import nodomain.freeyourgadget.gadgetbridge.model.DeviceService;
 
 /**
  * Default alarms for the Kepler watch. The stock default is the same for every
@@ -41,10 +25,10 @@ import nodomain.freeyourgadget.gadgetbridge.model.DeviceService;
  * off (firmware f91_alarms.h, Alarms_reset); the app's list is what it gets.
  * So the defaults stay off and only differ in time and days, in the same
  * order as the iOS app: an everyday choice is one switch away.
+ * Only new rows get them: an alarm already stored is never rewritten, since a
+ * stock-looking 06:30 one-shot may be one the user switches on every night.
  */
 public final class F91KeplerAlarms {
-    private static final Logger LOG = LoggerFactory.getLogger(F91KeplerAlarms.class);
-
     private static final int WEEKDAYS = nodomain.freeyourgadget.gadgetbridge.model.Alarm.ALARM_MON
             | nodomain.freeyourgadget.gadgetbridge.model.Alarm.ALARM_TUE
             | nodomain.freeyourgadget.gadgetbridge.model.Alarm.ALARM_WED
@@ -63,9 +47,6 @@ public final class F91KeplerAlarms {
             {12, 0, ONCE},
     };
 
-    /** Set once the stored stock defaults of a watch were replaced. */
-    static final String PREF_DEFAULTS_SEEDED = "f91_alarm_defaults_seeded";
-
     private F91KeplerAlarms() {
     }
 
@@ -79,47 +60,5 @@ public final class F91KeplerAlarms {
         final int[] d = defaultSlot(position);
         return new Alarm(deviceId, userId, position, false, false, null, false, d[2], d[0], d[1],
                 false, null, null, 0, true);
-    }
-
-    /** True for an alarm still exactly as Gadgetbridge's stock default made it. */
-    public static boolean isStockDefault(final boolean enabled, final int hour, final int minute,
-                                         final int repetition, final boolean smartWakeup,
-                                         final boolean snooze, final String title) {
-        return !enabled && hour == 6 && minute == 30 && repetition == ONCE
-                && !smartWakeup && !snooze && (title == null || title.isEmpty());
-    }
-
-    /**
-     * Once per watch with five slots (firmware 3.1+, version already reported):
-     * stored alarms still at the stock default get this slot's default time and
-     * days. They stay off, and anything the user changed is left alone, so the
-     * watch rings exactly as before. Slots never stored need nothing: the
-     * alarm screen fills them in with {@link #create}.
-     */
-    public static void reseedStockDefaults(@NonNull final Context context, @NonNull final GBDevice device) {
-        final SharedPreferences prefs = GBApplication.getDeviceSpecificSharedPrefs(device.getAddress());
-        if (prefs.getBoolean(PREF_DEFAULTS_SEEDED, false)) {
-            return;
-        }
-        final List<Alarm> alarms = DBHelper.getAlarms(device);
-        int changed = 0;
-        for (final Alarm a : alarms) {
-            if (isStockDefault(a.getEnabled(), a.getHour(), a.getMinute(), a.getRepetition(),
-                    a.getSmartWakeup(), a.getSnooze(), a.getTitle())) {
-                final int[] d = defaultSlot(a.getPosition());
-                a.setHour(d[0]);
-                a.setMinute(d[1]);
-                a.setRepetition(d[2]);
-                DBHelper.store(a);
-                changed++;
-            }
-        }
-        prefs.edit().putBoolean(PREF_DEFAULTS_SEEDED, true).apply();
-        if (changed > 0) {
-            LOG.info("F91 replaced {} untouched stock alarm(s) with the Kepler defaults", changed);
-            // An open alarm list reloads instead of sending its old rows back.
-            LocalBroadcastManager.getInstance(context)
-                    .sendBroadcast(new Intent(DeviceService.ACTION_SAVE_ALARMS));
-        }
     }
 }

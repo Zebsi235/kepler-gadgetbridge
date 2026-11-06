@@ -58,7 +58,6 @@ import nodomain.freeyourgadget.gadgetbridge.deviceevents.GBDeviceEventFindPhone;
 import nodomain.freeyourgadget.gadgetbridge.deviceevents.GBDeviceEventMusicControl;
 import nodomain.freeyourgadget.gadgetbridge.deviceevents.GBDeviceEventNotificationControl;
 import nodomain.freeyourgadget.gadgetbridge.deviceevents.GBDeviceEventVersionInfo;
-import nodomain.freeyourgadget.gadgetbridge.devices.f91kepler.F91KeplerAlarms;
 import nodomain.freeyourgadget.gadgetbridge.devices.f91kepler.F91KeplerConstants;
 import nodomain.freeyourgadget.gadgetbridge.devices.f91kepler.F91KeplerCoordinator;
 import nodomain.freeyourgadget.gadgetbridge.devices.f91kepler.F91KeplerFirmware;
@@ -908,9 +907,6 @@ public class F91KeplerSupport extends AbstractBTLESingleDeviceSupport {
             // The slots last, and only after reading them: a one-shot that rang
             // while the phone was away is off on the watch, and writing the
             // app's list blindly would re-arm it for tomorrow.
-            // Untouched stock alarms (five identical 06:30 rows) get the Kepler
-            // defaults first, once; they are off, so the watch rings as before.
-            F91KeplerAlarms.reseedStockDefaults(getContext(), getDevice());
             readAlarmSlots(true, false);
         }
     }

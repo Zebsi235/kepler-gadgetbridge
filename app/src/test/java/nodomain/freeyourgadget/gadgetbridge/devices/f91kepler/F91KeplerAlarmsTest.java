@@ -50,15 +50,4 @@ public class F91KeplerAlarmsTest {
         assertEquals(0, a.getMinute());
         assertEquals(0x1F, a.getRepetition());
     }
-
-    @Test
-    public void onlyTheUntouchedStockAlarmIsReplaced() {
-        assertTrue(F91KeplerAlarms.isStockDefault(false, 6, 30, 0, false, false, null));
-        assertTrue(F91KeplerAlarms.isStockDefault(false, 6, 30, 0, false, false, ""));
-        assertFalse(F91KeplerAlarms.isStockDefault(true, 6, 30, 0, false, false, null));
-        assertFalse(F91KeplerAlarms.isStockDefault(false, 6, 31, 0, false, false, null));
-        assertFalse(F91KeplerAlarms.isStockDefault(false, 6, 30, 0x1F, false, false, null));
-        assertFalse(F91KeplerAlarms.isStockDefault(false, 6, 30, 0, false, true, null));
-        assertFalse(F91KeplerAlarms.isStockDefault(false, 6, 30, 0, false, false, "Gym"));
-    }
 }
