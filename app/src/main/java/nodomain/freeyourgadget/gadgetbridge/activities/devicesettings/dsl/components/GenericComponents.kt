@@ -23,8 +23,8 @@ import nodomain.freeyourgadget.gadgetbridge.GBApplication
 import nodomain.freeyourgadget.gadgetbridge.R
 import nodomain.freeyourgadget.gadgetbridge.activities.ConfigureWorldClocks
 import nodomain.freeyourgadget.gadgetbridge.activities.devicesettings.DeviceSettingsPreferenceConst
-import nodomain.freeyourgadget.gadgetbridge.activities.devicesettings.DeviceSpecificSettingsScreen
 import nodomain.freeyourgadget.gadgetbridge.activities.devicesettings.dsl.DeviceSettingsScope
+import nodomain.freeyourgadget.gadgetbridge.activities.devicesettings.dsl.InfoSetting
 import nodomain.freeyourgadget.gadgetbridge.activities.devicesettings.dsl.LabeledEntry
 import nodomain.freeyourgadget.gadgetbridge.activities.devicesettings.dsl.Language
 import nodomain.freeyourgadget.gadgetbridge.activities.devicesettings.dsl.ListEntry
@@ -32,6 +32,8 @@ import nodomain.freeyourgadget.gadgetbridge.activities.devicesettings.dsl.ListSe
 import nodomain.freeyourgadget.gadgetbridge.activities.devicesettings.dsl.MultiSelectSetting
 import nodomain.freeyourgadget.gadgetbridge.externalevents.gps.GBLocationService
 import nodomain.freeyourgadget.gadgetbridge.util.Prefs
+import kotlin.Enum
+
 
 /**
  * Adds a language [ListSetting] with key [DeviceSettingsPreferenceConst.PREF_LANGUAGE]. Pass the
@@ -135,26 +137,30 @@ inline fun <reified T> DeviceSettingsScope.multiEnumList(
     )
 }
 
-/**
- * A [nodomain.freeyourgadget.gadgetbridge.activities.devicesettings.dsl.ScreenSetting] for one
- * of the standard [DeviceSpecificSettingsScreen] entries.
- */
-fun DeviceSettingsScope.screen(
-    screen: DeviceSpecificSettingsScreen,
-    @DrawableRes icon: Int,
-    xmlSubScreens: List<Int> = emptyList(),
-    connectedOnly: Boolean = false,
-    visibleWhen: ((Prefs) -> Boolean)? = null,
-    block: DeviceSettingsScope.() -> Unit,
-) {
-    screen(
-        key = screen.key,
-        title = screen.title,
-        icon = icon,
-        xmlSubScreens = xmlSubScreens,
-        connectedOnly = connectedOnly,
-        visibleWhen = visibleWhen,
-        block = block,
+inline fun <reified T> DeviceSettingsScope.enumInfo(
+    key: String,
+    @StringRes title: Int,
+    @DrawableRes icon: Int = 0,
+    defaultValue: T? = null,
+    dependency: String? = null,
+    connectedOnly: Boolean = true,
+    noinline visibleWhen: ((Prefs) -> Boolean)? = null,
+) where T : Enum<T>, T : LabeledEntry {
+    val all = enumValues<T>()
+    items.add(
+        InfoSetting(
+            key = key,
+            title = title,
+            summaryProvider = { context, prefs ->
+                val valuePrefId = prefs.getString(key, null)
+                val value = all.firstOrNull { it.name.lowercase() == valuePrefId } ?: defaultValue
+                context.getString(value?.label ?: R.string.unknown)
+            },
+            icon = icon,
+            dependency = dependency,
+            connectedOnly = connectedOnly,
+            visibleWhen = visibleWhen,
+        )
     )
 }
 
@@ -186,6 +192,33 @@ fun DeviceSettingsScope.prefixNotificationWithAppName() {
     )
 }
 
+/**
+ * Controls whether notifications on the device are removed when they are dismissed on the phone.
+ */
+fun DeviceSettingsScope.autoRemoveNotifications() {
+    switchSetting(
+        key = DeviceSettingsPreferenceConst.PREF_AUTOREMOVE_NOTIFICATIONS,
+        title = R.string.pref_title_autoremove_notifications,
+        summary = R.string.pref_summary_autoremove_notifications,
+        icon = R.drawable.ic_done_all,
+        defaultValue = true,
+        connectedOnly = false,
+    )
+}
+
+/**
+ * Seekbar for controlling vibration strength.
+ */
+fun DeviceSettingsScope.vibrationStrength(default: Int, max: Int) {
+    seekbar(
+        key = "vibration_strength",
+        title = R.string.pref_title_vibration_strength,
+        icon = R.drawable.ic_vibration,
+        defaultValue = default,
+        max = max,
+        showValue = true,
+    )
+}
 /**
  * The switch that controls whether the device clock is kept in sync with the phone.
  */
@@ -239,5 +272,21 @@ fun DeviceSettingsScope.worldClocks() {
         title = R.string.pref_world_clocks_title,
         summary = R.string.pref_world_clocks_summary,
         activityClass = ConfigureWorldClocks::class.java,
+    )
+}
+
+/**
+ * Setting that allows choosing a call rejection method.
+ * Original XML: devicesettings_reject_call_method.xml
+ */
+fun DeviceSettingsScope.rejectCallMethod() {
+    list(
+        key = "call_reject_method",
+        title = R.string.pref_call_rejection_method_title,
+        summary = R.string.pref_call_rejection_method_summary,
+        icon = R.drawable.ic_phone_missed_outline,
+        entriesRes = R.array.call_rejection_methods,
+        entryValuesRes = R.array.call_rejection_methods_values,
+        defaultValue = "reject",
     )
 }

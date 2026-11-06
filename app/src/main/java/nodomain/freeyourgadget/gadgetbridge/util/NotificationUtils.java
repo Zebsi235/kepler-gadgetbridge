@@ -175,35 +175,40 @@ public class NotificationUtils {
         final List<String> ret = new LinkedList<>();
 
         // Get apps for the current user
-        final List<ApplicationInfo> currentUserApps = pm.getInstalledApplications(PackageManager.GET_META_DATA);
+        final List<ApplicationInfo> currentUserApps = pm.getInstalledApplications(0);
         for (final ApplicationInfo app : currentUserApps) {
             ret.add(app.packageName);
         }
 
         // Add all apps from other users (eg. manager profile)
+        for (final LauncherActivityInfo app : getOtherProfileActivities(context)) {
+            final String packageName = app.getApplicationInfo().packageName;
+            if (!ret.contains(packageName)) {
+                ret.add(packageName);
+            }
+        }
+
+        return ret;
+    }
+
+    /**
+     * Returns the launcher activities of the other user profiles, for example a work profile.
+     */
+    @NonNull
+    public static List<LauncherActivityInfo> getOtherProfileActivities(final Context context) {
+        final List<LauncherActivityInfo> ret = new LinkedList<>();
         try {
             final UserHandle currentUser = Process.myUserHandle();
             final LauncherApps launcher = (LauncherApps) context.getSystemService(Context.LAUNCHER_APPS_SERVICE);
             final UserManager um = (UserManager) context.getSystemService(Context.USER_SERVICE);
-            final List<UserHandle> userProfiles = um.getUserProfiles();
-            for (final UserHandle userProfile : userProfiles) {
-                if (userProfile.equals(currentUser)) {
-                    continue;
-                }
-
-                final List<LauncherActivityInfo> userActivityList = launcher.getActivityList(null, userProfile);
-
-                for (final LauncherActivityInfo app : userActivityList) {
-                    final String packageName = app.getApplicationInfo().packageName;
-                    if (!ret.contains(packageName)) {
-                        ret.add(packageName);
-                    }
+            for (final UserHandle userProfile : um.getUserProfiles()) {
+                if (!userProfile.equals(currentUser)) {
+                    ret.addAll(launcher.getActivityList(null, userProfile));
                 }
             }
         } catch (final Exception e) {
             LOG.error("Failed to get apps from other users", e);
         }
-
         return ret;
     }
 

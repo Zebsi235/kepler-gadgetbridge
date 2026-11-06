@@ -50,8 +50,13 @@ Please see the [Features](https://gadgetbridge.org/basics/features/) page on the
 #### Core Team (in order of first code contribution)
 
 * Andreas Shimokawa
-* Carsten Pfeiffer
 * Daniele Gobbetti
+* José Rebelo
+* Arjan Schrijver
+
+### Former Core Contributors (currently inactive)
+
+* Carsten Pfeiffer
 * Petr Vaněk
 
 #### Additional contributors
@@ -73,8 +78,6 @@ Please see the [Features](https://gadgetbridge.org/basics/features/) page on the
 * Taavi Eomäe (iTag)
 * Erik Bloß (TLW64)
 * Yukai Li (Lefun)
-* José Rebelo (Roidmi, Sony Headphones, Miband 7)
-* Arjan Schrijver (Fossil Hybrid HR watchfaces)
 
 ### Contribute
 
@@ -103,7 +106,6 @@ Feel free to open an issue on our issue tracker, but please:
 
 ## Having problems with the Kepler app?
 
-0. Phone crashing during device discovery? Disable Privacy Guard (or similarly named functionality) during discovery.
 1. Open Gadgetbridge's settings and check the option to write log files
 2. Reproduce the problem you encountered
 3. Check the logfile at /sdcard/Android/data/nodomain.freeyourgadget.gadgetbridge/files/gadgetbridge.log

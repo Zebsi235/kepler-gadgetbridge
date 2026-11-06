@@ -55,6 +55,7 @@ public interface DeviceService extends EventHandler {
     String ACTION_APP_CONFIG_SET = PREFIX + ".action.app_config_set";
     String ACTION_APP_REORDER = PREFIX + ".action.app_reorder";
     String ACTION_INSTALL = PREFIX + ".action.install";
+    String ACTION_INSTALL_SESSION = PREFIX + ".action.install_session";
     String ACTION_REBOOT = PREFIX + ".action.reboot";
     String ACTION_FACTORY_RESET = PREFIX + ".action.factory_reset";
     String ACTION_HEARTRATE_TEST = PREFIX + ".action.heartrate_test";
@@ -86,6 +87,7 @@ public interface DeviceService extends EventHandler {
     String ACTION_SET_GPS_LOCATION = PREFIX + ".action.set_gps_location";
     String ACTION_SET_LED_COLOR = PREFIX + ".action.set_led_color";
     String ACTION_POWER_OFF = PREFIX + ".action.power_off";
+    String ACTION_SEND_WATCH_APP_MESSAGE = PREFIX + ".action.send_watch_app_message";
     String ACTION_CAMERA_STATUS_CHANGE = PREFIX + ".action.camera_status_change";
     String ACTION_REQUEST_MUSIC_LIST = PREFIX + ".action.request_music_list";
     String ACTION_REQUEST_MUSIC_OPERATION = PREFIX + ".action.request_music_operation";
@@ -121,6 +123,7 @@ public interface DeviceService extends EventHandler {
     String EXTRA_APP_CONFIG_ID = "app_config_id";
     String EXTRA_URI = "uri";
     String EXTRA_OPTIONS = "options";
+    String EXTRA_INSTALL_SESSION_ID = "install_session_id";
     String EXTRA_CONFIG = "config";
     String EXTRA_ALARMS = "alarms";
     String EXTRA_REMINDERS = "reminders";
@@ -134,6 +137,8 @@ public interface DeviceService extends EventHandler {
     String EXTRA_RECORDED_DATA_TYPES = "data_types";
     String EXTRA_FM_FREQUENCY = "fm_frequency";
     String EXTRA_LED_COLOR = "led_color";
+    String EXTRA_WATCH_APP_ID = "watch_app_id";
+    String EXTRA_WATCH_APP_PAYLOAD = "watch_app_payload";
     String EXTRA_GPS_LOCATION = "gps_location";
     String EXTRA_CAMERA_EVENT = "event";
     String EXTRA_CAMERA_FILENAME = "filename";
@@ -164,6 +169,11 @@ public interface DeviceService extends EventHandler {
      * </p>
      */
     void requestDeviceInfo();
+
+    /**
+     * Starts the install of an {@link nodomain.freeyourgadget.gadgetbridge.install.InstallSession}.
+     */
+    void onInstall(long sessionId);
 
     @Nullable
     GBDevice getDevice();

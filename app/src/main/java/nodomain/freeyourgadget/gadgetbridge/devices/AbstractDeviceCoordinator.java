@@ -49,12 +49,11 @@ import java.util.Collections;
 import java.util.EnumSet;
 import java.util.HashSet;
 import java.util.List;
-import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.regex.Pattern;
 
-import de.greenrobot.dao.AbstractDao;
-import de.greenrobot.dao.Property;
 import nodomain.freeyourgadget.gadgetbridge.GBApplication;
 import nodomain.freeyourgadget.gadgetbridge.GBException;
 import nodomain.freeyourgadget.gadgetbridge.R;
@@ -70,33 +69,25 @@ import nodomain.freeyourgadget.gadgetbridge.capabilities.widgets.WidgetManager;
 import nodomain.freeyourgadget.gadgetbridge.database.DBHandler;
 import nodomain.freeyourgadget.gadgetbridge.devices.cards.DefaultDeviceCardItems;
 import nodomain.freeyourgadget.gadgetbridge.devices.cards.DeviceCardItem;
+import nodomain.freeyourgadget.gadgetbridge.devices.cards.QuickControl;
 import nodomain.freeyourgadget.gadgetbridge.database.DBHelper;
-import nodomain.freeyourgadget.gadgetbridge.database.repository.WorkoutTemplateRepository;
-import nodomain.freeyourgadget.gadgetbridge.entities.AlarmDao;
-import nodomain.freeyourgadget.gadgetbridge.entities.BatteryCurrentSampleDao;
-import nodomain.freeyourgadget.gadgetbridge.entities.BatteryLevelDao;
-import nodomain.freeyourgadget.gadgetbridge.entities.BatteryPowerSampleDao;
-import nodomain.freeyourgadget.gadgetbridge.entities.BatteryTemperatureSampleDao;
-import nodomain.freeyourgadget.gadgetbridge.entities.BatteryVoltageSampleDao;
 import nodomain.freeyourgadget.gadgetbridge.entities.BaseActivitySummary;
 import nodomain.freeyourgadget.gadgetbridge.entities.CyclingSample;
 import nodomain.freeyourgadget.gadgetbridge.entities.DaoSession;
 import nodomain.freeyourgadget.gadgetbridge.entities.Device;
 import nodomain.freeyourgadget.gadgetbridge.entities.DeviceAttributes;
-import nodomain.freeyourgadget.gadgetbridge.entities.DeviceAttributesDao;
+import nodomain.freeyourgadget.gadgetbridge.entities.DeviceDataTables;
 import nodomain.freeyourgadget.gadgetbridge.entities.GenericTrainingLoadAcuteSample;
 import nodomain.freeyourgadget.gadgetbridge.entities.GenericTrainingLoadChronicSample;
-import nodomain.freeyourgadget.gadgetbridge.entities.HealthConnectSleepSessionDao;
-import nodomain.freeyourgadget.gadgetbridge.entities.HealthConnectSyncStateDao;
-import nodomain.freeyourgadget.gadgetbridge.entities.HealthConnectWorkoutSyncFailureDao;
-import nodomain.freeyourgadget.gadgetbridge.entities.InternetFirewallRuleDao;
 import nodomain.freeyourgadget.gadgetbridge.impl.GBDevice;
+import nodomain.freeyourgadget.gadgetbridge.install.InstallHandlerV2;
 import nodomain.freeyourgadget.gadgetbridge.impl.GBDeviceCandidate;
 import nodomain.freeyourgadget.gadgetbridge.model.AbstractNotificationPattern;
 import nodomain.freeyourgadget.gadgetbridge.model.ActivitySample;
 import nodomain.freeyourgadget.gadgetbridge.model.ActivitySummaryParser;
 import nodomain.freeyourgadget.gadgetbridge.model.ActivityTrackProvider;
 import nodomain.freeyourgadget.gadgetbridge.model.Alarm;
+import nodomain.freeyourgadget.gadgetbridge.model.AltitudeSample;
 import nodomain.freeyourgadget.gadgetbridge.model.BatteryConfig;
 import nodomain.freeyourgadget.gadgetbridge.model.BloodPressureSample;
 import nodomain.freeyourgadget.gadgetbridge.model.BodyEnergySample;
@@ -229,7 +220,9 @@ public abstract class AbstractDeviceCoordinator implements DeviceCoordinator {
     }
 
     @Override
-    public final void deleteDevice(final GBDevice gbDevice, boolean deleteFiles) throws GBException {
+    public final void deleteDevice(final GBDevice gbDevice,
+                                   final boolean deleteFiles,
+                                   @Nullable final DeviceDeletionProgress progress) throws GBException {
         LOG.info("Will try to delete device: {}", gbDevice.getName());
         if (gbDevice.isConnected() || gbDevice.isConnecting()) {
             prepareDeviceForDeletion(gbDevice);
@@ -245,36 +238,38 @@ public abstract class AbstractDeviceCoordinator implements DeviceCoordinator {
             prefs.getPreferences().edit().putStringSet(GBPrefs.LAST_DEVICE_ADDRESSES, lastDeviceAddresses).apply();
         }
 
+        LOG.debug("Deleting device shared preferences");
         GBApplication.deleteDeviceSpecificSharedPrefs(gbDevice.getAddress());
 
+        LOG.debug("Will delete devices data from database");
         try (DBHandler dbHandler = GBApplication.acquireDB()) {
-            DaoSession session = dbHandler.getDaoSession();
-            Device device = DBHelper.findDevice(gbDevice, session);
+            final DaoSession session = dbHandler.getDaoSession();
+            final Device device = DBHelper.findDevice(gbDevice, session);
             if (device != null) {
-                deleteDevice(gbDevice, device, session);
-                deleteBy(session.getDeviceAttributesDao(), DeviceAttributesDao.Properties.DeviceId, device.getId());
-                deleteBy(session.getBatteryLevelDao(), BatteryLevelDao.Properties.DeviceId, device.getId());
-                deleteBy(session.getBatteryVoltageSampleDao(), BatteryVoltageSampleDao.Properties.DeviceId, device.getId());
-                deleteBy(session.getBatteryCurrentSampleDao(), BatteryCurrentSampleDao.Properties.DeviceId, device.getId());
-                deleteBy(session.getBatteryPowerSampleDao(), BatteryPowerSampleDao.Properties.DeviceId, device.getId());
-                deleteBy(session.getBatteryTemperatureSampleDao(), BatteryTemperatureSampleDao.Properties.DeviceId, device.getId());
-                deleteBy(session.getAlarmDao(), AlarmDao.Properties.DeviceId, device.getId());
-                deleteBy(session.getHealthConnectSyncStateDao(), HealthConnectSyncStateDao.Properties.DeviceId, device.getId());
-                deleteBy(session.getHealthConnectSleepSessionDao(), HealthConnectSleepSessionDao.Properties.DeviceId, device.getId());
-                deleteBy(session.getHealthConnectWorkoutSyncFailureDao(), HealthConnectWorkoutSyncFailureDao.Properties.DeviceId, device.getId());
-                deleteBy(session.getInternetFirewallRuleDao(), InternetFirewallRuleDao.Properties.DeviceId, device.getId());
-                WorkoutTemplateRepository.INSTANCE.deleteByDevice(session, device.getId());
-                session.getDeviceDao().delete(device);
+                final long deviceId = Objects.requireNonNull(device.getId());
+                LOG.debug("Got device ID from the database = {}", deviceId);
+                session.callInTx(() -> {
+                    LOG.debug("Running device-specific deletion");
+                    deleteDevice(gbDevice, device, session);
+                    LOG.debug("Deleting device from all device-specific tables");
+                    DeviceDataTables.delete(
+                        session.getDatabase(),
+                        deviceId,
+                        progress == null ? null : (done, total) -> progress.onProgress(DeviceDeletionProgress.Stage.DATABASE, done, total)
+                    );
+                    LOG.debug("Deleting device from the DEVICE table");
+                    session.getDeviceDao().delete(device);
+                    return null;
+                });
             } else {
-                LOG.info("device to delete not found in db: {}", gbDevice);
+                LOG.warn("Device to delete not found in db: {}", gbDevice);
             }
         } catch (Exception e) {
             throw new GBException("Error deleting device: " + e.getMessage(), e);
         }
 
-        if (deleteFiles) {
-            deleteDeviceFiles(gbDevice);
-        }
+        deleteDeviceFiles(gbDevice, deleteFiles, progress);
+        LOG.info("Device has been deleted");
     }
 
     /**
@@ -283,26 +278,58 @@ public abstract class AbstractDeviceCoordinator implements DeviceCoordinator {
     protected void prepareDeviceForDeletion(@NonNull final GBDevice gbDevice) throws GBException {
     }
 
-    protected void deleteBy(final AbstractDao<?, ?> dao, final Property property, final Object value) {
-        LOG.debug("Deleting from {} where {}={}", dao.getTablename(), property.columnName, value);
-        dao.queryBuilder().where(property.eq(value)).buildDelete().executeDeleteWithoutDetachingEntities();
-    }
-
-    private void deleteDeviceFiles(final GBDevice gbDevice) {
-        LOG.debug("Deleting device files for {}", gbDevice);
-
-        File export = new File("(export)");
-        try {
-            export = getWritableExportDirectory(gbDevice, false);
-            if (!FileUtils.deleteRecursively(export)) {
-                String message = GBApplication.getContext().getString(R.string.error_deleting_file,
-                    export.getPath());
-                GB.toast(message, Toast.LENGTH_LONG, GB.ERROR);
+    /**
+     * Deletes the cache directory of the device, and the export directory if deleteFiles is true.
+     */
+    private void deleteDeviceFiles(final GBDevice gbDevice,
+                                   final boolean deleteFiles,
+                                   @Nullable final DeviceDeletionProgress progress) {
+        File export = null;
+        if (deleteFiles) {
+            try {
+                export = getWritableExportDirectory(gbDevice, false);
+            } catch (final Exception e) {
+                final String message = GBApplication.getContext().getString(
+                    R.string.error_deleting_file_exception,
+                    "(export)", e.getLocalizedMessage()
+                );
+                GB.toast(message, Toast.LENGTH_LONG, GB.ERROR, e);
             }
-        } catch (Exception e) {
-            String message = GBApplication.getContext().getString(R.string.error_deleting_file_exception,
-                export.getPath(), e.getLocalizedMessage());
-            GB.toast(message, Toast.LENGTH_LONG, GB.ERROR, e);
+        }
+        final File cacheDir = getDeviceCacheDir(gbDevice);
+
+        final int total = (export != null ? FileUtils.countFilesRecursively(export) : 0) +
+            FileUtils.countFilesRecursively(cacheDir);
+        final AtomicInteger done = new AtomicInteger();
+        final Runnable onFileDeleted = progress == null ? null :
+            () -> progress.onProgress(DeviceDeletionProgress.Stage.FILES, done.incrementAndGet(), total);
+        if (progress != null) {
+            progress.onProgress(DeviceDeletionProgress.Stage.FILES, 0, total);
+        }
+
+        if (export != null) {
+            LOG.debug("Deleting device files for {} in {}", gbDevice, export);
+            try {
+                if (!FileUtils.deleteRecursively(export, onFileDeleted)) {
+                    final String message = GBApplication.getContext().getString(
+                        R.string.error_deleting_file,
+                        export.getPath()
+                    );
+                    GB.toast(message, Toast.LENGTH_LONG, GB.ERROR);
+                }
+            } catch (final Exception e) {
+                final String message = GBApplication.getContext().getString(
+                    R.string.error_deleting_file_exception,
+                    export.getPath(),
+                    e.getLocalizedMessage()
+                );
+                GB.toast(message, Toast.LENGTH_LONG, GB.ERROR, e);
+            }
+        }
+
+        LOG.debug("Deleting device cache directory {}", cacheDir);
+        if (!FileUtils.deleteRecursively(cacheDir, onFileDeleted)) {
+            LOG.warn("Failed to delete device cache directory {}", cacheDir);
         }
     }
 
@@ -316,21 +343,6 @@ public abstract class AbstractDeviceCoordinator implements DeviceCoordinator {
      * @throws GBException if there was an error deleting device-specific resources
      */
     protected void deleteDevice(@NonNull GBDevice gbDevice, @NonNull Device device, @NonNull DaoSession session) throws GBException {
-        final Long deviceId = device.getId();
-
-        final Map<AbstractDao<?, ?>, Property> daoMap = getAllDeviceDao(session);
-
-        for (final Map.Entry<AbstractDao<?, ?>, Property> e : daoMap.entrySet()) {
-            deleteBy(e.getKey(), e.getValue(), deviceId);
-        }
-    }
-
-    /**
-     * Returns a map from {@link AbstractDao} to the corresponding Device ID property. All data present
-     * in these tables for a device will be deleted when the device is deleted.
-     */
-    public Map<AbstractDao<?, ?>, Property> getAllDeviceDao(@NonNull final DaoSession session) {
-        return Collections.emptyMap();
     }
 
     @Override
@@ -476,6 +488,12 @@ public abstract class AbstractDeviceCoordinator implements DeviceCoordinator {
 
     @Override
     @Nullable
+    public TimeSampleProvider<? extends AltitudeSample> getAltitudeSampleProvider(GBDevice device, DaoSession session) {
+        return null;
+    }
+
+    @Override
+    @Nullable
     public HydrationSampleProvider getHydrationSampleProvider(final GBDevice device, final DaoSession session) {
         return null;
     }
@@ -489,6 +507,12 @@ public abstract class AbstractDeviceCoordinator implements DeviceCoordinator {
     @Nullable
     public TimeSampleProvider<? extends SleepScoreSample> getSleepScoreProvider(final GBDevice device, final DaoSession session) {
         return null;
+    }
+
+    @Override
+    @NonNull
+    public SleepSessionProvider getSleepSessionProvider(@NonNull final GBDevice device, @NonNull final DaoSession session) {
+        return new DefaultSleepSessionProvider(device, session);
     }
 
     @Override
@@ -562,6 +586,12 @@ public abstract class AbstractDeviceCoordinator implements DeviceCoordinator {
     }
 
     @Override
+    public File getDeviceCacheDir(@NonNull final GBDevice device) {
+        final File devicesDir = new File(GBApplication.getContext().getCacheDir(), "devices");
+        return new File(devicesDir, FileUtils.makeValidFileName(device.getAddress()));
+    }
+
+    @Override
     @Nullable
     public String getAppCacheSortFilename() {
         return null;
@@ -586,6 +616,12 @@ public abstract class AbstractDeviceCoordinator implements DeviceCoordinator {
     @Nullable
     @Override
     public InstallHandler findInstallHandler(final Uri uri, final Bundle options, final Context context) {
+        return null;
+    }
+
+    @Nullable
+    @Override
+    public InstallHandlerV2 findInstallHandlerV2(@NonNull final List<Uri> files, @NonNull final Context context) {
         return null;
     }
 
@@ -631,6 +667,11 @@ public abstract class AbstractDeviceCoordinator implements DeviceCoordinator {
 
     @Override
     public boolean supportsAppsManagement(@NonNull final GBDevice device) {
+        return false;
+    }
+
+    @Override
+    public boolean supportsWatchAppMessages(@NonNull final GBDevice device) {
         return false;
     }
 
@@ -816,6 +857,7 @@ public abstract class AbstractDeviceCoordinator implements DeviceCoordinator {
             supportsSpo2(device) ||
             supportsTemperatureMeasurement(device) ||
             supportsWeightMeasurement(device) ||
+            supportsPointAltitudeMeasurement(device) ||
             supportsHydration(device) ||
             supportsActiveCalories(device) ||
             supportsCyclingData(device) ||
@@ -918,6 +960,11 @@ public abstract class AbstractDeviceCoordinator implements DeviceCoordinator {
 
     @Override
     public boolean supportsWeightMeasurement(@NonNull GBDevice device) {
+        return false;
+    }
+
+    @Override
+    public boolean supportsPointAltitudeMeasurement(@NonNull GBDevice device) {
         return false;
     }
 
@@ -1181,6 +1228,12 @@ public abstract class AbstractDeviceCoordinator implements DeviceCoordinator {
 
     @Nullable
     @Override
+    public CharSequence getPairingHint(final Context context, final GBDeviceCandidate candidate) {
+        return null;
+    }
+
+    @Nullable
+    @Override
     public Class<? extends Activity> getCalibrationActivity() {
         return null;
     }
@@ -1244,14 +1297,43 @@ public abstract class AbstractDeviceCoordinator implements DeviceCoordinator {
 
     @Override
     public boolean supportsNavigation(@NonNull final GBDevice device) {
-        return supportsNotifications(device) &&
+        return supportsAppNotifications(device) &&
             GBApplication.getPrefs().getBoolean(GBPrefs.NAVIGATION_ALLOW_UNSUPPORTED_DEVICES, false);
     }
 
     @Override
-    public boolean supportsNotifications(@NonNull final GBDevice device) {
-        // FIXME override this per-device
-        return true;
+    public boolean supportsAppNotifications(@NonNull final GBDevice device) {
+        return false;
+    }
+
+    @Override
+    public boolean supportsPhoneCalls(@NonNull final GBDevice device) {
+        return false;
+    }
+
+    @Override
+    public boolean supportsCallControl(@NonNull final GBDevice device) {
+        return false;
+    }
+
+    @Override
+    public boolean supportsInternetAccess(@NonNull final GBDevice device) {
+        return false;
+    }
+
+    @Override
+    public boolean supportsSmsReply(@NonNull final GBDevice device) {
+        return false;
+    }
+
+    @Override
+    public boolean supportsPhoneSilentMode(@NonNull final GBDevice device) {
+        return false;
+    }
+
+    @Override
+    public boolean supportsGpsSharing(@NonNull final GBDevice device) {
+        return false;
     }
 
     @Override
@@ -1354,6 +1436,11 @@ public abstract class AbstractDeviceCoordinator implements DeviceCoordinator {
     }
 
     @Override
+    public List<QuickControl> getQuickControls(@NonNull final GBDevice device) {
+        return Collections.emptyList();
+    }
+
+    @Override
     public HeartRateZonesSpec getHeartRateZonesSpec(@NonNull GBDevice device) {
         return null;
     }
@@ -1361,6 +1448,11 @@ public abstract class AbstractDeviceCoordinator implements DeviceCoordinator {
     @Override
     public Set<BarcodeFormat> getSupportedBarcodeFormats(@NonNull final GBDevice device) {
         return Collections.emptySet();
+    }
+
+    @Override
+    public boolean supportsLoyaltyCardsSyncRequest(@NonNull final GBDevice device) {
+        return false;
     }
 
     @Override
