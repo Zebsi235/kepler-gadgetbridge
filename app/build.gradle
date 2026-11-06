@@ -160,12 +160,13 @@ android {
         // Bluetooth is off kept, and the new logo colours on the device icon,
         // 270 the same with the connect setup run once per connection, 271 all
         // of it on the 2026.11.0 base, 272 with the firmware 3.3.4 link fixes
-        // (low-power priority, larger MTU, dismiss from the watch).
+        // (low-power priority, larger MTU, dismiss from the watch), 273 the same
+        // with the text clean-up (English and German) and distinct default alarms.
         // Release tags: v0.92.2-kepler (252), -kepler-2 (253), -kepler-3 (254),
         // v0.94.0-kepler (255), v0.94.0-kepler-2 (256), v0.94.0-kepler-3 (258),
         // v0.95.1-kepler-1 (266), v0.95.1-kepler-2 (267).
         versionName "2026.11.0"
-        versionCode 272
+        versionCode 273
         vectorDrawables.useSupportLibrary = true
         buildConfigField "String", "GIT_HASH_SHORT", "\"${getGitHashShort()}\""
         buildConfigField "String", "GIT_DIRTY_STATUS", "\"${getGitDirtyFlag()}\""

@@ -58,6 +58,7 @@ import nodomain.freeyourgadget.gadgetbridge.deviceevents.GBDeviceEventFindPhone;
 import nodomain.freeyourgadget.gadgetbridge.deviceevents.GBDeviceEventMusicControl;
 import nodomain.freeyourgadget.gadgetbridge.deviceevents.GBDeviceEventNotificationControl;
 import nodomain.freeyourgadget.gadgetbridge.deviceevents.GBDeviceEventVersionInfo;
+import nodomain.freeyourgadget.gadgetbridge.devices.f91kepler.F91KeplerAlarms;
 import nodomain.freeyourgadget.gadgetbridge.devices.f91kepler.F91KeplerConstants;
 import nodomain.freeyourgadget.gadgetbridge.devices.f91kepler.F91KeplerCoordinator;
 import nodomain.freeyourgadget.gadgetbridge.devices.f91kepler.F91KeplerFirmware;
@@ -270,6 +271,8 @@ public class F91KeplerSupport extends AbstractBTLESingleDeviceSupport {
         soundAdopt = false;
         builder.setDeviceState(GBDevice.State.INITIALIZING);
         renameOldDefault();
+        // Untouched stock alarms (five identical 06:30 rows) get the Kepler defaults, once.
+        F91KeplerAlarms.reseedStockDefaults(getDevice());
         if (GBApplication.getPrefs().syncTime()) {
             transfers.add(builder, F91KeplerTransfer.TIME, false, this::addSetTime);
         }
