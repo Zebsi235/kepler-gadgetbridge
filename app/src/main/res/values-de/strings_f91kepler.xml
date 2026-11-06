@@ -8,7 +8,7 @@
     <string name="f91_pref_title_alert_mode">Art des Hinweises</string>
     <string name="f91_pref_title_brightness">Displayhelligkeit</string>
     <string name="f91_pref_header_sleep">Funkpause</string>
-    <string name="f91_pref_summary_sleep">Die Uhr schaltet ihr Bluetooth in diesem Zeitraum aus, um Akku zu sparen. In der Bluetooth-Ansicht der Uhr kannst du es jederzeit wieder einschalten; es bleibt dann bis zum Ende des Zeitraums an.</string>
+    <string name="f91_pref_summary_sleep">Die Uhr schaltet ihr Bluetooth in diesem Zeitraum aus, um die Batterie zu schonen. In der Bluetooth-Ansicht der Uhr kannst du es jederzeit wieder einschalten; es bleibt dann bis zum Ende des Zeitraums an.</string>
     <string name="f91_pref_title_sleep_enabled">Funk nachts aus</string>
     <string name="f91_pref_title_sleep_start">Beginn</string>
     <string name="f91_pref_title_sleep_end">Ende</string>
@@ -58,8 +58,8 @@
     <string name="f91_pref_summary_sound_call">Piepen bei eingehendem Anruf.</string>
     <string name="f91_pref_title_sound_text">Nachrichtentöne</string>
     <string name="f91_pref_summary_sound_text">Piepen, wenn eine Benachrichtigung eintrifft.</string>
-    <string name="f91_pref_title_sound_lowbatt">Ton bei schwachem Akku</string>
-    <string name="f91_pref_summary_sound_lowbatt">Einmal piepen, wenn der Akku schwach wird.</string>
+    <string name="f91_pref_title_sound_lowbatt">Ton bei schwacher Batterie</string>
+    <string name="f91_pref_summary_sound_lowbatt">Einmal piepen, wenn die Batterie schwach wird.</string>
     <string name="f91_pref_title_sound_alarm_tone">Weckton</string>
     <string name="f91_pref_title_sound_chime_tone">Ton des Stundensignals</string>
     <string name="f91_tone_double_beep">Doppelpiep (klassisches Stundensignal)</string>
