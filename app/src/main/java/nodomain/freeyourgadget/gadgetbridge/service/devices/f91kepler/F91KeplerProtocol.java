@@ -343,15 +343,41 @@ final class F91KeplerProtocol {
      */
     static byte[] notificationEntry(final int slot, final int total,
                                     final String app, final String sender) {
+        return notificationEntry(slot, total, app, sender, 0);
+    }
+
+    /**
+     * The same with a dismiss token (firmware 3.3.4): token 1-255 sets bit 7 of
+     * total and goes right after appLen, {@code [slot][total|0x80][appLen][token][app][sender]};
+     * the watch echoes it in NotificationDismiss. Token 0 writes the old layout,
+     * which is the only one a watch without NotificationDismiss understands.
+     */
+    static byte[] notificationEntry(final int slot, final int total,
+                                    final String app, final String sender, final int token) {
         final byte[] appB = truncateUtf8(app == null ? "" : app, NOTIF_APP_MAX);
         final byte[] senB = truncateUtf8(sender == null ? "" : sender, NOTIF_SENDER_MAX);
+        final boolean withToken = (token & 0xFF) != 0;
         final ByteArrayOutputStream out = new ByteArrayOutputStream();
         out.write(slot & 0xFF);
-        out.write(total & 0xFF);
+        out.write((total & 0x7F) | (withToken ? 0x80 : 0));
         out.write(appB.length & 0xFF);
+        if (withToken) {
+            out.write(token & 0xFF);
+        }
         out.write(appB, 0, appB.length);
         out.write(senB, 0, senB.length);
         return out.toByteArray();
+    }
+
+    /**
+     * NotificationDismiss notify (A2F5): {@code [slot][token]}. Returns the token
+     * (1-255), or 0 when the value is too short or carries no token.
+     */
+    static int dismissToken(final byte[] value) {
+        if (value == null || value.length < 2) {
+            return 0;
+        }
+        return value[1] & 0xFF;
     }
 
     /**

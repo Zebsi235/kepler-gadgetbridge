@@ -41,6 +41,13 @@ public final class F91KeplerConstants {
     public static final UUID UUID_CHAR_INCOMING_TEXT = base("A2F3");
     // NotificationEntry (history feed, write-only): [slot][total][appLen][app][sender].
     public static final UUID UUID_CHAR_NOTIFICATION_ENTRY = base("A2F4");
+    // NotificationDismiss (notify, firmware 3.3.4): [slot][token] when the user
+    // dismisses a history entry on the watch. A watch that has it also takes a
+    // token in NotificationEntry (bit 7 of total, the token after appLen).
+    public static final UUID UUID_CHAR_NOTIFICATION_DISMISS = base("A2F5");
+    /** ATT MTU asked for after the connect setup; the watch answers with what its
+     *  heap allows (23 on firmware before 3.3.4), and that is what is used. */
+    public static final int MTU_REQUEST = 247;
 
     // Clock Service: time (uint32 LE epoch), timezone (int16 LE seconds west),
     // time mode (0=12h/1=24h), DST (0/1), alarm time (uint32 LE absolute epoch,

@@ -285,6 +285,28 @@ public class F91KeplerProtocolTest {
     }
 
     @Test
+    public void notificationEntry_withTokenSetsBit7AndPutsTokenAfterAppLen() {
+        assertArrayEquals(
+                new byte[]{1, (byte) 0x82, 4, 7, 'C', 'h', 'a', 't', 'J', 'o'},
+                F91KeplerProtocol.notificationEntry(1, 2, "Chat", "Jo", 7));
+    }
+
+    @Test
+    public void notificationEntry_tokenZeroKeepsOldLayout() {
+        assertArrayEquals(
+                F91KeplerProtocol.notificationEntry(0, 2, "Chat", "John"),
+                F91KeplerProtocol.notificationEntry(0, 2, "Chat", "John", 0));
+    }
+
+    @Test
+    public void dismissToken_readsSecondByte() {
+        assertEquals(9, F91KeplerProtocol.dismissToken(new byte[]{2, 9}));
+        assertEquals(255, F91KeplerProtocol.dismissToken(new byte[]{0, (byte) 0xFF}));
+        assertEquals(0, F91KeplerProtocol.dismissToken(new byte[]{2}));
+        assertEquals(0, F91KeplerProtocol.dismissToken(null));
+    }
+
+    @Test
     public void notificationEntry_emptyClearsList() {
         assertArrayEquals(new byte[]{0, 0, 0},
                 F91KeplerProtocol.notificationEntry(0, 0, "", ""));
