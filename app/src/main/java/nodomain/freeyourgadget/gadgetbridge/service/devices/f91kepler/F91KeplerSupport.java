@@ -775,9 +775,11 @@ public class F91KeplerSupport extends AbstractBTLESingleDeviceSupport {
         // The firmware DIS exposes the firmware-revision string (0x2A26) only;
         // hardware revision is absent, so leave versionCmd.hwVersion at its default.
         final String fw = info.getFirmwareRevision();
-        if (fw != null) {
-            versionCmd.fwVersion = fw;
+        // One report per characteristic read: set up once, when the version first arrives.
+        if (!F91KeplerFirmware.isNewReport(connectedFw, fw)) {
+            return;
         }
+        versionCmd.fwVersion = fw;
         connectedFw = fw;
         handleGBDeviceEvent(versionCmd);
         resendWideTimezone(fw);
