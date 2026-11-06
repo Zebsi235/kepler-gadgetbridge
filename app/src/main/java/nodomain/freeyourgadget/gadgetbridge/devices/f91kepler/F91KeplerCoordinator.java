@@ -127,6 +127,13 @@ public class F91KeplerCoordinator extends AbstractBLEDeviceCoordinator {
     }
 
     @Override
+    public boolean supportsConnectionPriority() {
+        // The support asks for low power itself after the connect setup (the
+        // watch's battery on a phone link); the generic toggle would do nothing.
+        return false;
+    }
+
+    @Override
     public boolean supportsPhoneCalls(@NonNull final GBDevice device) {
         // Incoming-call popup (onSetCallState); without it the call receiver is not registered.
         return true;

@@ -297,10 +297,6 @@ public class F91KeplerSupport extends AbstractBTLESingleDeviceSupport {
         // The watch pushes an AlertEvent when its timer expires or its alarm
         // fires, so this phone can ring/vibrate as a backup (issue #209).
         builder.notify(F91KeplerConstants.UUID_CHAR_ALERT_EVENT, true);
-        // A history entry dismissed on the watch (firmware 3.3.4).
-        if (hasDismissNotify()) {
-            builder.notify(F91KeplerConstants.UUID_CHAR_NOTIFICATION_DISMISS, true);
-        }
         // Re-push the cached weather on connect: the watch's weather is volatile
         // (RAM only, wiped on reset/reconnect), and GB otherwise only sends on a
         // weather refresh -- so without this a reconnect leaves the slot empty
@@ -330,6 +326,11 @@ public class F91KeplerSupport extends AbstractBTLESingleDeviceSupport {
      */
     private void queueLinkParameters() {
         final TransactionBuilder b = createTransactionBuilder("link parameters");
+        // A history entry dismissed on the watch (firmware 3.3.4); here, so a
+        // failed subscription cannot cut the connect setup short.
+        if (hasDismissNotify()) {
+            b.notify(F91KeplerConstants.UUID_CHAR_NOTIFICATION_DISMISS, true);
+        }
         b.requestMtu(F91KeplerConstants.MTU_REQUEST);
         b.requestConnectionPriority(BluetoothGatt.CONNECTION_PRIORITY_LOW_POWER);
         b.queue();
@@ -1521,8 +1522,10 @@ public class F91KeplerSupport extends AbstractBTLESingleDeviceSupport {
 
     /**
      * The user dismissed a history entry on the watch: dismiss the phone
-     * notification it stands for. Its removal then comes back through
-     * onDeleteNotification and updates the watch's list and mark.
+     * notification it stands for, and drop it here right away. Not every entry
+     * can be dismissed on the phone (an ongoing one, an SMS, one the listener no
+     * longer knows), and its entry must not come back on the next push; when the
+     * phone does dismiss it, the second removal finds nothing to do.
      */
     private void handleWatchDismiss(final byte[] value) {
         final int token = F91KeplerProtocol.dismissToken(value);
@@ -1547,6 +1550,8 @@ public class F91KeplerSupport extends AbstractBTLESingleDeviceSupport {
         ev.event = GBDeviceEventNotificationControl.Event.DISMISS;
         ev.handle = id;
         handleGBDeviceEvent(ev);
+        final int dismissed = id;
+        alertHandler.post(() -> onDeleteNotification(dismissed));   // main thread, like GB's own removals
     }
 
     private void removeRecent(final int id) {
