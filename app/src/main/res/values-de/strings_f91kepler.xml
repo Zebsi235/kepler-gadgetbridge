@@ -18,7 +18,7 @@
     <string name="f91_brightness_bright">Hell</string>
     <string name="f91_brightness_max">Maximal</string>
     <string name="f91_pref_title_notification_popup">Absender als Vollbild-Popup anzeigen</string>
-    <string name="f91_pref_summary_notification_popup">Bei jeder Benachrichtigung kurz den Namen des Absenders im Vollbild auf der Uhr zeigen, zusätzlich zu seinem Symbol in der Symbolzeile.</string>
+    <string name="f91_pref_summary_notification_popup">Bei jeder Benachrichtigung kurz den Namen des Absenders im Vollbild auf der Uhr zeigen, zusätzlich zum Symbol in der Symbolzeile.</string>
     <string name="f91_pref_header_modes">Uhrmodi</string>
     <string name="f91_pref_summary_modes">Wähle die gewünschten Modi und ziehe sie in die Reihenfolge, in der die obere linke Taste sie durchschaltet. Das Zifferblatt steht immer an erster Stelle.</string>
     <string name="f91_pref_summary_modes_31">Wähle die gewünschten Modi und ziehe sie in die Reihenfolge, in der die obere linke Taste sie durchschaltet. Das Zifferblatt steht immer an erster Stelle. Ein Zähler erscheint, sobald er einen Namen hat.</string>

@@ -93,8 +93,8 @@ public final class F91KeplerAlarms {
      * Once per watch with five slots (firmware 3.1+, version already reported):
      * stored alarms still at the stock default get this slot's default time and
      * days. They stay off, and anything the user changed is left alone, so the
-     * watch rings exactly as before. Until all five rows are stored it is
-     * simply tried again on the next connect.
+     * watch rings exactly as before. Slots never stored need nothing: the
+     * alarm screen fills them in with {@link #create}.
      */
     public static void reseedStockDefaults(@NonNull final Context context, @NonNull final GBDevice device) {
         final SharedPreferences prefs = GBApplication.getDeviceSpecificSharedPrefs(device.getAddress());
@@ -102,9 +102,6 @@ public final class F91KeplerAlarms {
             return;
         }
         final List<Alarm> alarms = DBHelper.getAlarms(device);
-        if (alarms.size() < F91KeplerConstants.ALARM_SLOTS_31) {
-            return;
-        }
         int changed = 0;
         for (final Alarm a : alarms) {
             if (isStockDefault(a.getEnabled(), a.getHour(), a.getMinute(), a.getRepetition(),
