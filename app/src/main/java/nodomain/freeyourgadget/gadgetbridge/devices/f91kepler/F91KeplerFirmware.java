@@ -177,4 +177,14 @@ public final class F91KeplerFirmware {
     public static boolean hasToneChoice(@Nullable final String firmware) {
         return atLeast(firmware, MIN_TONE_CHOICE);
     }
+
+    /**
+     * Whether a device-information report starts this connection's setup. The
+     * profile reports once per characteristic it reads, so the same version
+     * arrives several times per connect (and the first reports have none yet):
+     * only the first report with a version, or a different one, counts.
+     */
+    public static boolean isNewReport(@Nullable final String connected, @Nullable final String reported) {
+        return reported != null && !reported.equals(connected);
+    }
 }

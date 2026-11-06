@@ -139,4 +139,17 @@ public class F91KeplerFirmwareTest {
         assertFalse(F91KeplerFirmware.atLeast("3.3.1-rc2", min));
         assertFalse(F91KeplerFirmware.atLeast(null, min));
     }
+
+    @Test
+    public void connectSetupStartsOncePerVersionReport() {
+        // Reports before the firmware revision was read carry no version.
+        assertFalse(F91KeplerFirmware.isNewReport(null, null));
+        // The first report with the version starts the setup ...
+        assertTrue(F91KeplerFirmware.isNewReport(null, "3.3.2-bl"));
+        // ... later reports of the same connection (another characteristic read) do not.
+        assertFalse(F91KeplerFirmware.isNewReport("3.3.2-bl", "3.3.2-bl"));
+        assertFalse(F91KeplerFirmware.isNewReport("3.3.2-bl", null));
+        // A different version (not expected within one connection) is taken.
+        assertTrue(F91KeplerFirmware.isNewReport("3.1.24-bl", "3.3.2-bl"));
+    }
 }
