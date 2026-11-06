@@ -2592,7 +2592,7 @@
     <string name="f91_modes_dropped">Not all modes fit: the watch shows at most %2$d besides the clock face. Left out: %1$d.</string>
     <string name="f91_pref_header_image">Image</string>
     <string name="f91_pref_title_image">Upload image</string>
-    <string name="f91_pref_summary_image">Convert a photo for the watch\'s black-and-white screen and show it on the watch\'s Image screen.</string>
+    <string name="f91_pref_summary_image">Convert a photo for the black-and-white display and show it on the watch\'s Image screen.</string>
     <string name="f91_image_choose">Choose image…</string>
     <string name="f91_image_send">Send to watch</string>
     <string name="f91_image_crop_hint">Pinch to zoom, drag to position</string>
