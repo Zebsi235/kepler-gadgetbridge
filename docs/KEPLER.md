@@ -51,6 +51,11 @@ Codeberg style (like upstream's changelog), plain user-facing lines, one
 note starts with **"Built on Gadgetbridge <base>"** (link to upstream), then
 the version and versionCode, then which watch firmware it is for.
 
+The notes live in `docs/release-notes/<tag>.md` (e.g.
+`docs/release-notes/v2026.11.0-kepler.md`) and must be in the tagged commit:
+CI publishes that file as the release body and refuses to publish without it.
+GitHub's generated notes are off (they add "by @user" lines).
+
 ## Build and CI
 
 - Never build on the station Pi (guard hook). Local gradle builds: zitadelle
