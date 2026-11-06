@@ -49,7 +49,8 @@
     <string name="f91_pref_title_second_zone_id">Zone</string>
     <string name="f91_pref_title_second_zone_name">Kürzel auf der Uhr</string>
     <string name="f91_pref_summary_second_zone_name">%1$s. Drei Buchstaben A bis Z; leer lassen für das Kürzel aus der Zone.</string>
-    <string name="f91_pref_summary_hourly_chime">Das Display zu jeder vollen Stunde kurz aufblitzen lassen, wie beim Stundensignal der F-91W; ab Firmware 3.2 piept die Uhr zusätzlich. Während der Funkpause bleibt es aus.</string>
+    <string name="f91_pref_summary_hourly_chime">Das Display zu jeder vollen Stunde kurz aufblitzen lassen, wie beim Stundensignal der F-91W. Während der Funkpause bleibt es aus.</string>
+    <string name="f91_pref_summary_hourly_chime_beep">Zu jeder vollen Stunde kurz piepen und das Display aufblitzen lassen, wie beim Stundensignal der F-91W. Während der Funkpause bleibt das Display aus.</string>
     <string name="f91_pref_header_sound">Töne</string>
     <string name="f91_pref_title_sound_mute">Stumm</string>
     <string name="f91_pref_summary_sound_mute">Schaltet alle Töne außer Weckern stumm. Lässt sich auch auf der Uhr umschalten (Info-Bildschirm, Taste unten links). Wecker lassen sich auf der Uhr getrennt ausschalten (Info-Bildschirm, rechte Taste).</string>
@@ -59,6 +60,17 @@
     <string name="f91_pref_summary_sound_text">Piepen, wenn eine Benachrichtigung eintrifft.</string>
     <string name="f91_pref_title_sound_lowbatt">Ton bei schwachem Akku</string>
     <string name="f91_pref_summary_sound_lowbatt">Einmal piepen, wenn der Akku schwach wird.</string>
+    <string name="f91_pref_title_sound_alarm_tone">Weckton</string>
+    <string name="f91_pref_title_sound_chime_tone">Ton des Stundensignals</string>
+    <string name="f91_tone_double_beep">Doppelpiep (F-91W-Stundensignal)</string>
+    <string name="f91_tone_beep">Piep</string>
+    <string name="f91_tone_alarm">Alarm (F-91W)</string>
+    <string name="f91_tone_ring">Klingeln</string>
+    <string name="f91_tone_find">Suchton</string>
+    <string name="f91_tone_elise">Für Elise</string>
+    <string name="f91_tone_rising">Aufsteigende Melodie</string>
+    <string name="f91_tone_falling">Absteigende Melodie</string>
+    <string name="f91_tone_buzz">Tiefes Brummen</string>
     <string name="f91_pref_title_sound_test">Ton auf der Uhr testen</string>
     <string name="f91_pref_summary_sound_test">Spielt einen Piepton auf der Uhr ab.</string>
     <string name="f91_pref_header_screens_31">Zähler</string>

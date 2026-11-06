@@ -5,8 +5,12 @@ import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
+import android.content.res.ColorStateList
+import android.net.Uri
 import android.os.Bundle
 import android.view.LayoutInflater
+import android.view.Menu
+import android.view.MenuItem
 import android.view.View
 import android.view.ViewGroup
 import android.widget.EditText
@@ -17,10 +21,12 @@ import android.widget.Toast
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.viewModels
 import androidx.appcompat.widget.PopupMenu
+import androidx.core.content.ContextCompat
 import androidx.lifecycle.lifecycleScope
 import androidx.localbroadcastmanager.content.LocalBroadcastManager
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
+import com.google.android.material.color.MaterialColors
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -32,10 +38,15 @@ import nodomain.freeyourgadget.gadgetbridge.database.repository.WorkoutTemplateR
 import nodomain.freeyourgadget.gadgetbridge.databinding.ActivityWorkoutTemplateListBinding
 import nodomain.freeyourgadget.gadgetbridge.impl.GBDevice
 import nodomain.freeyourgadget.gadgetbridge.model.ActivityKind
+import nodomain.freeyourgadget.gadgetbridge.model.workouts.WorkoutSyncStatus
 import nodomain.freeyourgadget.gadgetbridge.model.workouts.WorkoutTemplate
+import nodomain.freeyourgadget.gadgetbridge.model.workouts.spec.WorkoutTemplateExporter
+import nodomain.freeyourgadget.gadgetbridge.model.workouts.spec.WorkoutTemplateImporter
 import nodomain.freeyourgadget.gadgetbridge.model.workouts.spec.WorkoutTemplateSpec
+import nodomain.freeyourgadget.gadgetbridge.util.AndroidUtils
 import nodomain.freeyourgadget.gadgetbridge.util.GB
 import nodomain.freeyourgadget.gadgetbridge.util.kotlin.getParcelableCompat
+import org.slf4j.LoggerFactory
 
 /**
  * Lists the [WorkoutTemplate]s of [device]. A template that the [WorkoutTemplateSpec] does not
@@ -49,6 +60,10 @@ class WorkoutTemplateListActivity : AbstractGBActivity() {
 
     private val editLauncher = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) {
         refresh()
+    }
+
+    private val importLauncher = registerForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+        if (uri != null) importFile(uri)
     }
 
     private val syncStateReceiver = object : BroadcastReceiver() {
@@ -99,6 +114,21 @@ class WorkoutTemplateListActivity : AbstractGBActivity() {
         }
 
         refresh()
+    }
+
+    override fun onCreateOptionsMenu(menu: Menu): Boolean {
+        if (::spec.isInitialized && spec.importer != null) {
+            menu.add(0, MENU_IMPORT, 0, R.string.file_import)
+        }
+        return super.onCreateOptionsMenu(menu)
+    }
+
+    override fun onOptionsItemSelected(item: MenuItem): Boolean {
+        if (item.itemId == MENU_IMPORT) {
+            launchImport()
+            return true
+        }
+        return super.onOptionsItemSelected(item)
     }
 
     override fun onResume() {
@@ -166,6 +196,77 @@ class WorkoutTemplateListActivity : AbstractGBActivity() {
         )
     }
 
+    private fun share(item: WorkoutTemplateListItem, exporter: WorkoutTemplateExporter) {
+        lifecycleScope.launch {
+            val file = withContext(Dispatchers.IO) {
+                exporter.export(item.template)
+            }
+            if (file == null) {
+                LOG.error("Failed to export workout template {}", item.template.id)
+                GB.toast(
+                    this@WorkoutTemplateListActivity,
+                    getString(R.string.workout_template_share_failed),
+                    Toast.LENGTH_LONG,
+                    GB.ERROR
+                )
+                return@launch
+            }
+            LOG.debug("Sharing workout template {} as {} ({} bytes)", item.template.id, file.name, file.bytes.size)
+            try {
+                AndroidUtils.shareBytesAsFile(this@WorkoutTemplateListActivity, file.name, file.bytes, file.mimeType)
+            } catch (e: Exception) {
+                GB.toast(
+                    this@WorkoutTemplateListActivity,
+                    getString(R.string.workout_template_share_failed),
+                    Toast.LENGTH_LONG,
+                    GB.ERROR,
+                    e
+                )
+            }
+        }
+    }
+
+    private fun launchImport() {
+        importLauncher.launch(arrayOf("application/json"))
+    }
+
+    private fun importFile(uri: Uri) {
+        val importer = if (::spec.isInitialized) spec.importer else null
+        if (importer == null) return
+        lifecycleScope.launch {
+            val template = withContext(Dispatchers.IO) { readTemplate(uri, importer) }
+            if (template == null) {
+                GB.toast(
+                    this@WorkoutTemplateListActivity,
+                    getString(R.string.workout_template_import_failed),
+                    Toast.LENGTH_LONG,
+                    GB.ERROR
+                )
+                return@launch
+            }
+            val saved = withContext(Dispatchers.IO) {
+                WorkoutTemplateRepository.save(template.copy(id = null, vendorId = spec.vendorId), device)
+            }
+            if (saved == null) {
+                GB.toast(
+                    this@WorkoutTemplateListActivity,
+                    getString(R.string.workout_template_save_failed),
+                    Toast.LENGTH_LONG,
+                    GB.ERROR
+                )
+                return@launch
+            }
+            refresh()
+        }
+    }
+
+    private fun readTemplate(uri: Uri, importer: WorkoutTemplateImporter): WorkoutTemplate? = try {
+        contentResolver.openInputStream(uri)?.use { it.readBytes() }?.let { importer.import(it) }
+    } catch (e: Exception) {
+        LOG.error("Failed to read workout template", e)
+        null
+    }
+
     private fun confirmDelete(item: WorkoutTemplateListItem) {
         val id = item.template.id ?: return
         MaterialAlertDialogBuilder(this)
@@ -199,7 +300,11 @@ class WorkoutTemplateListActivity : AbstractGBActivity() {
         }
         popup.menu.add(0, MENU_EDIT, 1, R.string.appmanager_app_edit)
         popup.menu.add(0, MENU_DUPLICATE, 2, R.string.widgets_duplicate)
-        popup.menu.add(0, MENU_DELETE, 3, R.string.delete)
+        val exporter = spec.exporter
+        if (item.supported && exporter != null) {
+            popup.menu.add(0, MENU_SHARE, 3, R.string.share)
+        }
+        popup.menu.add(0, MENU_DELETE, 4, R.string.delete)
         popup.setOnMenuItemClickListener { menuItem ->
             when (menuItem.itemId) {
                 MENU_SYNC -> {
@@ -214,6 +319,11 @@ class WorkoutTemplateListActivity : AbstractGBActivity() {
 
                 MENU_DUPLICATE -> {
                     duplicate(item)
+                    true
+                }
+
+                MENU_SHARE -> {
+                    exporter?.let { share(item, it) }
                     true
                 }
 
@@ -242,6 +352,7 @@ class WorkoutTemplateListActivity : AbstractGBActivity() {
             val name: TextView = view.findViewById(R.id.workout_template_name)
             val summary: TextView = view.findViewById(R.id.workout_template_summary)
             val syncStatus: TextView = view.findViewById(R.id.workout_template_sync_status)
+            val syncStatusDot: View = view.findViewById(R.id.workout_template_sync_status_dot)
             val sync: ImageButton = view.findViewById(R.id.workout_template_sync)
             val overflow: ImageButton = view.findViewById(R.id.workout_template_overflow)
         }
@@ -268,6 +379,19 @@ class WorkoutTemplateListActivity : AbstractGBActivity() {
             } else {
                 holder.syncStatus.text = context.getString(R.string.workout_template_unsupported)
             }
+            val dotColor = when {
+                !item.supported -> null
+                item.syncStatus == WorkoutSyncStatus.SYNCED -> R.color.device_status_connected
+                item.syncStatus == WorkoutSyncStatus.FAILED -> R.color.device_status_busy
+                item.syncStatus == WorkoutSyncStatus.OUT_OF_DATE ||
+                    item.syncStatus == WorkoutSyncStatus.IN_PROGRESS -> R.color.device_status_connecting
+
+                else -> null
+            }
+            holder.syncStatusDot.backgroundTintList = ColorStateList.valueOf(
+                dotColor?.let { ContextCompat.getColor(context, it) }
+                    ?: MaterialColors.getColor(holder.syncStatusDot, R.attr.textColorSecondary)
+            )
             holder.sync.visibility = if (item.supported) View.VISIBLE else View.GONE
 
             holder.itemView.setOnClickListener { openEditor(activityKind = null, templateId = item.template.id) }
@@ -277,9 +401,13 @@ class WorkoutTemplateListActivity : AbstractGBActivity() {
     }
 
     companion object {
+        private val LOG = LoggerFactory.getLogger(WorkoutTemplateListActivity::class.java)
+
         private const val MENU_SYNC = 1
         private const val MENU_EDIT = 2
         private const val MENU_DUPLICATE = 3
         private const val MENU_DELETE = 4
+        private const val MENU_SHARE = 5
+        private const val MENU_IMPORT = 6
     }
 }

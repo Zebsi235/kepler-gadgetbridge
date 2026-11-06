@@ -38,6 +38,7 @@ import java.io.FileReader;
 import java.io.FileWriter;
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.UUID;
 
@@ -50,8 +51,9 @@ import androidx.viewpager2.widget.ViewPager2;
 import nodomain.freeyourgadget.gadgetbridge.R;
 import nodomain.freeyourgadget.gadgetbridge.activities.AbstractGBActivity;
 import nodomain.freeyourgadget.gadgetbridge.devices.DeviceCoordinator;
-import nodomain.freeyourgadget.gadgetbridge.devices.InstallHandler;
+import nodomain.freeyourgadget.gadgetbridge.activities.install.InstallLauncher;
 import nodomain.freeyourgadget.gadgetbridge.impl.GBDevice;
+import nodomain.freeyourgadget.gadgetbridge.util.BarShade;
 import nodomain.freeyourgadget.gadgetbridge.util.FileUtils;
 import nodomain.freeyourgadget.gadgetbridge.util.GB;
 
@@ -75,6 +77,9 @@ public class AppManagerActivity extends AbstractGBActivity {
         super.onCreate(savedInstanceState);
 
         setContentView(R.layout.activity_fragmentappmanager);
+        if (BarShade.continuesToolbar(this, R.attr.tab_bar_bg)) {
+            setTopShade(findViewById(R.id.appmanager_tab_shade));
+        }
 
         Bundle extras = getIntent().getExtras();
         if (extras != null) {
@@ -90,6 +95,9 @@ public class AppManagerActivity extends AbstractGBActivity {
 
         if (coordinator.supportsCachedAppManagement(mGBDevice)) {
             enabledTabsList.add("cache");
+        }
+        if (coordinator.supportsInstalledAppManagement(mGBDevice) || coordinator.supportsWatchfaceManagement(mGBDevice)) {
+            enabledTabsList.add("updates");
         }
         if (coordinator.supportsInstalledAppManagement(mGBDevice)) {
             enabledTabsList.add("apps");
@@ -121,6 +129,9 @@ public class AppManagerActivity extends AbstractGBActivity {
                 (tab, position) -> {
                     tab.setText(getPageTitle(position));
                 }).attach();
+        if (enabledTabsList.size() <= 1) {
+            findViewById(R.id.appmanager_tab_bar).setVisibility(View.GONE);
+        }
     }
 
     public static synchronized void deleteFromAppOrderFile(String filename, UUID uuid) {
@@ -139,6 +150,7 @@ public class AppManagerActivity extends AbstractGBActivity {
         public Fragment createFragment(int position) {
             return switch (enabledTabsList.get(position)) {
                 case "cache" -> new AppManagerFragmentCache();
+                case "updates" -> new AppManagerFragmentUpdates();
                 case "apps" -> new AppManagerFragmentInstalledApps();
                 case "watchfaces" -> new AppManagerFragmentInstalledWatchfaces();
                 default -> throw new IllegalArgumentException("Unknown tab position " + position);
@@ -154,6 +166,7 @@ public class AppManagerActivity extends AbstractGBActivity {
     public CharSequence getPageTitle(int position) {
         return switch (enabledTabsList.get(position)) {
             case "cache" -> getString(R.string.appmanager_cached_watchapps_watchfaces);
+            case "updates" -> getString(R.string.appmanager_watchapps_watchfaces_updates);
             case "apps" -> getString(R.string.appmanager_installed_watchapps);
             case "watchfaces" -> getString(R.string.appmanager_installed_watchfaces);
             default -> "";
@@ -208,15 +221,11 @@ public class AppManagerActivity extends AbstractGBActivity {
         super.onActivityResult(requestCode, resultCode, resultData);
         if (requestCode == READ_REQUEST_CODE && resultCode == Activity.RESULT_OK) {
             final Uri uri = resultData.getData();
-            final InstallHandler installHandler = mGBDevice.getDeviceCoordinator().findInstallHandler(uri, Bundle.EMPTY, this);
-            if (installHandler == null) {
+            final Intent startIntent = uri == null ? null : InstallLauncher.createIntent(this, mGBDevice, Collections.singletonList(uri), Bundle.EMPTY);
+            if (startIntent == null) {
                 GB.toast(getString(R.string.fwinstaller_file_not_compatible_to_device), Toast.LENGTH_LONG, GB.INFO);
                 return;
             }
-            final Intent startIntent = new Intent(AppManagerActivity.this, installHandler.getInstallActivity());
-            startIntent.putExtra(GBDevice.EXTRA_DEVICE, mGBDevice);
-            startIntent.setAction(Intent.ACTION_VIEW);
-            startIntent.setDataAndType(uri, null);
             startActivity(startIntent);
         }
     }

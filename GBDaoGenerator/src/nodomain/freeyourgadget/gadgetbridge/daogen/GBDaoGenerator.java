@@ -78,6 +78,7 @@ public class GBDaoGenerator {
     private static final String SAMPLE_RESPIRATORY_RATE = "respiratoryRate";
     private static final String SAMPLE_SLEEP_SCORE = "sleepScore";
     private static final String SAMPLE_SPO2 = "spo2";
+    private static final String SAMPLE_ALTITUDE = "altitude";
     private static final String SAMPLE_STRESS = "stress";
     private static final String SAMPLE_TEMPERATURE = "temperature";
     private static final String SAMPLE_WEIGHT_KG = "weightKg";
@@ -110,7 +111,7 @@ public class GBDaoGenerator {
             outputDir.mkdirs();
         }
 
-        final Schema schema = new Schema(151, MAIN_PACKAGE + ".entities");
+        final Schema schema = new Schema(160, MAIN_PACKAGE + ".entities");
 
         final List<Entity> sampleProvidersToGenerate = new LinkedList<>();
         final List<Entity> batterySampleProvidersToGenerate = new LinkedList<>();
@@ -199,6 +200,8 @@ public class GBDaoGenerator {
         sampleProvidersToGenerate.add(addGarminSolarChargeSample(schema, user, device));
         sampleProvidersToGenerate.add(addGarminSpo2Sample(schema, user, device));
         sampleProvidersToGenerate.add(addGarminSleepStageSample(schema, user, device));
+        sampleProvidersToGenerate.add(addGarminRawSleepSample(schema, user, device));
+        sampleProvidersToGenerate.add(addGarminEstimatedSleepStageSample(schema, user, device));
         addGarminEventSample(schema, user, device);
         sampleProvidersToGenerate.add(addGarminHrvSummarySample(schema, user, device));
         sampleProvidersToGenerate.add(addGarminHrvValueSample(schema, user, device));
@@ -237,6 +240,7 @@ public class GBDaoGenerator {
         sampleProvidersToGenerate.add(addMoyoungSleepStageSample(schema, user, device));
         sampleProvidersToGenerate.add(addMoyoungStressSample(schema, user, device));
         sampleProvidersToGenerate.add(addGloryFitStepsSample(schema, user, device));
+        sampleProvidersToGenerate.add(addStratos4ProStepsSample(schema, user, device));
         addKeephealthActivitySample(schema, user, device);
         addKeephealthBloodPressureSample(schema, user, device);
         addKeephealthTemperatureSample(schema, user, device);
@@ -287,8 +291,12 @@ public class GBDaoGenerator {
 
         addNotificationFilterEntry(schema, notificationFilter);
 
-        addActivitySummary(schema, user, device);
-        addWorkoutUpload(schema);
+        final Entity notificationAppConfigEntry = addNotificationAppConfigEntry(schema);
+        addNotificationAppFilterEntry(schema, notificationAppConfigEntry);
+        addNotificationAppReplacementEntry(schema, notificationAppConfigEntry);
+
+        final Entity activitySummary = addActivitySummary(schema, user, device);
+        addWorkoutUpload(schema, activitySummary);
         final Entity workoutTemplate = addWorkoutTemplate(schema, device);
         addWorkoutTemplateStep(schema, workoutTemplate);
         // FIXME: BatteryLevel timestamp is in seconds, maybe migrate it once #6177 is merged
@@ -300,6 +308,7 @@ public class GBDaoGenerator {
 
         sampleProvidersToGenerate.add(addGenericHeartRateSample(schema, user, device));
         sampleProvidersToGenerate.add(addGenericSpo2Sample(schema, user, device));
+        sampleProvidersToGenerate.add(addGenericAltitudeSample(schema, user, device));
         sampleProvidersToGenerate.add(addGenericRespiratoryRateSample(schema, user, device));
         sampleProvidersToGenerate.add(addGenericStressSample(schema, user, device));
         sampleProvidersToGenerate.add(addGenericHrvValueSample(schema, user, device));
@@ -314,12 +323,17 @@ public class GBDaoGenerator {
         sampleProvidersToGenerate.add(addGenericSleepScoreSample(schema, user, device));
         sampleProvidersToGenerate.add(addGenericBodyEnergySample(schema, user, device));
         addGenericHydrationSample(schema, user, device);
+        addGenericDurationSample(schema, user, device);
 
         validateSerializableEntities(schema);
+        final DeviceDataTablesGenerator deviceDataTablesGenerator = new DeviceDataTablesGenerator(schema, device);
+        deviceDataTablesGenerator.validate();
 
         deleteOldFiles();
 
         new DaoGenerator().generateAll(schema, OUTPUT_DIR);
+
+        deviceDataTablesGenerator.generate(loadTemplate("gadgetbridge/device-data-tables.ftl"), OUTPUT_DIR);
 
         final long start = System.currentTimeMillis();
 
@@ -744,6 +758,7 @@ public class GBDaoGenerator {
         sample.addIntProperty("lightSleepDuration");
         sample.addIntProperty("remSleepDuration");
         sample.addIntProperty("awakeDuration");
+        sample.addLongProperty("intoBedTime");
         return sample;
     }
 
@@ -1118,6 +1133,8 @@ public class GBDaoGenerator {
         cyclingSample.addIntProperty("RevolutionCount");
         cyclingSample.addFloatProperty("Distance");
         cyclingSample.addFloatProperty("Speed");
+        cyclingSample.addIntProperty("Cadence")
+                .javaDocGetterAndSetter("Crank cadence in revolutions per minute.");
         return cyclingSample;
     }
 
@@ -1224,6 +1241,24 @@ public class GBDaoGenerator {
         return sleepStageSample;
     }
 
+    private static Entity addGarminEstimatedSleepStageSample(Schema schema, Entity user, Entity device) {
+        Entity estimatedSleepStageSample = addEntity(schema, "GarminEstimatedSleepStageSample");
+        addCommonTimeSampleProperties("AbstractTimeSample", estimatedSleepStageSample, user, device);
+        estimatedSleepStageSample.addIntProperty("stage").notNull()
+                .javaDocGetterAndSetter("A sleep stage estimated from raw sleep data, as in GarminSleepStageSample.");
+        return estimatedSleepStageSample;
+    }
+
+    private static Entity addGarminRawSleepSample(Schema schema, Entity user, Entity device) {
+        Entity rawSleepSample = addEntity(schema, "GarminRawSleepSample");
+        addCommonTimeSampleProperties("AbstractTimeSample", rawSleepSample, user, device);
+        rawSleepSample.addIntProperty("kind").notNull()
+                .javaDocGetterAndSetter("Per SleepMinuteKind code: raw heart rate and movement, awake or unmeasurable.");
+        rawSleepSample.addFloatProperty("heartRate");
+        rawSleepSample.addFloatProperty("movement");
+        return rawSleepSample;
+    }
+
     private static Entity addGarminEventSample(Schema schema, Entity user, Entity device) {
         Entity sleepStageSample = addEntity(schema, "GarminEventSample");
         addCommonTimeSampleProperties("AbstractTimeSample", sleepStageSample, user, device);
@@ -1282,6 +1317,19 @@ public class GBDaoGenerator {
         Entity sample = addEntity(schema, "GarminSleepStatsSample");
         addCommonTimeSampleProperties("AbstractSleepScoreSample", sample, user, device);
         sample.addIntProperty(SAMPLE_SLEEP_SCORE).notNull().codeBeforeGetter(OVERRIDE);
+        sample.addFloatProperty("averageStressDuringSleep");
+        sample.addIntProperty("awakeTimeScore");
+        sample.addIntProperty("awakeningsCount");
+        sample.addIntProperty("awakeningsCountScore");
+        sample.addIntProperty("combinedAwakeScore");
+        sample.addIntProperty("deepSleepScore");
+        sample.addIntProperty("interruptionsScore");
+        sample.addIntProperty("lightSleepScore");
+        sample.addIntProperty("remSleepScore");
+        sample.addIntProperty("sleepDurationScore");
+        sample.addIntProperty("sleepQualityScore");
+        sample.addIntProperty("sleepRecoveryScore");
+        sample.addIntProperty("sleepRestlessnessScore");
         return sample;
     }
 
@@ -1525,6 +1573,15 @@ public class GBDaoGenerator {
         sleepStageSample.addIntProperty("walkingEnd").notNull();
         sleepStageSample.addIntProperty("walkingSteps").notNull();
         return sleepStageSample;
+    }
+
+    private static Entity addStratos4ProStepsSample(Schema schema, Entity user, Entity device) {
+        Entity sample = addEntity(schema, "Stratos4ProStepsSample");
+        addCommonTimeSampleProperties("AbstractTimeSample", sample, user, device);
+        sample.addIntProperty(SAMPLE_STEPS).notNull();
+        sample.addIntProperty("distanceCm").notNull();
+        sample.addIntProperty("activeCalories").notNull();
+        return sample;
     }
 
     private static Entity addKeephealthActivitySample(Schema schema, Entity user, Entity device) {
@@ -1788,6 +1845,60 @@ public class GBDaoGenerator {
         notificationFilterEntry.addToOne(notificationFilterEntity, notificationFilterId);
     }
 
+    private static Entity addNotificationAppConfigEntry(final Schema schema) {
+        final Entity config = addEntity(schema, "NotificationAppConfigEntry");
+        config.setJavaDoc("The notification config for one app, global for all devices.");
+        config.addIdProperty().autoincrement();
+        final Property packageName = config.addStringProperty("packageName").notNull()
+                .javaDocGetterAndSetter("The app's package name, or the reserved value '*' if it applies to all apps.")
+                .getProperty();
+        final Index indexUnique = new Index();
+        indexUnique.addProperty(packageName);
+        indexUnique.makeUnique();
+        config.addIndex(indexUnique);
+
+        config.addStringProperty("sendState").notNull();
+        config.addStringProperty("pebbleState").notNull();
+
+        config.addStringProperty("filterMode").notNull();
+        config.addStringProperty("filterMatch").notNull();
+        config.addStringProperty("filterSyntax").notNull();
+        config.addBooleanProperty("filterIgnoreCase").notNull();
+
+        config.addStringProperty("privacyMode").notNull();
+        config.addStringProperty("whenScreenOn").notNull();
+        config.addStringProperty("preferLongText").notNull();
+        config.addStringProperty("blockIfOutOfNotificationTimes").notNull();
+        config.addStringProperty("ignoreLowPriority").notNull();
+        config.addBooleanProperty("forwardLocalOnly").notNull();
+
+        return config;
+    }
+
+    private static void addNotificationAppFilterEntry(final Schema schema, final Entity config) {
+        final Entity entry = addEntity(schema, "NotificationAppFilterEntry");
+        entry.setJavaDoc("One word or regular expression, for a NotificationAppConfigEntry filter.");
+        entry.addIdProperty().autoincrement();
+        final Property configId = entry.addLongProperty("configId").notNull().getProperty();
+        entry.addToOne(config, configId);
+        entry.addIntProperty("position").notNull();
+        entry.addStringProperty("content").notNull();
+    }
+
+    private static void addNotificationAppReplacementEntry(final Schema schema, final Entity config) {
+        final Entity replacement = addEntity(schema, "NotificationAppReplacementEntry");
+        replacement.setJavaDoc("One text replacement rule of a NotificationAppConfigEntry.");
+        replacement.addIdProperty().autoincrement();
+        final Property configId = replacement.addLongProperty("configId").notNull().getProperty();
+        replacement.addToOne(config, configId);
+        replacement.addIntProperty("position").notNull();
+        replacement.addStringProperty("pattern").notNull();
+        replacement.addStringProperty("replacement").notNull();
+        replacement.addStringProperty("target").notNull();
+        replacement.addBooleanProperty("ignoreCase").notNull();
+        replacement.addBooleanProperty("enabled").notNull();
+    }
+
     private static Entity addNotificationFilters(Schema schema) {
         Entity notificationFilter = addEntity(schema, "NotificationFilter");
         Property appIdentifier = notificationFilter.addStringProperty("appIdentifier").notNull().getProperty();
@@ -1817,7 +1928,7 @@ public class GBDaoGenerator {
         pebbleAppstoreIdEntry.addIndex(indexUnique);
     }
 
-    private static void addActivitySummary(Schema schema, Entity user, Entity device) {
+    private static Entity addActivitySummary(Schema schema, Entity user, Entity device) {
         Entity summary = addEntity(schema, "BaseActivitySummary");
         summary.implementsInterface(ACTIVITY_SUMMARY);
         summary.addIdProperty();
@@ -1845,16 +1956,18 @@ public class GBDaoGenerator {
         summary.addToOne(user, userId);
         summary.addStringProperty("summaryData").codeBeforeGetter(OVERRIDE);
         summary.addByteArrayProperty("rawSummaryData");
+        return summary;
     }
 
-    private static void addWorkoutUpload(Schema schema) {
+    private static void addWorkoutUpload(Schema schema, Entity activitySummary) {
         Entity upload = addEntity(schema, "WorkoutUpload");
         upload.implementsSerializable();
         upload.setJavaDoc(
                 "Tracks the upload of a workout summary to an external service (Endurain, Wanderer).\n"
                 + "Keyed by (summaryId, service). Stores the remote activity id and status so a workout\n"
                 + "is never uploaded twice and later edits can be re-synced.");
-        upload.addLongProperty("summaryId").primaryKey().notNull();
+        final Property summaryId = upload.addLongProperty("summaryId").primaryKey().notNull().getProperty();
+        activitySummary.addToMany(upload, summaryId);
         upload.addIntProperty("service").primaryKey().notNull();
         upload.addStringProperty("remoteActivityId");
         upload.addIntProperty("status").notNull();
@@ -1967,6 +2080,8 @@ public class GBDaoGenerator {
         step.addStringProperty("durationType")
                 .javaDocGetterAndSetter("Per WorkoutDurationType.");
         step.addLongProperty("durationValue");
+        step.addBooleanProperty("durationPlus")
+                .javaDocGetterAndSetter("Whether durationValue is a target that the user can go beyond.");
 
         // Primary target
         step.addStringProperty("targetType")
@@ -2703,6 +2818,7 @@ public class GBDaoGenerator {
         Entity reading = addEntity(schema, "XiaomiHipeeP1Reading");
         reading.addIdProperty().autoincrement();
         Property deviceId = reading.addLongProperty("deviceId").notNull().getProperty();
+        reading.addToOne(device, deviceId);
         Property recordType = reading.addIntProperty("recordType").notNull().getProperty();
         Property dataNum = reading.addIntProperty("dataNum").notNull().getProperty();
         Property dataCount = reading.addIntProperty("dataCount").notNull().getProperty();
@@ -2754,6 +2870,13 @@ public class GBDaoGenerator {
         return spo2sample;
     }
 
+    private static Entity addGenericAltitudeSample(Schema schema, Entity user, Entity device) {
+        Entity altitudeSample = addEntity(schema, "GenericAltitudeSample");
+        addCommonTimeSampleProperties("AbstractAltitudeSample", altitudeSample, user, device);
+        altitudeSample.addIntProperty(SAMPLE_ALTITUDE).notNull().codeBeforeGetter(OVERRIDE);
+        return altitudeSample;
+    }
+
     private static Entity addGenericRespiratoryRateSample(Schema schema, Entity user, Entity device) {
         Entity sample = addEntity(schema, "GenericRespiratoryRateSample");
         addCommonTimeSampleProperties("AbstractRespiratoryRateSample", sample, user, device);
@@ -2783,6 +2906,18 @@ public class GBDaoGenerator {
         sleepStageSample.addIntProperty("duration").notNull().codeBeforeGetter(OVERRIDE);
         sleepStageSample.addIntProperty("stage").notNull().codeBeforeGetter(OVERRIDE);
         return sleepStageSample;
+    }
+
+    /**
+     * A span of time from {@code timestamp} to {@code endTimestamp}, both in milliseconds. The
+     * meaning of {@code type} is device-specific.
+     */
+    private static Entity addGenericDurationSample(Schema schema, Entity user, Entity device) {
+        Entity sample = addEntity(schema, "GenericDurationSample");
+        addCommonTimeSampleProperties("AbstractTimeSample", sample, user, device);
+        sample.addIntProperty("type").notNull().primaryKey();
+        sample.addLongProperty("endTimestamp").notNull();
+        return sample;
     }
 
     private static Entity addGenericTrainingLoadAcuteSample(Schema schema, Entity user, Entity device) {

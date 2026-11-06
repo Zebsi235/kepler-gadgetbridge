@@ -563,9 +563,36 @@ final class F91KeplerProtocol {
 
     /** The ALARM_SOUND write with a new snooze length (0 = none, 1..30 min); tone and flags stay. */
     static byte[] alarmSoundSnooze(final int slot, final byte[] payload, final int minutes) {
+        return alarmSoundWrite(slot, payload, -1, Math.max(0, minutes));
+    }
+
+    /**
+     * The ALARM_SOUND write from the payload as read, with a new tone and/or snooze
+     * ({@code -1} keeps the watch's); the escalation flags stay.
+     */
+    static byte[] alarmSoundWrite(final int slot, final byte[] payload, final int toneRef, final int minutes) {
         final byte[] p = payload.clone();
-        p[1] = (byte) Math.max(0, Math.min(30, minutes));
+        if (toneRef >= 0) {
+            p[0] = (byte) toneRef;
+        }
+        if (minutes >= 0) {
+            p[1] = (byte) Math.max(0, Math.min(30, minutes));
+        }
         return record(F91KeplerConstants.REC_ALARM_SOUND, slot, p);
+    }
+
+    /** EVENT_TONE {@code [0x07][event][toneRef]}. */
+    static byte[] eventTone(final int event, final int toneRef) {
+        return record(F91KeplerConstants.REC_EVENT_TONE, event, new byte[]{(byte) toneRef});
+    }
+
+    /** The toneRef of an EVENT_TONE read for {@code event}, or -1 if it is not one. */
+    static int eventToneRead(final byte[] value, final int event) {
+        if (value == null || value.length < 3 || value[0] != F91KeplerConstants.REC_EVENT_TONE
+                || (value[1] & 0xFF) != event) {
+            return -1;
+        }
+        return value[2] & 0xFF;
     }
 
     /** PLAY {@code [0x0C][0][toneRef]}: the watch plays the tone once. */

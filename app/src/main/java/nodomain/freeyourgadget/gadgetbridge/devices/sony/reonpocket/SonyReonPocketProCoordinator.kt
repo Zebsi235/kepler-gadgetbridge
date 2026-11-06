@@ -36,8 +36,8 @@ class SonyReonPocketProCoordinator : AbstractBLEDeviceCoordinator() {
 
     override fun getManufacturer(): String = "Sony"
 
-    override fun getDeviceSupportClass(device: GBDevice): Class<out DeviceSupport> {
-        return SonyReonPocketProSupport::class.java
+    override fun createDeviceSupport(device: GBDevice): DeviceSupport {
+        return SonyReonPocketProSupport()
     }
 
     override fun getBondingStyle(): Int = BONDING_STYLE_NONE
@@ -189,6 +189,7 @@ class SonyReonPocketProCoordinator : AbstractBLEDeviceCoordinator() {
 
     override fun getCustomActions(): List<DeviceCardAction> = listOf(
         deviceCardAction {
+            id = "reon_pocket_auto_cooling"
             icon = { device ->
                 val smartMode = GBApplication
                     .getDeviceSpecificSharedPrefs(device.address)
@@ -218,6 +219,7 @@ class SonyReonPocketProCoordinator : AbstractBLEDeviceCoordinator() {
             }
         },
         deviceCardAction {
+            id = "reon_pocket_heat_cold"
             icon = { device ->
                 val prefs = GBApplication.getDeviceSpecificSharedPrefs(device.address)
                 when {
@@ -243,6 +245,7 @@ class SonyReonPocketProCoordinator : AbstractBLEDeviceCoordinator() {
             }
         },
         deviceCardAction {
+            id = "reon_pocket_cycle_power"
             icon = { device ->
                 val value = currentPowerLevel(device)
                 when (value) {

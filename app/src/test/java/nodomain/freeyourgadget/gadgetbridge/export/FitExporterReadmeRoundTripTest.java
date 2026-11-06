@@ -43,6 +43,7 @@ import nodomain.freeyourgadget.gadgetbridge.model.ActivityPoint;
 import nodomain.freeyourgadget.gadgetbridge.model.ActivitySummaryData;
 import nodomain.freeyourgadget.gadgetbridge.model.ActivitySummaryEntries;
 import nodomain.freeyourgadget.gadgetbridge.model.ActivityTrack;
+import nodomain.freeyourgadget.gadgetbridge.model.FitActivityTrackProvider;
 import nodomain.freeyourgadget.gadgetbridge.service.devices.garmin.fit.FieldDefinition;
 import nodomain.freeyourgadget.gadgetbridge.service.devices.garmin.fit.FitFile;
 import nodomain.freeyourgadget.gadgetbridge.service.devices.garmin.fit.RecordData;
@@ -267,6 +268,7 @@ public class FitExporterReadmeRoundTripTest {
         for (final FitSet sm : setMessages) {
             final Long startTime = sm.getStartTime();
             if (startTime == null) continue;
+            final FitActivityTrackProvider.SetCategory setCategory = FitActivityTrackProvider.readSetCategory(sm);
             track.addSet(new ActivityTrack.SetInfo(
                     startTime,
                     sm.getDuration(),
@@ -274,7 +276,9 @@ public class FitExporterReadmeRoundTripTest {
                     sm.getWeight(),
                     sm.getSetType(),
                     sm.getWeightDisplayUnit(),
-                    sm.getMessageIndex()));
+                    sm.getMessageIndex(),
+                    setCategory.category(),
+                    setCategory.subtype()));
         }
         final ActivitySummaryData data = buildSummaryDataFromSession(session, stepCadence);
 
@@ -581,8 +585,8 @@ public class FitExporterReadmeRoundTripTest {
         final Long startSec = session.getStartTime();
         final long startMs = startSec != null ? startSec * 1000L : 0L;
         s.setStartTime(new Date(startMs));
-        // total_elapsed_time is stored unscaled (raw uint32 = ms per FIT spec scale=1000).
-        final Long elapsedMs = session.getTotalElapsedTime();
+        final Double elapsedSec = session.getTotalElapsedTime();
+        final Long elapsedMs = (elapsedSec != null) ? Math.round(elapsedSec * 1000L) : null;
         s.setEndTime(new Date(startMs + (elapsedMs != null ? elapsedMs : 0L)));
         s.setName(fileName);
         final ActivityKind kind = mapSportToKind(session.getSport(), session.getSubSport());

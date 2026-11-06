@@ -20,8 +20,8 @@ class VictronSmartShuntCoordinator : AbstractBLEDeviceCoordinator() {
         return "Victron"
     }
 
-    override fun getDeviceSupportClass(device: GBDevice): Class<out DeviceSupport> {
-        return VictronSmartShuntSupport::class.java
+    override fun createDeviceSupport(device: GBDevice): DeviceSupport {
+        return VictronSmartShuntSupport()
     }
 
     override fun getDeviceNameResource(): Int {
@@ -52,6 +52,7 @@ class VictronSmartShuntCoordinator : AbstractBLEDeviceCoordinator() {
     )
 
     private fun displayAction(@StringRes descriptionRes: Int, extraKey: String) = deviceCardAction {
+        id = "victron_$extraKey"
         icon = { R.drawable.ic_bolt }
         isVisible = { device -> device.isConnected && !(device.getExtraInfo(extraKey) as? String).isNullOrBlank() }
         description = { _, context -> context.getString(descriptionRes) }

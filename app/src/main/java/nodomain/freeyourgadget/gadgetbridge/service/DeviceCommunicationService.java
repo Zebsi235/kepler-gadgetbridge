@@ -54,6 +54,7 @@ import android.os.Handler;
 import android.os.IBinder;
 import android.widget.Toast;
 
+import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import androidx.annotation.RequiresApi;
 import androidx.core.app.ServiceCompat;
@@ -151,6 +152,9 @@ public class DeviceCommunicationService extends Service implements SharedPrefere
     private final PendingSleepAsAndroidAction pendingSleepAsAndroidAction = new PendingSleepAsAndroidAction();
     private boolean allowBluetoothIntentApi = false;
     private boolean reconnectViaScan = GBPrefs.RECONNECT_SCAN_DEFAULT;
+    private boolean previousProcessFailed = false;
+
+    private static final long RESTART_RECONNECT_MIN_INTERVAL_MS = 10 * 60 * 1000L;
 
     private final String API_LEGACY_COMMAND_BLUETOOTH_CONNECT = "nodomain.freeyourgadget.gadgetbridge.BLUETOOTH_CONNECT";
     private final String API_LEGACY_COMMAND_BLUETOOTH_DISCONNECT = "nodomain.freeyourgadget.gadgetbridge.BLUETOOTH_DISCONNECT";
@@ -247,7 +251,7 @@ public class DeviceCommunicationService extends Service implements SharedPrefere
         public void onReceive(Context context, Intent intent) {
             String action = intent.getAction();
             if (GBDevice.ACTION_DEVICE_CHANGED.equals(action)) {
-                GBDevice device = intent.getParcelableExtra(GBDevice.EXTRA_DEVICE);
+                final GBDevice device = intent.getParcelableExtra(GBDevice.EXTRA_DEVICE);
                 if (device == null) {
                     // Should never happen
                     LOG.error("Got ACTION_DEVICE_CHANGED without device");
@@ -260,6 +264,8 @@ public class DeviceCommunicationService extends Service implements SharedPrefere
                     cachedStruct.setDevice(device);
                     DeviceCoordinator newCoordinator = device.getDeviceCoordinator();
                     cachedStruct.setCoordinator(newCoordinator);
+                } else {
+                    LOG.trace("Got null struct for changed device {}", device);
                 }
                 updateReceiversState();
 
@@ -426,6 +432,12 @@ public class DeviceCommunicationService extends Service implements SharedPrefere
                 LOG.info("Previous process exit: reason={} status={} importance={} at {} ({})",
                         exit.getReason(), exit.getStatus(), exit.getImportance(),
                         new Date(exit.getTimestamp()), exit.getDescription());
+                previousProcessFailed = switch (exit.getReason()) {
+                    case ApplicationExitInfo.REASON_CRASH,
+                         ApplicationExitInfo.REASON_CRASH_NATIVE,
+                         ApplicationExitInfo.REASON_ANR -> true;
+                    default -> false;
+                };
             }
         } catch (final Exception e) {
             LOG.warn("Failed to read the previous process exit reason", e);
@@ -435,6 +447,46 @@ public class DeviceCommunicationService extends Service implements SharedPrefere
     /** Global "reconnect by BLE scan", or a device that prefers it (Kepler). */
     private boolean reconnectsViaScan(final GBDevice device) {
         return reconnectViaScan || device.getDeviceCoordinator().prefersScanReconnect();
+    }
+
+    private void reconnectAfterRestart() {
+        if (previousProcessFailed) {
+            LOG.warn("Not reconnecting after restart, the previous process crashed");
+            return;
+        }
+        if (!hasPrefs()) {
+            LOG.warn("Not reconnecting after restart, no prefs");
+            return;
+        }
+        final GBPrefs prefs = getPrefs();
+        if (!prefs.getBoolean(GBPrefs.AUTO_CONNECT_BLUETOOTH, false)) {
+            LOG.info("Not reconnecting after restart, auto-connect is disabled");
+            return;
+        }
+        // Avoid crash -> restart loops
+        final long now = System.currentTimeMillis();
+        final long lastReconnect = prefs.getLong(GBPrefs.LAST_RESTART_RECONNECT_TS, 0);
+        if (lastReconnect <= now && now - lastReconnect < RESTART_RECONNECT_MIN_INTERVAL_MS) {
+            LOG.warn("Not reconnecting after restart, the last restart reconnect was at {}", new Date(lastReconnect));
+            return;
+        }
+        prefs.getPreferences().edit().putLong(GBPrefs.LAST_RESTART_RECONNECT_TS, now).apply();
+
+        final Set<String> lastDeviceAddresses = prefs.getStringSet(GBPrefs.LAST_DEVICE_ADDRESSES, Collections.emptySet());
+        for (final GBDevice device : GBApplication.app().getDeviceManager().getDevices()) {
+            if (!lastDeviceAddresses.contains(device.getAddress())) {
+                continue;
+            }
+            if (!prefs.getAutoReconnect(device)) {
+                LOG.debug("Not reconnecting to {} after restart, auto-reconnect is disabled", device);
+                continue;
+            }
+            if (getDeviceStructOrNull(device) != null) {
+                continue;
+            }
+            LOG.info("Reconnecting to {} after restart", device);
+            connectToDevice(device, false);
+        }
     }
 
     /** Puts every device that reconnects by scan into WAITING_FOR_SCAN; true if any. */
@@ -510,6 +562,9 @@ public class DeviceCommunicationService extends Service implements SharedPrefere
             final String deviceAddress = gbDevice.getAddress();
 
             LOG.debug("Will attempt to connect to {}", gbDevice);
+            final GBDevice.State stateBeforeConnect = gbDevice.getState();
+            final boolean automaticReconnect = stateBeforeConnect == GBDevice.State.WAITING_FOR_RECONNECT ||
+                    stateBeforeConnect == GBDevice.State.WAITING_FOR_SCAN;
 
             if (!gbDevice.getDeviceCoordinator().isConnectable()) {
                 // we cannot connect to beacons, skip this device
@@ -588,6 +643,8 @@ public class DeviceCommunicationService extends Service implements SharedPrefere
                     LOG.debug("connectToDevice - create new device support for {} ({})", deviceAddress, gbDevice.getType());
                     deviceSupport = mFactory.createDeviceSupport(gbDevice);
                     LOG.debug("connectToDevice - created {} for {}", deviceSupport != null ? deviceSupport.getClass().getSimpleName() : "(null)", deviceAddress);
+                    // The struct might still contain the device from the previous support, which stays NOT_CONNECTED
+                    registeredStruct.setDevice(gbDevice);
                     registeredStruct.setDeviceSupport(deviceSupport);
                 }
 
@@ -627,6 +684,8 @@ public class DeviceCommunicationService extends Service implements SharedPrefere
                     final BluetoothAdapter adapter = BluetoothAdapter.getDefaultAdapter();
                     if (adapter == null) {
                         GB.toast(this, getString(R.string.bluetooth_is_not_supported_), Toast.LENGTH_SHORT, GB.WARN);
+                    } else if (!adapter.isEnabled() && automaticReconnect) {
+                        LOG.warn("connectToDevice - {} Bluetooth is disabled", deviceAddress);
                     } else if (!adapter.isEnabled()) {
                         GB.toast(this, getString(R.string.bluetooth_is_disabled_), Toast.LENGTH_SHORT, GB.WARN);
                     } else {
@@ -645,10 +704,8 @@ public class DeviceCommunicationService extends Service implements SharedPrefere
     @Override
     public synchronized int onStartCommand(Intent intent, int flags, int startId) {
         if (intent == null) {
-            // The system restarting the service after the process died: reconnect what was
-            // connected then, as the notification's reconnect action does.
-            LOG.info("no intent, reconnecting");
-            connectToDevice(null, false);
+            LOG.info("no intent");
+            reconnectAfterRestart();
             return START_STICKY;
         }
 
@@ -718,7 +775,7 @@ public class DeviceCommunicationService extends Service implements SharedPrefere
                     try {
                         handleAction(intent, action, device1);
                     } catch (DeviceNotFoundException e) {
-                        LOG.warn("exception in onStartCommand", e);
+                        LOG.warn("Failed to find device in onStartCommand: {}", device1);
                     } catch (Exception e) {
                         LOG.error("An exception was raised while handling the action {} for the device {}: ", action, device1, e);
                     }
@@ -733,7 +790,7 @@ public class DeviceCommunicationService extends Service implements SharedPrefere
             try {
                 removeDeviceSupport(device);
             } catch (DeviceNotFoundException e) {
-                LOG.error("Trying to disconnect unknown device: ", e);
+                LOG.error("Failed to find device in handleAction to disconnect: {}", device);
             }
             device.setState(GBDevice.State.NOT_CONNECTED);
             device.sendDeviceUpdateIntent(this);
@@ -763,19 +820,18 @@ public class DeviceCommunicationService extends Service implements SharedPrefere
         struct.setDeviceSupport(null);
     }
 
-    private DeviceStruct getDeviceStructOrNull(GBDevice device) {
-        DeviceStruct deviceStruct = null;
+    private DeviceStruct getDeviceStructOrNull(@NonNull final GBDevice device) {
         try {
-            deviceStruct = getDeviceStruct(device);
+            return getDeviceStruct(device);
         } catch (DeviceNotFoundException e) {
-            LOG.warn("exception in getDeviceStructOrNull", e);
+            LOG.trace("exception in getDeviceStructOrNull", e);
         }
-        return deviceStruct;
+        return null;
     }
 
     public DeviceStruct getDeviceStruct(GBDevice device) throws DeviceNotFoundException {
         if (device == null) {
-            throw new DeviceNotFoundException("null");
+            throw new DeviceNotFoundException("device is null");
         }
         for (DeviceStruct struct : deviceStructs) {
             if (struct.getDevice().equals(device)) {
@@ -890,7 +946,7 @@ public class DeviceCommunicationService extends Service implements SharedPrefere
                 handleAction(notifCache.remove(0), ACTION_NOTIFICATION, device);
             }
         } catch (DeviceNotFoundException e) {
-            LOG.error("Error while sending cached notifications to {}", device.getAliasOrName(), e);
+            LOG.warn("Failed to find device in sendCachedNotifications: {}", device);
         }
     }
 
@@ -1001,7 +1057,7 @@ public class DeviceCommunicationService extends Service implements SharedPrefere
             try {
                 removeDeviceSupport(device);
             } catch (DeviceNotFoundException e) {
-                LOG.warn("exception in onDestroy", e);
+                LOG.warn("Failed to find device in onDestroy: {}", device);
             }
         }
         GB.removeNotification(GB.NOTIFICATION_ID, this); // need to do this because the updated notification won't be cancelled when service stops

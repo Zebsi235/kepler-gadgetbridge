@@ -208,7 +208,7 @@ public class XiaomiSupport extends AbstractBluetoothDeviceSupport {
 
         if (device.getDeviceCoordinator().supportsSleepAsAndroid(device)) {
             sleepAsAndroidSender = new SleepAsAndroidSender(device);
-            healthService.setSleepAsAndroidSender(sleepAsAndroidSender);
+            healthService.getSleepAsAndroidManager().setSender(sleepAsAndroidSender);
         }
     }
 
@@ -396,6 +396,11 @@ public class XiaomiSupport extends AbstractBluetoothDeviceSupport {
     }
 
     @Override
+    public void onSendWatchAppMessage(@NonNull final String appId, @NonNull final byte[] payload) {
+        rpkService.sendWearAppMessage(appId, payload);
+    }
+
+    @Override
     public void onFetchRecordedData(final int dataTypes) {
         healthService.onFetchRecordedData(dataTypes);
     }
@@ -527,11 +532,11 @@ public class XiaomiSupport extends AbstractBluetoothDeviceSupport {
                 sleepAsAndroidSender.confirmConnected();
                 break;
             case SleepAsAndroidAction.START_TRACKING:
-                healthService.startRawSensor();
                 sleepAsAndroidSender.startTracking(extras);
+                healthService.getSleepAsAndroidManager().start(sleepAsAndroidSender.isHeartRateRequested());
                 break;
             case SleepAsAndroidAction.STOP_TRACKING:
-                healthService.stopRawSensor();
+                healthService.getSleepAsAndroidManager().stop();
                 sleepAsAndroidSender.stopTracking();
                 break;
             case SleepAsAndroidAction.SET_PAUSE: {
