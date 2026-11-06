@@ -271,8 +271,6 @@ public class F91KeplerSupport extends AbstractBTLESingleDeviceSupport {
         soundAdopt = false;
         builder.setDeviceState(GBDevice.State.INITIALIZING);
         renameOldDefault();
-        // Untouched stock alarms (five identical 06:30 rows) get the Kepler defaults, once.
-        F91KeplerAlarms.reseedStockDefaults(getDevice());
         if (GBApplication.getPrefs().syncTime()) {
             transfers.add(builder, F91KeplerTransfer.TIME, false, this::addSetTime);
         }
@@ -910,6 +908,9 @@ public class F91KeplerSupport extends AbstractBTLESingleDeviceSupport {
             // The slots last, and only after reading them: a one-shot that rang
             // while the phone was away is off on the watch, and writing the
             // app's list blindly would re-arm it for tomorrow.
+            // Untouched stock alarms (five identical 06:30 rows) get the Kepler
+            // defaults first, once; they are off, so the watch rings as before.
+            F91KeplerAlarms.reseedStockDefaults(getContext(), getDevice());
             readAlarmSlots(true, false);
         }
     }

@@ -16,9 +16,12 @@
     along with this program.  If not, see <https://www.gnu.org/licenses/>. */
 package nodomain.freeyourgadget.gadgetbridge.devices.f91kepler;
 
+import android.content.Context;
+import android.content.Intent;
 import android.content.SharedPreferences;
 
 import androidx.annotation.NonNull;
+import androidx.localbroadcastmanager.content.LocalBroadcastManager;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -29,6 +32,7 @@ import nodomain.freeyourgadget.gadgetbridge.GBApplication;
 import nodomain.freeyourgadget.gadgetbridge.database.DBHelper;
 import nodomain.freeyourgadget.gadgetbridge.entities.Alarm;
 import nodomain.freeyourgadget.gadgetbridge.impl.GBDevice;
+import nodomain.freeyourgadget.gadgetbridge.model.DeviceService;
 
 /**
  * Default alarms for the Kepler watch. The stock default is the same for every
@@ -86,16 +90,21 @@ public final class F91KeplerAlarms {
     }
 
     /**
-     * Once per watch: stored alarms still at the stock default get this slot's
-     * default time and days. They stay off, and anything the user changed is
-     * left alone, so the watch rings exactly as before.
+     * Once per watch with five slots (firmware 3.1+, version already reported):
+     * stored alarms still at the stock default get this slot's default time and
+     * days. They stay off, and anything the user changed is left alone, so the
+     * watch rings exactly as before. Until all five rows are stored it is
+     * simply tried again on the next connect.
      */
-    public static void reseedStockDefaults(@NonNull final GBDevice device) {
+    public static void reseedStockDefaults(@NonNull final Context context, @NonNull final GBDevice device) {
         final SharedPreferences prefs = GBApplication.getDeviceSpecificSharedPrefs(device.getAddress());
         if (prefs.getBoolean(PREF_DEFAULTS_SEEDED, false)) {
             return;
         }
         final List<Alarm> alarms = DBHelper.getAlarms(device);
+        if (alarms.size() < F91KeplerConstants.ALARM_SLOTS_31) {
+            return;
+        }
         int changed = 0;
         for (final Alarm a : alarms) {
             if (isStockDefault(a.getEnabled(), a.getHour(), a.getMinute(), a.getRepetition(),
@@ -111,6 +120,9 @@ public final class F91KeplerAlarms {
         prefs.edit().putBoolean(PREF_DEFAULTS_SEEDED, true).apply();
         if (changed > 0) {
             LOG.info("F91 replaced {} untouched stock alarm(s) with the Kepler defaults", changed);
+            // An open alarm list reloads instead of sending its old rows back.
+            LocalBroadcastManager.getInstance(context)
+                    .sendBroadcast(new Intent(DeviceService.ACTION_SAVE_ALARMS));
         }
     }
 }
