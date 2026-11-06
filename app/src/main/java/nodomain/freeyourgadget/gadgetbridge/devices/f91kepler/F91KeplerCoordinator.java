@@ -76,8 +76,8 @@ public class F91KeplerCoordinator extends AbstractBLEDeviceCoordinator {
 
     @NonNull
     @Override
-    public Class<? extends DeviceSupport> getDeviceSupportClass(final GBDevice device) {
-        return F91KeplerSupport.class;
+    public DeviceSupport createDeviceSupport(@NonNull final GBDevice device) {
+        return new F91KeplerSupport();
     }
 
     @Override
@@ -118,6 +118,17 @@ public class F91KeplerCoordinator extends AbstractBLEDeviceCoordinator {
 
     @Override
     public boolean supportsFindDevice(@NonNull final GBDevice device) {
+        return true;
+    }
+
+    @Override
+    public boolean supportsAppNotifications(@NonNull final GBDevice device) {
+        return true;
+    }
+
+    @Override
+    public boolean supportsPhoneCalls(@NonNull final GBDevice device) {
+        // Incoming-call popup (onSetCallState); without it the call receiver is not registered.
         return true;
     }
 

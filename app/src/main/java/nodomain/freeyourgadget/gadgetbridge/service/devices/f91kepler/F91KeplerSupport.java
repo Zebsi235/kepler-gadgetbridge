@@ -215,8 +215,8 @@ public class F91KeplerSupport extends AbstractBTLESingleDeviceSupport {
         addSupportedService(F91KeplerConstants.UUID_SERVICE_ALERT);   // issue #209
         addSupportedService(F91KeplerConstants.UUID_SERVICE_UI_CONFIG);
         addSupportedService(F91KeplerConstants.UUID_SERVICE_IMAGE);
-        addSupportedService(GattService.UUID_SERVICE_BATTERY_SERVICE);
-        addSupportedService(GattService.UUID_SERVICE_DEVICE_INFORMATION);
+        addSupportedService(GattService.SERVICE_BATTERY.uuid);
+        addSupportedService(GattService.SERVICE_DEVICE_INFORMATION.uuid);
 
         final IntentListener batteryListener = intent -> {
             if (BatteryInfoProfile.ACTION_BATTERY_INFO.equals(intent.getAction())) {
