@@ -7,8 +7,10 @@ import static nodomain.freeyourgadget.gadgetbridge.activities.devicesettings.Dev
 
 import android.bluetooth.BluetoothGatt;
 import android.bluetooth.BluetoothGattCharacteristic;
+import android.content.Intent;
 
 import androidx.annotation.CallSuper;
+import androidx.localbroadcastmanager.content.LocalBroadcastManager;
 
 import org.jetbrains.annotations.NotNull;
 import org.slf4j.Logger;
@@ -20,6 +22,7 @@ import java.util.List;
 import java.util.Objects;
 import java.util.UUID;
 
+import nodomain.freeyourgadget.gadgetbridge.BuildConfig;
 import nodomain.freeyourgadget.gadgetbridge.GBApplication;
 import nodomain.freeyourgadget.gadgetbridge.database.DBHandler;
 import nodomain.freeyourgadget.gadgetbridge.database.DBHelper;
@@ -31,6 +34,7 @@ import nodomain.freeyourgadget.gadgetbridge.devices.polar.PolarH10ActivitySample
 import nodomain.freeyourgadget.gadgetbridge.entities.HeartRrIntervalSample;
 import nodomain.freeyourgadget.gadgetbridge.entities.PolarH10ActivitySample;
 import nodomain.freeyourgadget.gadgetbridge.impl.GBDevice;
+import nodomain.freeyourgadget.gadgetbridge.model.DeviceService;
 import nodomain.freeyourgadget.gadgetbridge.service.btle.AbstractBTLESingleDeviceSupport;
 import nodomain.freeyourgadget.gadgetbridge.service.btle.GattCharacteristic;
 import nodomain.freeyourgadget.gadgetbridge.service.btle.GattService;
@@ -52,10 +56,10 @@ public class PolarH10DeviceSupport extends AbstractBTLESingleDeviceSupport {
 
     private boolean newSamples = false;
 
-    public static final UUID UUID_SERVICE_DEVICE_INFORMATION = GattService.UUID_SERVICE_DEVICE_INFORMATION;
-    public static final UUID UUID_SERVICE_BATTERY_SERVICE = GattService.UUID_SERVICE_BATTERY_SERVICE;
-    public static final UUID UUID_SERVICE_HEART_RATE = GattService.UUID_SERVICE_HEART_RATE;
-    public static final UUID UUID_CHARACTERISTIC_HEART_RATE_MEASUREMENT = GattCharacteristic.UUID_CHARACTERISTIC_HEART_RATE_MEASUREMENT;
+    public static final UUID UUID_SERVICE_DEVICE_INFORMATION = GattService.SERVICE_DEVICE_INFORMATION.uuid;
+    public static final UUID UUID_SERVICE_BATTERY_SERVICE = GattService.SERVICE_BATTERY.uuid;
+    public static final UUID UUID_SERVICE_HEART_RATE = GattService.SERVICE_HEART_RATE.uuid;
+    public static final UUID UUID_CHARACTERISTIC_HEART_RATE_MEASUREMENT = GattCharacteristic.CHARACTERISTIC_HEART_RATE_MEASUREMENT.uuid;
 
     public static final UUID UUID_SERVICE_POLAR_SETTINGS = UUID.fromString("6217ff4b-fb31-1140-ad5a-a45545d7ecf3");
     public static final UUID UUID_CHARACTERISTIC_POLAR_SETTINGS = UUID.fromString("6217ff4d-91bb-91d0-7e2a-7cd3bda8a1f3");
@@ -298,6 +302,7 @@ public class PolarH10DeviceSupport extends AbstractBTLESingleDeviceSupport {
             final Long deviceId = DBHelper.getDevice(getDevice(), db.getDaoSession()).getId();
             final PolarH10ActivitySample sample = new PolarH10ActivitySample((int) (info.getTimestamp() / 1000), deviceId, userId, info.getHeartRate());
             polarSampleProvider.addGBActivitySamples(Collections.singletonList(sample));
+            publish(sample);
 
             final ArrayList<@NotNull Integer> rrIntervals = info.getRrIntervals();
             if (!rrIntervals.isEmpty()) {
@@ -318,5 +323,13 @@ public class PolarH10DeviceSupport extends AbstractBTLESingleDeviceSupport {
         } catch (Exception e) {
             LOG.error("Error acquiring database", e);
         }
+    }
+
+    private void publish(final PolarH10ActivitySample sample) {
+        final Intent intent = new Intent(DeviceService.ACTION_REALTIME_SAMPLES);
+        intent.setPackage(BuildConfig.APPLICATION_ID);
+        intent.putExtra(GBDevice.EXTRA_DEVICE, getDevice());
+        intent.putExtra(DeviceService.EXTRA_REALTIME_SAMPLE, sample);
+        LocalBroadcastManager.getInstance(getContext()).sendBroadcast(intent);
     }
 }

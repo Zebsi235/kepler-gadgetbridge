@@ -343,15 +343,41 @@ final class F91KeplerProtocol {
      */
     static byte[] notificationEntry(final int slot, final int total,
                                     final String app, final String sender) {
+        return notificationEntry(slot, total, app, sender, 0);
+    }
+
+    /**
+     * The same with a dismiss token (firmware 3.3.4): token 1-255 sets bit 7 of
+     * total and goes right after appLen, {@code [slot][total|0x80][appLen][token][app][sender]};
+     * the watch echoes it in NotificationDismiss. Token 0 writes the old layout,
+     * which is the only one a watch without NotificationDismiss understands.
+     */
+    static byte[] notificationEntry(final int slot, final int total,
+                                    final String app, final String sender, final int token) {
         final byte[] appB = truncateUtf8(app == null ? "" : app, NOTIF_APP_MAX);
         final byte[] senB = truncateUtf8(sender == null ? "" : sender, NOTIF_SENDER_MAX);
+        final boolean withToken = (token & 0xFF) != 0;
         final ByteArrayOutputStream out = new ByteArrayOutputStream();
         out.write(slot & 0xFF);
-        out.write(total & 0xFF);
+        out.write((total & 0x7F) | (withToken ? 0x80 : 0));
         out.write(appB.length & 0xFF);
+        if (withToken) {
+            out.write(token & 0xFF);
+        }
         out.write(appB, 0, appB.length);
         out.write(senB, 0, senB.length);
         return out.toByteArray();
+    }
+
+    /**
+     * NotificationDismiss notify (A2F5): {@code [slot][token]}. Returns the token
+     * (1-255), or 0 when the value is too short or carries no token.
+     */
+    static int dismissToken(final byte[] value) {
+        if (value == null || value.length < 2) {
+            return 0;
+        }
+        return value[1] & 0xFF;
     }
 
     /**
@@ -563,9 +589,36 @@ final class F91KeplerProtocol {
 
     /** The ALARM_SOUND write with a new snooze length (0 = none, 1..30 min); tone and flags stay. */
     static byte[] alarmSoundSnooze(final int slot, final byte[] payload, final int minutes) {
+        return alarmSoundWrite(slot, payload, -1, Math.max(0, minutes));
+    }
+
+    /**
+     * The ALARM_SOUND write from the payload as read, with a new tone and/or snooze
+     * ({@code -1} keeps the watch's); the escalation flags stay.
+     */
+    static byte[] alarmSoundWrite(final int slot, final byte[] payload, final int toneRef, final int minutes) {
         final byte[] p = payload.clone();
-        p[1] = (byte) Math.max(0, Math.min(30, minutes));
+        if (toneRef >= 0) {
+            p[0] = (byte) toneRef;
+        }
+        if (minutes >= 0) {
+            p[1] = (byte) Math.max(0, Math.min(30, minutes));
+        }
         return record(F91KeplerConstants.REC_ALARM_SOUND, slot, p);
+    }
+
+    /** EVENT_TONE {@code [0x07][event][toneRef]}. */
+    static byte[] eventTone(final int event, final int toneRef) {
+        return record(F91KeplerConstants.REC_EVENT_TONE, event, new byte[]{(byte) toneRef});
+    }
+
+    /** The toneRef of an EVENT_TONE read for {@code event}, or -1 if it is not one. */
+    static int eventToneRead(final byte[] value, final int event) {
+        if (value == null || value.length < 3 || value[0] != F91KeplerConstants.REC_EVENT_TONE
+                || (value[1] & 0xFF) != event) {
+            return -1;
+        }
+        return value[2] & 0xFF;
     }
 
     /** PLAY {@code [0x0C][0][toneRef]}: the watch plays the tone once. */

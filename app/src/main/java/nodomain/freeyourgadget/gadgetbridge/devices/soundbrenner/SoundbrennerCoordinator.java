@@ -33,8 +33,8 @@ public class SoundbrennerCoordinator extends AbstractBLEDeviceCoordinator {
 
     @NonNull
     @Override
-    public Class<? extends DeviceSupport> getDeviceSupportClass(final GBDevice device) {
-        return SoundbrennerSupport.class;
+    public DeviceSupport createDeviceSupport(final GBDevice device) {
+        return new SoundbrennerSupport();
     }
 
     @Override
@@ -83,6 +83,12 @@ public class SoundbrennerCoordinator extends AbstractBLEDeviceCoordinator {
     public List<DeviceCardAction> getCustomActions() {
         return Collections.singletonList(
             new DeviceCardAction() {
+                @NonNull
+                @Override
+                public String getId() {
+                    return "soundbrenner_metronome";
+                }
+
                 @Override
                 public int getIcon(@NonNull final GBDevice device) {
                     return isMetronomeRunning(device) ? R.drawable.ic_stop : R.drawable.ic_play;

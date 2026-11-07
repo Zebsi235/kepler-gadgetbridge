@@ -41,6 +41,13 @@ public final class F91KeplerConstants {
     public static final UUID UUID_CHAR_INCOMING_TEXT = base("A2F3");
     // NotificationEntry (history feed, write-only): [slot][total][appLen][app][sender].
     public static final UUID UUID_CHAR_NOTIFICATION_ENTRY = base("A2F4");
+    // NotificationDismiss (notify, firmware 3.3.4): [slot][token] when the user
+    // dismisses a history entry on the watch. A watch that has it also takes a
+    // token in NotificationEntry (bit 7 of total, the token after appLen).
+    public static final UUID UUID_CHAR_NOTIFICATION_DISMISS = base("A2F5");
+    /** ATT MTU asked for after the connect setup; the watch answers with what its
+     *  heap allows (23 on firmware before 3.3.4), and that is what is used. */
+    public static final int MTU_REQUEST = 247;
 
     // Clock Service: time (uint32 LE epoch), timezone (int16 LE seconds west),
     // time mode (0=12h/1=24h), DST (0/1), alarm time (uint32 LE absolute epoch,
@@ -193,6 +200,31 @@ public final class F91KeplerConstants {
     public static final byte REC_ZONE = 0x0E;
     /** ALARM_SOUND idx 0..4: {@code [toneRef][snoozeMin][flags]} (rc1: the first 2 bytes). */
     public static final byte REC_ALARM_SOUND = 0x08;
+    /** EVENT_TONE idx 0..11: {@code [toneRef]}; event 0 is the hourly chime. */
+    public static final byte REC_EVENT_TONE = 0x07;
+    public static final int EVENT_HOURLY_CHIME = 0;
+    /** The watch's defaults: the F-91W double beep for the chime, the F-91W alarm pattern. */
+    public static final int TONE_CHIME_DEFAULT = 2;
+    public static final int TONE_ALARM_DEFAULT = 3;
+    /** The built-in tones the app offers (arrays.xml f91_sound_tones_values, same order). */
+    public static final int[] TONE_CHOICES = {2, 1, 3, 4, 5, 10, 11, 12, 13};
+
+    /** toneRef 0xFF: "the default for that event", what a watch holds until a tone is chosen. */
+    public static final int TONE_EVENT_DEFAULT = 0xFF;
+
+    /** A toneRef as read from the watch, with 0xFF resolved to that event's own tone. */
+    public static int resolveTone(final int toneRef, final int eventDefault) {
+        return toneRef == TONE_EVENT_DEFAULT ? eventDefault : toneRef;
+    }
+
+    public static boolean isToneChoice(final int toneRef) {
+        for (final int t : TONE_CHOICES) {
+            if (t == toneRef) {
+                return true;
+            }
+        }
+        return false;
+    }
     public static final int SND_SILENT = 1;          // mutes everything except alarms
     public static final int SND_CALL = 1 << 2;       // call ring (default on)
     public static final int SND_TEXT = 1 << 3;       // text beeps (default on from 3.2.0-rc7)
@@ -291,6 +323,12 @@ public final class F91KeplerConstants {
     /** The snooze length changed while the watch was away: written after the next connect. */
     public static final String PREF_SOUND_SNOOZE_DIRTY = "f91_sound_snooze_dirty";
     public static final String PREF_SOUND_TEST = "f91_sound_test";
+    /** The tone of all five alarms (a toneRef, ALARM_SOUND byte 0), firmware 3.3.0. */
+    public static final String PREF_SOUND_ALARM_TONE = "f91_sound_alarm_tone";
+    public static final String PREF_SOUND_ALARM_TONE_DIRTY = "f91_sound_alarm_tone_dirty";
+    /** The hourly chime's tone (a toneRef, EVENT_TONE 0), firmware 3.3.0. */
+    public static final String PREF_SOUND_CHIME_TONE = "f91_sound_chime_tone";
+    public static final String PREF_SOUND_CHIME_TONE_DIRTY = "f91_sound_chime_tone_dirty";
     /** The sound switches changed while the watch was away (a string set): only
      *  these are written after the next connect read, the others take the watch's. */
     public static final String PREF_SOUND_DIRTY_KEYS = "f91_sound_dirty_keys";

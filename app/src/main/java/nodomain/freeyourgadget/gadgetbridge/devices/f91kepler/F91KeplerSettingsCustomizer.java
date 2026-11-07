@@ -23,13 +23,16 @@ import android.text.InputFilter;
 import android.widget.Toast;
 
 import androidx.annotation.NonNull;
+import androidx.annotation.Nullable;
 import androidx.preference.EditTextPreference;
 import androidx.preference.ListPreference;
 import androidx.preference.Preference;
 import androidx.preference.TwoStatePreference;
 
 import java.util.Collections;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 
 import nodomain.freeyourgadget.gadgetbridge.GBApplication;
@@ -44,14 +47,15 @@ import nodomain.freeyourgadget.gadgetbridge.util.GB;
  * Opens the image screen from the watch's settings (the click is wired here so
  * the activity is launched with the {@link GBDevice} it belongs to), forwards
  * watch-side setting changes to the support class (SEND_KEYS), caps the
- * firmware 3.1 counter-name fields at what the watch can show, and shows the
- * firmware 3.1 groups only on a watch known to run 3.1.
+ * firmware 3.1 counter-name fields at what the watch can show, and shows each
+ * setting only on a watch whose firmware has it ({@link #GATES}).
  *
- * <p>The 3.1 groups are in the screen on every firmware (the coordinator loads
+ * <p>The gated groups are in the screen on every firmware (the coordinator loads
  * them unconditionally) but start hidden; {@link #onDeviceChanged} re-checks
  * the version on every device update, so a watch that connects while the
  * screen is open reveals them the moment its DIS firmware string is read --
- * without reopening the screen. A 3.0 watch never sees them.
+ * without reopening the screen. A watch on older firmware, or one whose
+ * version is not known yet, never sees them: no hint, no disabled row.
  */
 public class F91KeplerSettingsCustomizer implements DeviceSpecificSettingsCustomizer {
 
@@ -89,35 +93,38 @@ public class F91KeplerSettingsCustomizer implements DeviceSpecificSettingsCustom
             F91KeplerConstants.PREF_SOUND_MUTE, F91KeplerConstants.PREF_SOUND_CALL,
             F91KeplerConstants.PREF_SOUND_TEXT, F91KeplerConstants.PREF_SOUND_LOWBATT,
             F91KeplerConstants.PREF_SOUND_LOST, F91KeplerConstants.PREF_SOUND_SNOOZE,
+            F91KeplerConstants.PREF_SOUND_ALARM_TONE, F91KeplerConstants.PREF_SOUND_CHIME_TONE,
             F91KeplerConstants.PREF_COUNTER_NAME_PREFIX + "0",
             F91KeplerConstants.PREF_COUNTER_NAME_PREFIX + "1",
             F91KeplerConstants.PREF_COUNTER_NAME_PREFIX + "2",
     };
 
     /**
-     * The preferences that only exist on firmware 3.1 (UiOptions F2F3, Record
-     * F2F4, screen ids 10..13): the quiet-text switch and the two categories
-     * holding everything else from devicesettings_f91kepler_31_face.xml and
-     * _31_screens.xml. Hiding a category hides its children, so these three
-     * keys cover the whole 3.1 surface (F91KeplerSettingsKeysTest checks that).
+     * Every setting that needs more than the 3.0.3 baseline, with the first
+     * firmware that has it. A setting the connected watch's firmware cannot act on
+     * is not shown at all: no hint, no greyed-out row. A watch whose version is not
+     * known yet gets the baseline only. Hiding a category hides its children, so a
+     * category key covers its whole group; F91KeplerFirmwareGateTest checks that
+     * every key in the Kepler settings XMLs is either baseline or covered here.
      */
-    static final String[] KEYS_31 = {
-            F91KeplerConstants.PREF_QUIET_TEXT,
-            F91KeplerConstants.PREF_CATEGORY_FACE_31,
-            F91KeplerConstants.PREF_CATEGORY_SCREENS_31,
-            F91KeplerModes.PREF_MODES_31,
-    };
+    static final Map<String, int[]> GATES = new LinkedHashMap<>();
 
-    /** Shown only once the watch has reported firmware 3.2 (sound). */
-    static final String[] KEYS_32 = {
-            F91KeplerConstants.PREF_CATEGORY_SOUND_32,
-    };
-
-    /** Shown only once the watch has reported firmware 3.3.2 (second time zone). */
-    static final String[] KEYS_332 = {
-            F91KeplerConstants.PREF_SECOND_ZONE, F91KeplerConstants.PREF_SECOND_ZONE_ID,
-            F91KeplerConstants.PREF_SECOND_ZONE_NAME,
-    };
+    static {
+        // 3.1: UiOptions F2F3, Record F2F4 (counters, forecast), screen ids 10..13
+        GATES.put(F91KeplerConstants.PREF_QUIET_TEXT, F91KeplerFirmware.MIN_31);
+        GATES.put(F91KeplerConstants.PREF_CATEGORY_FACE_31, F91KeplerFirmware.MIN_31);
+        GATES.put(F91KeplerConstants.PREF_CATEGORY_SCREENS_31, F91KeplerFirmware.MIN_31);
+        GATES.put(F91KeplerModes.PREF_MODES_31, F91KeplerFirmware.MIN_31);
+        // 3.2: the case-back piezo and its Record types
+        GATES.put(F91KeplerConstants.PREF_CATEGORY_SOUND_32, F91KeplerFirmware.MIN_32);
+        GATES.put(F91KeplerConstants.PREF_SOUND_LOST, F91KeplerFirmware.MIN_LOST_ALERT);
+        GATES.put(F91KeplerConstants.PREF_SOUND_ALARM_TONE, F91KeplerFirmware.MIN_TONE_CHOICE);
+        GATES.put(F91KeplerConstants.PREF_SOUND_CHIME_TONE, F91KeplerFirmware.MIN_TONE_CHOICE);
+        // 3.3.2: UiOptions bit 4 + Record ZONE
+        GATES.put(F91KeplerConstants.PREF_SECOND_ZONE, F91KeplerFirmware.MIN_SECOND_ZONE);
+        GATES.put(F91KeplerConstants.PREF_SECOND_ZONE_ID, F91KeplerFirmware.MIN_SECOND_ZONE);
+        GATES.put(F91KeplerConstants.PREF_SECOND_ZONE_NAME, F91KeplerFirmware.MIN_SECOND_ZONE);
+    }
 
     /** The opposite: shown only while the watch is NOT known to run 3.1 --
      *  the nine-mode list, which the thirteen-mode one replaces. */
@@ -125,12 +132,73 @@ public class F91KeplerSettingsCustomizer implements DeviceSpecificSettingsCustom
             F91KeplerModes.PREF_MODES,
     };
 
+    /**
+     * Whether the setting {@code key} is shown for a watch on {@code firmware}
+     * ({@code null}: not known yet, the baseline). Keys outside {@link #GATES}
+     * are baseline and always shown, except the pre-3.1 mode list.
+     */
+    static boolean isVisible(final String key, @Nullable final String firmware) {
+        for (final String pre31 : KEYS_PRE31) {
+            if (pre31.equals(key)) {
+                return !F91KeplerFirmware.has31(firmware);
+            }
+        }
+        final int[] min = GATES.get(key);
+        return min == null || F91KeplerFirmware.atLeast(firmware, min);
+    }
+
+    /** The hourly chime summary for this firmware: 3.2 also beeps. */
+    static int hourlyChimeSummary(@Nullable final String firmware) {
+        return F91KeplerFirmware.has32(firmware)
+                ? R.string.f91_pref_summary_hourly_chime_beep
+                : R.string.f91_pref_summary_hourly_chime;
+    }
+
     @Override
     public void onDeviceChanged(final DeviceSpecificSettingsHandler handler) {
         // Fired on every GBDevice update, including the one right after the
         // firmware version was read on connect (GBDeviceEventVersionInfo).
-        apply31Visibility(handler);
+        applyFirmwareVisibility(handler);
         showSoundSwitches(handler);
+    }
+
+    /**
+     * A setting the watch also holds, changed while it is not connected: flagged so
+     * the next connect writes it instead of adopting the watch's value. The flags
+     * are the ones the support class sets when it gets the change itself.
+     */
+    static void markChangedWhileAway(final SharedPreferences prefs, @Nullable final String key) {
+        if (key == null) {
+            return;
+        }
+        switch (key) {
+            case F91KeplerConstants.PREF_BRIGHTNESS:
+                prefs.edit().putBoolean(F91KeplerConstants.PREF_BRIGHTNESS_DIRTY, true).apply();
+                break;
+            case F91KeplerConstants.PREF_SOUND_SNOOZE:
+                prefs.edit().putBoolean(F91KeplerConstants.PREF_SOUND_SNOOZE_DIRTY, true).apply();
+                break;
+            case F91KeplerConstants.PREF_SOUND_ALARM_TONE:
+                prefs.edit().putBoolean(F91KeplerConstants.PREF_SOUND_ALARM_TONE_DIRTY, true).apply();
+                break;
+            case F91KeplerConstants.PREF_SOUND_CHIME_TONE:
+                prefs.edit().putBoolean(F91KeplerConstants.PREF_SOUND_CHIME_TONE_DIRTY, true).apply();
+                break;
+            case F91KeplerConstants.PREF_SOUND_MUTE:
+            case F91KeplerConstants.PREF_SOUND_CALL:
+            case F91KeplerConstants.PREF_SOUND_TEXT:
+            case F91KeplerConstants.PREF_SOUND_LOWBATT:
+            case F91KeplerConstants.PREF_SOUND_LOST: {
+                final Set<String> dirty = new java.util.HashSet<>(prefs.getStringSet(
+                        F91KeplerConstants.PREF_SOUND_DIRTY_KEYS, Collections.emptySet()));
+                if (dirty.add(key)) {
+                    prefs.edit().putStringSet(F91KeplerConstants.PREF_SOUND_DIRTY_KEYS, dirty).apply();
+                }
+                break;
+            }
+            default:
+                break;
+        }
     }
 
     /** The sound switches as stored: the support class adopts the watch's values on connect. */
@@ -160,39 +228,25 @@ public class F91KeplerSettingsCustomizer implements DeviceSpecificSettingsCustom
         }
     }
 
-    /** Show the 3.1 groups iff this device is known to run firmware 3.1+. */
-    private static void apply31Visibility(final DeviceSpecificSettingsHandler handler) {
+    /** Show each gated setting iff the watch's firmware has it (see {@link #GATES}). */
+    private static void applyFirmwareVisibility(final DeviceSpecificSettingsHandler handler) {
         final GBDevice device = handler.getDevice();
-        final boolean show = device != null && F91KeplerFirmware.has31(device.getFirmwareVersion());
-        for (final String key : KEYS_31) {
+        final String fw = device != null ? device.getFirmwareVersion() : null;
+        for (final String key : GATES.keySet()) {
             final Preference pref = handler.findPreference(key);
             if (pref != null) {
-                pref.setVisible(show);
+                pref.setVisible(isVisible(key, fw));
             }
         }
         for (final String key : KEYS_PRE31) {
             final Preference pref = handler.findPreference(key);
             if (pref != null) {
-                pref.setVisible(!show);
+                pref.setVisible(isVisible(key, fw));
             }
         }
-        final boolean show32 = device != null && F91KeplerFirmware.has32(device.getFirmwareVersion());
-        for (final String key : KEYS_32) {
-            final Preference pref = handler.findPreference(key);
-            if (pref != null) {
-                pref.setVisible(show32);
-            }
-        }
-        final boolean show332 = device != null && F91KeplerFirmware.hasSecondZone(device.getFirmwareVersion());
-        for (final String key : KEYS_332) {
-            final Preference pref = handler.findPreference(key);
-            if (pref != null) {
-                pref.setVisible(show332);
-            }
-        }
-        final Preference lost = handler.findPreference(F91KeplerConstants.PREF_SOUND_LOST);
-        if (lost != null) {
-            lost.setVisible(device != null && F91KeplerFirmware.hasLostAlert(device.getFirmwareVersion()));
+        final Preference chime = handler.findPreference(F91KeplerConstants.PREF_HOURLY_CHIME);
+        if (chime != null) {
+            chime.setSummary(hourlyChimeSummary(fw));
         }
     }
 
@@ -225,9 +279,18 @@ public class F91KeplerSettingsCustomizer implements DeviceSpecificSettingsCustom
     @Override
     public void customizeSettings(final DeviceSpecificSettingsHandler handler, final Prefs prefs,
                                   final String rootKey) {
-        apply31Visibility(handler);
+        applyFirmwareVisibility(handler);
         for (final String key : SEND_KEYS) {
-            handler.addPreferenceHandlerFor(key);
+            // The listener runs only for a change the user makes (not when the screen
+            // loads). With the phone's Bluetooth off Gadgetbridge has no support object
+            // for the watch, so onSendConfiguration never runs: remember it here.
+            handler.addPreferenceHandlerFor(key, (preference, newValue) -> {
+                final GBDevice device = handler.getDevice();
+                if (device != null && !device.isConnected()) {
+                    markChangedWhileAway(GBApplication.getDeviceSpecificSharedPrefs(device.getAddress()), key);
+                }
+                return true;
+            });
         }
         // Counter names: at most 10 characters on the watch. The field stops
         // there; the support class still sanitizes (ASCII only) before sending.

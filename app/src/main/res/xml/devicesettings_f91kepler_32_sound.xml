@@ -4,7 +4,7 @@
     xmlns:app="http://schemas.android.com/apk/res-auto">
     <!-- Firmware 3.2 sound (Record SOUND_CFG / PLAY). Always loaded by
          F91KeplerCoordinator, shown by F91KeplerSettingsCustomizer only once
-         the watch has reported firmware 3.2.0 or newer (KEYS_32). The switches
+         the watch has reported firmware 3.2.0 or newer (GATES). The switches
          take the watch's values on every connect (silent mode can also be
          switched on the watch); a change writes only these four bits. -->
     <PreferenceCategory
@@ -42,6 +42,22 @@
             android:entryValues="@array/f91_sound_snooze_values"
             android:key="f91_sound_snooze"
             android:title="@string/f91_pref_title_sound_snooze"
+            app:useSimpleSummaryProvider="true" />
+        <!-- Firmware 3.3.0 (GATES): one tone for all five alarms (ALARM_SOUND)
+             and the hourly chime's tone (EVENT_TONE 0). Picking one plays it once. -->
+        <ListPreference
+            android:defaultValue="3"
+            android:entries="@array/f91_sound_tones"
+            android:entryValues="@array/f91_sound_tones_values"
+            android:key="f91_sound_alarm_tone"
+            android:title="@string/f91_pref_title_sound_alarm_tone"
+            app:useSimpleSummaryProvider="true" />
+        <ListPreference
+            android:defaultValue="2"
+            android:entries="@array/f91_sound_tones"
+            android:entryValues="@array/f91_sound_tones_values"
+            android:key="f91_sound_chime_tone"
+            android:title="@string/f91_pref_title_sound_chime_tone"
             app:useSimpleSummaryProvider="true" />
         <Preference
             android:key="f91_sound_test"

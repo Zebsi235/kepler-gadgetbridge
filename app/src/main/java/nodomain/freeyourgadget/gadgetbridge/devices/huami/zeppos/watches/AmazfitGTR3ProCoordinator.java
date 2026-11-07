@@ -37,10 +37,10 @@ public class AmazfitGTR3ProCoordinator extends ZeppOsCoordinator {
     @Override
     public Set<Integer> getDeviceSources() {
         return new HashSet<>(Arrays.asList(
-                229, // chinese mainland version
+                229, // Chinese mainland version
                 230,
-                242, // chinese mainland version
-                6095106 // chinese mainland version
+                242, // Chinese mainland version
+                6095106 // Chinese mainland version
         ));
     }
 
@@ -57,6 +57,12 @@ public class AmazfitGTR3ProCoordinator extends ZeppOsCoordinator {
     @Override
     public boolean supportsBluetoothPhoneCalls(final GBDevice device) {
         return true;
+    }
+
+    @Override
+    public boolean supportsSleepScore(@NonNull final GBDevice device) {
+        // Zepp OS 1.0
+        return false;
     }
 
     @Override
