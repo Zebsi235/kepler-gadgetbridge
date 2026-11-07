@@ -56,6 +56,7 @@ import nodomain.freeyourgadget.gadgetbridge.deviceevents.GBDeviceEventUpdatePref
 import nodomain.freeyourgadget.gadgetbridge.deviceevents.GBDeviceEventBatteryInfo;
 import nodomain.freeyourgadget.gadgetbridge.deviceevents.GBDeviceEventFindPhone;
 import nodomain.freeyourgadget.gadgetbridge.deviceevents.GBDeviceEventMusicControl;
+import nodomain.freeyourgadget.gadgetbridge.deviceevents.GBDeviceEventNotificationControl;
 import nodomain.freeyourgadget.gadgetbridge.deviceevents.GBDeviceEventVersionInfo;
 import nodomain.freeyourgadget.gadgetbridge.devices.f91kepler.F91KeplerConstants;
 import nodomain.freeyourgadget.gadgetbridge.devices.f91kepler.F91KeplerCoordinator;
@@ -199,10 +200,14 @@ public class F91KeplerSupport extends AbstractBTLESingleDeviceSupport {
         final int id;
         final String app;
         final String sender;
-        RecentNotif(final int id, final String app, final String sender) {
-            this.id = id; this.app = app; this.sender = sender;
+        /** 1-255: what the watch echoes when this entry is dismissed on it. */
+        final int token;
+        RecentNotif(final int id, final String app, final String sender, final int token) {
+            this.id = id; this.app = app; this.sender = sender; this.token = token;
         }
     }
+    /** Last dismiss token handed out; guarded by {@link #recent}. */
+    private int lastToken;
 
     public F91KeplerSupport() {
         super(LOG);
@@ -307,7 +312,28 @@ public class F91KeplerSupport extends AbstractBTLESingleDeviceSupport {
         // And the uploaded image -- but that one is 28 writes, so ask the watch
         // what it is holding first instead of re-sending it on every reconnect.
         addImageCheck(builder);
+        // Link parameters last, in their own transaction so a refusal costs nothing else.
+        builder.run(this::queueLinkParameters);
         return builder;
+    }
+
+    /**
+     * After the connect setup: a larger MTU, so the watch's longer reads and
+     * notifies are not cut (the watch answers with what it can take), and the
+     * low-power connection priority, so an idle link does not keep the watch's
+     * radio busy (Android's default interval drew about 20 times the current of
+     * the watch's own). The watch then asks for its preferred interval itself.
+     */
+    private void queueLinkParameters() {
+        final TransactionBuilder b = createTransactionBuilder("link parameters");
+        // A history entry dismissed on the watch (firmware 3.3.4); here, so a
+        // failed subscription cannot cut the connect setup short.
+        if (hasDismissNotify()) {
+            b.notify(F91KeplerConstants.UUID_CHAR_NOTIFICATION_DISMISS, true);
+        }
+        b.requestMtu(F91KeplerConstants.MTU_REQUEST);
+        b.requestConnectionPriority(BluetoothGatt.CONNECTION_PRIORITY_LOW_POWER);
+        b.queue();
     }
 
     /**
@@ -373,6 +399,10 @@ public class F91KeplerSupport extends AbstractBTLESingleDeviceSupport {
         if (F91KeplerConstants.UUID_CHAR_ALERT_EVENT.equals(characteristic.getUuid())
                 && value != null && value.length >= 1) {
             handleAlertEvent(value[0]);
+            return true;
+        }
+        if (F91KeplerConstants.UUID_CHAR_NOTIFICATION_DISMISS.equals(characteristic.getUuid())) {
+            handleWatchDismiss(value);
             return true;
         }
         return super.onCharacteristicChanged(gatt, characteristic, value);
@@ -1346,7 +1376,7 @@ public class F91KeplerSupport extends AbstractBTLESingleDeviceSupport {
         final String sender = StringUtils.firstNonBlank(spec.getSender(), spec.getTitle(), "notification");
         synchronized (recent) {
             removeRecent(spec.getId());                    // de-dupe by id
-            recent.add(0, new RecentNotif(spec.getId(), app, sender));   // newest first
+            recent.add(0, new RecentNotif(spec.getId(), app, sender, nextToken()));   // newest first
             while (recent.size() > F91_RECENT_MAX) {
                 recent.remove(recent.size() - 1);
             }
@@ -1467,6 +1497,63 @@ public class F91KeplerSupport extends AbstractBTLESingleDeviceSupport {
         }
     }
 
+    /** A token 1-255 no entry in {@link #recent} holds (caller holds the lock). */
+    private int nextToken() {
+        for (int i = 0; i < 255; i++) {
+            lastToken = lastToken % 255 + 1;
+            boolean used = false;
+            for (final RecentNotif r : recent) {
+                if (r.token == lastToken) {
+                    used = true;
+                    break;
+                }
+            }
+            if (!used) {
+                return lastToken;
+            }
+        }
+        return lastToken;   // unreachable: the list holds at most F91_RECENT_MAX entries
+    }
+
+    /** Firmware 3.3.4: the watch reports dismissals and takes tokens in NotificationEntry. */
+    private boolean hasDismissNotify() {
+        return getCharacteristic(F91KeplerConstants.UUID_CHAR_NOTIFICATION_DISMISS) != null;
+    }
+
+    /**
+     * The user dismissed a history entry on the watch: dismiss the phone
+     * notification it stands for, and drop it here right away. Not every entry
+     * can be dismissed on the phone (an ongoing one, an SMS, one the listener no
+     * longer knows), and its entry must not come back on the next push; when the
+     * phone does dismiss it, the second removal finds nothing to do.
+     */
+    private void handleWatchDismiss(final byte[] value) {
+        final int token = F91KeplerProtocol.dismissToken(value);
+        if (token == 0) {
+            return;
+        }
+        Integer id = null;
+        synchronized (recent) {
+            for (final RecentNotif r : recent) {
+                if (r.token == token) {
+                    id = r.id;
+                    break;
+                }
+            }
+        }
+        if (id == null) {
+            LOG.info("F91 watch dismissed token {}, which no current notification holds", token);
+            return;
+        }
+        LOG.info("F91 watch dismissed notification {}", id);
+        final GBDeviceEventNotificationControl ev = new GBDeviceEventNotificationControl();
+        ev.event = GBDeviceEventNotificationControl.Event.DISMISS;
+        ev.handle = id;
+        handleGBDeviceEvent(ev);
+        final int dismissed = id;
+        alertHandler.post(() -> onDeleteNotification(dismissed));   // main thread, like GB's own removals
+    }
+
     private void removeRecent(final int id) {
         synchronized (recent) {
             for (final Iterator<RecentNotif> it = recent.iterator(); it.hasNext(); ) {
@@ -1492,6 +1579,7 @@ public class F91KeplerSupport extends AbstractBTLESingleDeviceSupport {
             snapshot = new ArrayList<>(recent);
         }
         final int total = snapshot.size();
+        final boolean tokens = hasDismissNotify();
         if (total == 0) {
             builder.write(F91KeplerConstants.UUID_CHAR_NOTIFICATION_ENTRY,
                           F91KeplerProtocol.notificationEntry(0, 0, "", ""));
@@ -1500,7 +1588,8 @@ public class F91KeplerSupport extends AbstractBTLESingleDeviceSupport {
         for (int i = 0; i < total; i++) {
             final RecentNotif e = snapshot.get(i);
             builder.write(F91KeplerConstants.UUID_CHAR_NOTIFICATION_ENTRY,
-                          F91KeplerProtocol.notificationEntry(i, total, forWatch(e.app), forWatch(e.sender)));
+                          F91KeplerProtocol.notificationEntry(i, total, forWatch(e.app), forWatch(e.sender),
+                                                              tokens ? e.token : 0));
         }
     }
 

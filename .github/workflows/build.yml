@@ -133,11 +133,37 @@ jobs:
           echo "Tag build without the Kepler signing key: nothing is published" >&2
           exit 1
 
+      # The notes are the reviewed file in the repo, never GitHub's generated
+      # list (that one adds "by @user" lines; release notes carry no usernames).
+      - name: Release notes file
+        id: notes
+        if: startsWith(github.ref, 'refs/tags/v')
+        run: |
+          f="docs/release-notes/${GITHUB_REF_NAME}.md"
+          if [ ! -s "$f" ]; then
+            echo "Missing $f: add the release notes before tagging (docs/KEPLER.md)" >&2
+            exit 1
+          fi
+          if grep -q '\[PENDING' "$f"; then
+            echo "$f still has [PENDING ...] marks: finish the notes before tagging" >&2
+            exit 1
+          fi
+          apk="${{ steps.apk.outputs.path }}"
+          out="$RUNNER_TEMP/release-notes.md"
+          sed -e "s|@APK_NAME@|$(basename "$apk")|g" \
+              -e "s|@APK_SHA256@|$(sha256sum "$apk" | cut -d' ' -f1)|g" "$f" > "$out"
+          if grep -q '@APK_' "$out"; then
+            echo "Unfilled placeholder in the release notes" >&2
+            exit 1
+          fi
+          echo "path=$out" >> "$GITHUB_OUTPUT"
+
       - name: Publish GitHub Release
         if: startsWith(github.ref, 'refs/tags/v')
         uses: softprops/action-gh-release@v2
         with:
           files: ${{ steps.apk.outputs.path }}
-          generate_release_notes: true
+          body_path: ${{ steps.notes.outputs.path }}
+          generate_release_notes: false
           fail_on_unmatched_files: true
           prerelease: ${{ contains(github.ref_name, '-rc') }}

@@ -35,6 +35,8 @@ import nodomain.freeyourgadget.gadgetbridge.GBApplication;
 import nodomain.freeyourgadget.gadgetbridge.R;
 import nodomain.freeyourgadget.gadgetbridge.database.DBHandler;
 import nodomain.freeyourgadget.gadgetbridge.database.DBHelper;
+import nodomain.freeyourgadget.gadgetbridge.devices.f91kepler.F91KeplerAlarms;
+import nodomain.freeyourgadget.gadgetbridge.devices.f91kepler.F91KeplerCoordinator;
 import nodomain.freeyourgadget.gadgetbridge.devices.miband.MiBandConst;
 import nodomain.freeyourgadget.gadgetbridge.entities.Alarm;
 import nodomain.freeyourgadget.gadgetbridge.entities.DaoSession;
@@ -83,6 +85,9 @@ public class AlarmUtils {
     public static Alarm createDefaultAlarm(DaoSession daoSession, GBDevice gbDevice, int position) {
         Device device = DBHelper.getDevice(gbDevice, daoSession);
         User user = DBHelper.getUser(daoSession);
+        if (gbDevice.getDeviceCoordinator() instanceof F91KeplerCoordinator) {
+            return F91KeplerAlarms.create(device.getId(), user.getId(), position);
+        }
         return new Alarm(device.getId(), user.getId(), position, false, false, null, false, 0, 6, 30, false, null, null, 0, true);
     }
 
