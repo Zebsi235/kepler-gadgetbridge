@@ -2382,7 +2382,13 @@ public class F91KeplerSupport extends AbstractBTLESingleDeviceSupport {
         try {
             if (problem != null) {
                 LOG.warn("F91 live picture: {}", problem);
-                prefs.edit().putString(F91KeplerConstants.PREF_LIVE_STATUS, problem).apply();
+                final SharedPreferences.Editor edit = prefs.edit().putString(F91KeplerConstants.PREF_LIVE_STATUS, problem);
+                if (preset == F91KeplerLivePicture.Preset.CRYPTO || preset == F91KeplerLivePicture.Preset.STOCK) {
+                    // A price service counts the failed call too: no new try on every
+                    // reconnect, only after the interval (as the iPhone app waits).
+                    edit.putLong(F91KeplerConstants.PREF_LIVE_LAST_SENT, System.currentTimeMillis());
+                }
+                edit.apply();
                 if (tell) {
                     GB.toast(getContext(), problem, Toast.LENGTH_LONG, GB.WARN);
                 }

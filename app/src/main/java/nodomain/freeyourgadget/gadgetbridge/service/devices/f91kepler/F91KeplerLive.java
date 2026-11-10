@@ -225,7 +225,7 @@ final class F91KeplerLive {
             }
             return F91KeplerLiveQuote.decodeCoin(r.body, coin);
         } catch (final F91KeplerLiveQuote.QuoteException e) {
-            throw failure(context, e.problem, r.status);
+            throw failure(context, prefs, e.problem, r.status);
         }
     }
 
@@ -245,12 +245,12 @@ final class F91KeplerLive {
         try {
             return service.decode(r.body, symbol == null ? "" : symbol, r.status);
         } catch (final F91KeplerLiveQuote.QuoteException e) {
-            throw failure(context, e.problem, r.status);
+            throw failure(context, prefs, e.problem, r.status);
         }
     }
 
-    private static Failure failure(final Context context, final F91KeplerLiveQuote.Problem problem,
-                                   final int status) {
+    private static Failure failure(final Context context, final SharedPreferences prefs,
+                                   final F91KeplerLiveQuote.Problem problem, final int status) {
         switch (problem) {
             case UNKNOWN_SYMBOL:
                 return new Failure(context.getString(R.string.f91_live_unknown_symbol));
@@ -258,7 +258,8 @@ final class F91KeplerLive {
                 return new Failure(context.getString(R.string.f91_live_bad_key));
             case LIMITED:
                 // The next timed try is 15 minutes (Alpha Vantage: an hour) away anyway.
-                return new Failure(context.getString(R.string.f91_live_limited));
+                return new Failure(context.getString(R.string.f91_live_limited,
+                        (int) (interval(prefs) / 60_000L)));
             default:
                 return new Failure(status == 200 ? context.getString(R.string.f91_live_unexpected)
                         : context.getString(R.string.f91_live_unreachable_status, status));

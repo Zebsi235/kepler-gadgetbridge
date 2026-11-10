@@ -188,10 +188,12 @@
     <string name="f91_live_enter_coin">Gib einen Coin ein, z. B. BTC oder ETH-EUR.</string>
     <string name="f91_live_enter_key">Aktienkurse brauchen deinen eigenen kostenlosen Schlüssel; gib ihn unten ein.</string>
     <string name="f91_live_enter_symbol">Gib ein Symbol ein, z. B. AAPL.</string>
-    <string name="f91_live_allow_prices">Erlaube \"Kepler live prices\" in den Gadgetbridge-Einstellungen unter Internet Helper.</string>
+    <string name="f91_live_allow_prices">Erlaube \"Kepler-Live-Kurse\" in den Gadgetbridge-Einstellungen unter Internet Helper.</string>
     <string name="f91_live_unknown_symbol">Für dieses Symbol gibt es keinen Kurs.</string>
     <string name="f91_live_bad_key">Der Dienst hat den Schlüssel nicht angenommen.</string>
-    <string name="f91_live_limited">Gerade zu viele Anfragen. Neuer Versuch in 15 Minuten.</string>
+    <string name="f91_live_limited">Gerade zu viele Anfragen. Neuer Versuch in %d Minuten.</string>
+    <string name="internet_helper_pref_kepler_live_prices_title">Kepler-Live-Kurse</string>
+    <string name="internet_helper_pref_kepler_live_prices_summary">Den Krypto- oder Aktienkurs für das Live-Bild der Kepler-Uhr abrufen (CoinGecko, Finnhub, Alpha Vantage)</string>
     <string name="f91_live_unexpected">Der Kursdienst hat etwas Unerwartetes geschickt.</string>
     <string name="f91_live_unreachable">Der Kursdienst ist nicht erreichbar.</string>
     <string name="f91_live_unreachable_status">Der Kursdienst ist nicht erreichbar (%d).</string>
