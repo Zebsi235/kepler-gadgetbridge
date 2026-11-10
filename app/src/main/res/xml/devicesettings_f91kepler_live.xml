@@ -3,7 +3,8 @@
     xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto">
 
-    <!-- Live picture: the phone draws a card (the next calendar event) and sends
+    <!-- Live picture: the phone draws a card (a price, the next calendar event, the
+         open to-dos) and sends
          it as the Image screen's picture (F91KeplerLive, F91KeplerSupport#refreshLive).
          Included by F91KeplerCoordinator with the image group (firmware 2.16.0+). -->
     <PreferenceCategory
@@ -21,6 +22,41 @@
             android:key="f91_live_preset"
             android:title="@string/f91_pref_title_live_preset"
             app:useSimpleSummaryProvider="true" />
+
+        <!-- Crypto and stock: shown for their choice by F91KeplerSettingsCustomizer. -->
+        <EditTextPreference
+            android:defaultValue="BTC"
+            android:key="f91_live_coin"
+            android:title="@string/f91_pref_title_live_coin"
+            app:isPreferenceVisible="false"
+            app:useSimpleSummaryProvider="true" />
+
+        <ListPreference
+            android:defaultValue="finnhub"
+            android:entries="@array/f91_live_stock_service"
+            android:entryValues="@array/f91_live_stock_service_values"
+            android:key="f91_live_stock_service"
+            android:title="@string/f91_pref_title_live_stock_service"
+            app:isPreferenceVisible="false"
+            app:useSimpleSummaryProvider="true" />
+
+        <EditTextPreference
+            android:key="f91_live_stock_symbol"
+            android:title="@string/f91_pref_title_live_stock_symbol"
+            app:isPreferenceVisible="false"
+            app:useSimpleSummaryProvider="true" />
+
+        <!-- The summary never shows the key itself. -->
+        <EditTextPreference
+            android:key="f91_live_stock_key"
+            android:title="@string/f91_pref_title_live_stock_key"
+            app:isPreferenceVisible="false" />
+
+        <!-- Opens the service's sign-up page in the browser. -->
+        <Preference
+            android:key="f91_live_get_key"
+            android:title="@string/f91_pref_title_live_get_key"
+            app:isPreferenceVisible="false" />
 
         <!-- Clicked: F91KeplerSettingsCustomizer forwards it to the support class. -->
         <Preference

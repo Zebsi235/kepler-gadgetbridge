@@ -2334,8 +2334,9 @@ public class F91KeplerSupport extends AbstractBTLESingleDeviceSupport {
             }
             final long since = System.currentTimeMillis()
                     - prefs.getLong(F91KeplerConstants.PREF_LIVE_LAST_SENT, 0);
-            if (since >= 0 && since < F91KeplerConstants.LIVE_INTERVAL_MS) {
-                liveHandler.postDelayed(liveTick, F91KeplerConstants.LIVE_INTERVAL_MS - since);
+            final long every = F91KeplerLive.interval(prefs);
+            if (since >= 0 && since < every) {
+                liveHandler.postDelayed(liveTick, every - since);
                 return;
             }
         }
@@ -2353,7 +2354,8 @@ public class F91KeplerSupport extends AbstractBTLESingleDeviceSupport {
         byte[] frame = null;
         String problem = null;
         try {
-            frame = F91KeplerLive.make(getContext(), preset, use24h).pack();
+            frame = F91KeplerLive.make(getContext(),
+                    GBApplication.getDeviceSpecificSharedPrefs(getDevice().getAddress()), preset, use24h).pack();
         } catch (final F91KeplerLive.Failure f) {
             problem = f.getMessage();
         } catch (final RuntimeException e) {
@@ -2405,7 +2407,7 @@ public class F91KeplerSupport extends AbstractBTLESingleDeviceSupport {
         } finally {
             if (getDevice().isInitialized()) {
                 liveHandler.removeCallbacks(liveTick);
-                liveHandler.postDelayed(liveTick, F91KeplerConstants.LIVE_INTERVAL_MS);
+                liveHandler.postDelayed(liveTick, F91KeplerLive.interval(prefs));
             }
         }
     }
@@ -2581,6 +2583,12 @@ public class F91KeplerSupport extends AbstractBTLESingleDeviceSupport {
                 break;
             case F91KeplerConstants.PREF_LIVE_SEND:
                 refreshLive(true, true);
+                break;
+            case F91KeplerConstants.PREF_LIVE_COIN:
+            case F91KeplerConstants.PREF_LIVE_STOCK_SERVICE:
+            case F91KeplerConstants.PREF_LIVE_STOCK_SYMBOL:
+            case F91KeplerConstants.PREF_LIVE_STOCK_KEY:
+                refreshLive(true, false);       // the new coin or symbol right away
                 break;
             default:
                 if (config.startsWith(F91KeplerConstants.PREF_TRANSFER_RETRY_PREFIX)) {

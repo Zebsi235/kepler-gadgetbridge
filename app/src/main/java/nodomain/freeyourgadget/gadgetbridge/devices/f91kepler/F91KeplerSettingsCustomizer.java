@@ -22,8 +22,10 @@ import android.content.Context;
 import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.content.SharedPreferences;
+import android.net.Uri;
 import android.os.Parcel;
 import android.text.InputFilter;
+import android.text.InputType;
 import android.widget.Toast;
 
 import androidx.annotation.NonNull;
@@ -177,6 +179,7 @@ public class F91KeplerSettingsCustomizer implements DeviceSpecificSettingsCustom
             return;
         }
         hideTodoWithoutTaskApp(handler.getContext(), preset);
+        setUpPrices(handler);
         handler.addPreferenceHandlerFor(F91KeplerConstants.PREF_LIVE_PRESET, (pref, newValue) -> {
             final String value = String.valueOf(newValue);
             askForAccess(handler, F91KeplerLivePicture.Preset.from(value), false);
@@ -191,6 +194,47 @@ public class F91KeplerSettingsCustomizer implements DeviceSpecificSettingsCustom
             return true;
         });
         showLive(handler, null);
+    }
+
+    /** Coin, price service, symbol, key: each change redraws the card at once. */
+    private static void setUpPrices(final DeviceSpecificSettingsHandler handler) {
+        final EditTextPreference coin = handler.findPreference(F91KeplerConstants.PREF_LIVE_COIN);
+        final EditTextPreference symbol = handler.findPreference(F91KeplerConstants.PREF_LIVE_STOCK_SYMBOL);
+        final EditTextPreference key = handler.findPreference(F91KeplerConstants.PREF_LIVE_STOCK_KEY);
+        final ListPreference service = handler.findPreference(F91KeplerConstants.PREF_LIVE_STOCK_SERVICE);
+        final Preference getKey = handler.findPreference(F91KeplerConstants.PREF_LIVE_GET_KEY);
+        if (coin == null || symbol == null || key == null || service == null || getKey == null) {
+            return;
+        }
+        final EditTextPreference.OnBindEditTextListener upper = editText -> {
+            editText.setSingleLine(true);
+            editText.setInputType(InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_FLAG_CAP_CHARACTERS
+                    | InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS);
+        };
+        coin.setOnBindEditTextListener(upper);
+        symbol.setOnBindEditTextListener(upper);
+        key.setOnBindEditTextListener(editText -> {
+            editText.setSingleLine(true);
+            editText.setInputType(InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_VARIATION_PASSWORD);
+        });
+        // Never shows the key itself.
+        key.setSummaryProvider(p -> p.getContext().getString(
+                ((EditTextPreference) p).getText() == null || ((EditTextPreference) p).getText().trim().isEmpty()
+                        ? R.string.f91_pref_summary_live_key_unset : R.string.f91_pref_summary_live_key_set));
+        handler.addPreferenceHandlerFor(F91KeplerConstants.PREF_LIVE_COIN);
+        handler.addPreferenceHandlerFor(F91KeplerConstants.PREF_LIVE_STOCK_SYMBOL);
+        handler.addPreferenceHandlerFor(F91KeplerConstants.PREF_LIVE_STOCK_KEY);
+        handler.addPreferenceHandlerFor(F91KeplerConstants.PREF_LIVE_STOCK_SERVICE, (pref, newValue) -> true);
+        getKey.setOnPreferenceClickListener(pref -> {
+            final String url = F91KeplerLiveQuote.StockService.from(service.getValue()).signUp;
+            try {
+                handler.getContext().startActivity(new Intent(Intent.ACTION_VIEW, Uri.parse(url))
+                        .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK));
+            } catch (final android.content.ActivityNotFoundException e) {
+                GB.toast(handler.getContext(), url, Toast.LENGTH_LONG, GB.INFO);
+            }
+            return true;
+        });
     }
 
     /**
@@ -268,6 +312,14 @@ public class F91KeplerSettingsCustomizer implements DeviceSpecificSettingsCustom
         return out.toArray(new String[0]);
     }
 
+    private static void setVisible(final DeviceSpecificSettingsHandler handler, final String key,
+                                   final boolean visible) {
+        final Preference p = handler.findPreference(key);
+        if (p != null) {
+            p.setVisible(visible);
+        }
+    }
+
     /** Send is shown with a picture chosen; its summary is the last problem or what is drawn. */
     private static void showLive(final DeviceSpecificSettingsHandler handler, @Nullable final String newValue) {
         final ListPreference preset = handler.findPreference(F91KeplerConstants.PREF_LIVE_PRESET);
@@ -279,6 +331,12 @@ public class F91KeplerSettingsCustomizer implements DeviceSpecificSettingsCustom
         final F91KeplerLivePicture.Preset p = F91KeplerLivePicture.Preset.from(
                 newValue != null ? newValue : preset.getValue());
         send.setVisible(p != F91KeplerLivePicture.Preset.OFF);
+        final boolean stock = p == F91KeplerLivePicture.Preset.STOCK;
+        setVisible(handler, F91KeplerConstants.PREF_LIVE_COIN, p == F91KeplerLivePicture.Preset.CRYPTO);
+        setVisible(handler, F91KeplerConstants.PREF_LIVE_STOCK_SERVICE, stock);
+        setVisible(handler, F91KeplerConstants.PREF_LIVE_STOCK_SYMBOL, stock);
+        setVisible(handler, F91KeplerConstants.PREF_LIVE_STOCK_KEY, stock);
+        setVisible(handler, F91KeplerConstants.PREF_LIVE_GET_KEY, stock);
         final String status = newValue != null ? "" : GBApplication.getDeviceSpecificSharedPrefs(
                 device.getAddress()).getString(F91KeplerConstants.PREF_LIVE_STATUS, "");
         if (status != null && !status.isEmpty()) {
@@ -287,6 +345,10 @@ public class F91KeplerSettingsCustomizer implements DeviceSpecificSettingsCustom
             send.setSummary(R.string.f91_pref_summary_live_calendar);
         } else if (p == F91KeplerLivePicture.Preset.TODO) {
             send.setSummary(R.string.f91_pref_summary_live_todo);
+        } else if (p == F91KeplerLivePicture.Preset.CRYPTO) {
+            send.setSummary(R.string.f91_pref_summary_live_crypto);
+        } else if (p == F91KeplerLivePicture.Preset.STOCK) {
+            send.setSummary(R.string.f91_pref_summary_live_stock);
         } else {
             send.setSummary(null);
         }

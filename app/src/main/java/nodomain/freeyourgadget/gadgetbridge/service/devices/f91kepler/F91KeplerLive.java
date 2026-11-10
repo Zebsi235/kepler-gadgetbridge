@@ -31,6 +31,10 @@ import androidx.annotation.Nullable;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.io.ByteArrayOutputStream;
+import java.io.IOException;
+import java.io.InputStream;
+import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.ZoneId;
@@ -38,13 +42,21 @@ import java.time.ZoneOffset;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
 
+import nodomain.freeyourgadget.gadgetbridge.GBApplication;
 import nodomain.freeyourgadget.gadgetbridge.R;
 import nodomain.freeyourgadget.gadgetbridge.devices.f91kepler.F91KeplerConstants;
 import nodomain.freeyourgadget.gadgetbridge.devices.f91kepler.F91KeplerLiveCanvas;
 import nodomain.freeyourgadget.gadgetbridge.devices.f91kepler.F91KeplerLivePicture;
+import nodomain.freeyourgadget.gadgetbridge.devices.f91kepler.F91KeplerLiveQuote;
+import nodomain.freeyourgadget.gadgetbridge.util.AndroidUtils;
+import nodomain.freeyourgadget.gadgetbridge.util.InternetUtils;
+import nodomain.freeyourgadget.gadgetbridge.util.PermissionsUtils;
+import nodomain.freeyourgadget.gadgetbridge.util.internethelper.InternetHelperHttpClient;
+import nodomain.freeyourgadget.gadgetbridge.util.internethelper.InternetHelperHttpResponse;
 
 /**
  * Draws the chosen live picture from the phone's data. The support class
@@ -70,10 +82,28 @@ final class F91KeplerLive {
                 prefs.getString(F91KeplerConstants.PREF_LIVE_PRESET, F91KeplerLivePicture.Preset.OFF.value));
     }
 
+    /** How often the card may be redrawn: Alpha Vantage's free key allows 25 calls a day. */
+    static long interval(final SharedPreferences prefs) {
+        if (preset(prefs) == F91KeplerLivePicture.Preset.STOCK) {
+            return Math.max(F91KeplerConstants.LIVE_INTERVAL_MS, stockService(prefs).minIntervalMs);
+        }
+        return F91KeplerConstants.LIVE_INTERVAL_MS;
+    }
+
+    static F91KeplerLiveQuote.StockService stockService(final SharedPreferences prefs) {
+        return F91KeplerLiveQuote.StockService.from(
+                prefs.getString(F91KeplerConstants.PREF_LIVE_STOCK_SERVICE, null));
+    }
+
     /** The card for {@code preset}, or a {@link Failure} to show the user. */
-    static F91KeplerLiveCanvas make(final Context context, final F91KeplerLivePicture.Preset preset,
+    static F91KeplerLiveCanvas make(final Context context, final SharedPreferences prefs,
+                                    final F91KeplerLivePicture.Preset preset,
                                     final boolean use24h) throws Failure {
         switch (preset) {
+            case CRYPTO:
+                return F91KeplerLiveQuote.render(crypto(context, prefs));
+            case STOCK:
+                return F91KeplerLiveQuote.render(stock(context, prefs));
             case NEXT_EVENT:
                 return F91KeplerLivePicture.render(nextEvent(context, use24h),
                         context.getString(R.string.f91_live_no_events));
@@ -175,6 +205,114 @@ final class F91KeplerLive {
         return F91KeplerLivePicture.event(title == null ? "" : title,
                 Instant.ofEpochMilli(allDay ? dayBegin : bestBegin), allDay,
                 Instant.ofEpochMilli(now), zone, use24h, dayFormat, labels);
+    }
+
+    // --- Prices, through the Internet Helper ------------------------------------------
+
+    private static final int MAX_BODY = 512 * 1024;
+
+    private static F91KeplerLiveQuote.Quote crypto(final Context context, final SharedPreferences prefs)
+            throws Failure {
+        final F91KeplerLiveQuote.Coin coin = F91KeplerLiveQuote.coin(
+                prefs.getString(F91KeplerConstants.PREF_LIVE_COIN, "BTC"));
+        if (coin == null) {
+            throw new Failure(context.getString(R.string.f91_live_enter_coin));
+        }
+        final Response r = get(context, coin.url(), Collections.singletonMap("Accept", "application/json"));
+        try {
+            if (r.status == 429) {
+                throw new F91KeplerLiveQuote.QuoteException(F91KeplerLiveQuote.Problem.LIMITED);
+            }
+            return F91KeplerLiveQuote.decodeCoin(r.body, coin);
+        } catch (final F91KeplerLiveQuote.QuoteException e) {
+            throw failure(context, e.problem, r.status);
+        }
+    }
+
+    private static F91KeplerLiveQuote.Quote stock(final Context context, final SharedPreferences prefs)
+            throws Failure {
+        final String key = prefs.getString(F91KeplerConstants.PREF_LIVE_STOCK_KEY, "");
+        if (key == null || key.trim().isEmpty()) {
+            throw new Failure(context.getString(R.string.f91_live_enter_key));
+        }
+        final String symbol = prefs.getString(F91KeplerConstants.PREF_LIVE_STOCK_SYMBOL, "");
+        final F91KeplerLiveQuote.StockService service = stockService(prefs);
+        final String url = service.url(symbol, key);
+        if (url == null) {
+            throw new Failure(context.getString(R.string.f91_live_enter_symbol));
+        }
+        final Response r = get(context, url, service.headers(key));
+        try {
+            return service.decode(r.body, symbol == null ? "" : symbol, r.status);
+        } catch (final F91KeplerLiveQuote.QuoteException e) {
+            throw failure(context, e.problem, r.status);
+        }
+    }
+
+    private static Failure failure(final Context context, final F91KeplerLiveQuote.Problem problem,
+                                   final int status) {
+        switch (problem) {
+            case UNKNOWN_SYMBOL:
+                return new Failure(context.getString(R.string.f91_live_unknown_symbol));
+            case BAD_KEY:
+                return new Failure(context.getString(R.string.f91_live_bad_key));
+            case LIMITED:
+                // The next timed try is 15 minutes (Alpha Vantage: an hour) away anyway.
+                return new Failure(context.getString(R.string.f91_live_limited));
+            default:
+                return new Failure(status == 200 ? context.getString(R.string.f91_live_unexpected)
+                        : context.getString(R.string.f91_live_unreachable_status, status));
+        }
+    }
+
+    private static final class Response {
+        final int status;
+        final String body;
+
+        Response(final int status, final String body) {
+            this.status = status;
+            this.body = body;
+        }
+    }
+
+    /**
+     * A GET through the Internet Helper, which the user allows under Settings,
+     * Internet Helper. Finnhub's key goes in a header; Alpha Vantage only takes
+     * it in the URL, which the helper client logs.
+     */
+    private static Response get(final Context context, final String url,
+                                final java.util.Map<String, String> headers) throws Failure {
+        if (!GBApplication.getPrefs().getBoolean(F91KeplerConstants.PREF_INTERNETHELPER_ALLOW_LIVE_PRICES, false)) {
+            throw new Failure(context.getString(R.string.f91_live_allow_prices));
+        }
+        if (!AndroidUtils.isPackageInstalled(PermissionsUtils.PACKAGE_INTERNET_HELPER)
+                || !PermissionsUtils.checkPermission(context, PermissionsUtils.CUSTOM_PERM_INTERNET_HELPER)) {
+            // Gadgetbridge's own words: install the helper, or allow it.
+            throw new Failure(InternetUtils.noInternetAccessReason(context));
+        }
+        try (InternetHelperHttpResponse r = InternetHelperHttpClient.get(url, headers, null, 15_000L)) {
+            return new Response(r.getStatus(), read(r.getBody()));
+        } catch (final InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new Failure(context.getString(R.string.f91_live_unreachable));
+        } catch (final IOException | RuntimeException e) {
+            // Its message may hold the URL, and so the key: log the kind only.
+            LOG.warn("F91 live picture: price request failed: {}", e.getClass().getSimpleName());
+            throw new Failure(context.getString(R.string.f91_live_unreachable));
+        }
+    }
+
+    private static String read(final InputStream in) throws IOException {
+        final ByteArrayOutputStream out = new ByteArrayOutputStream();
+        final byte[] buf = new byte[8192];
+        int n;
+        while ((n = in.read(buf)) > 0) {
+            out.write(buf, 0, n);
+            if (out.size() > MAX_BODY) {
+                throw new IOException("response too large");
+            }
+        }
+        return new String(out.toByteArray(), StandardCharsets.UTF_8);
     }
 
     // --- Open to-dos --------------------------------------------------------------

@@ -39,7 +39,7 @@ public final class F91KeplerLivePicture {
 
     /** What the Image screen shows. The values are stored in the preference. */
     public enum Preset {
-        OFF("off"), NEXT_EVENT("next_event"), TODO("todo");
+        OFF("off"), CRYPTO("crypto"), STOCK("stock"), NEXT_EVENT("next_event"), TODO("todo");
 
         public final String value;
 

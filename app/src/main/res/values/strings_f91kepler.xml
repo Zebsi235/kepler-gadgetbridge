@@ -11,7 +11,7 @@
     <!-- Live picture: the phone draws a card for the Image screen -->
     <string name="f91_pref_header_live">Live picture</string>
     <string name="f91_pref_title_live_preset">Live picture</string>
-    <string name="f91_pref_summary_live">The phone can draw a picture for you: your next calendar event or your open to-dos. It is refreshed every 15 minutes while the watch is connected and replaces your own picture.</string>
+    <string name="f91_pref_summary_live">The phone can draw a picture for you: a stock or crypto price, your next calendar event or your open to-dos. It is refreshed every 15 minutes while the watch is connected and replaces your own picture.</string>
     <string name="f91_live_off">Off</string>
     <string name="f91_live_calendar">Calendar</string>
     <string name="f91_pref_title_live_send">Send to watch</string>
@@ -28,5 +28,28 @@
     <string name="f91_live_allow_tasks">Allow Gadgetbridge to read your tasks in the Android settings.</string>
     <string name="f91_live_no_task_app">Install Tasks.org or OpenTasks to show your to-dos.</string>
     <string name="f91_live_read_failed">Could not read it right now. The watch keeps the last picture.</string>
+    <string name="f91_live_crypto">Crypto</string>
+    <string name="f91_live_stock">Stock</string>
+    <string name="f91_pref_title_live_coin">Coin, e.g. BTC, ETH-EUR</string>
+    <string name="f91_pref_title_live_stock_service">Price service</string>
+    <string name="f91_pref_title_live_stock_symbol">Symbol, e.g. AAPL</string>
+    <string name="f91_pref_title_live_stock_key">Your key</string>
+    <string name="f91_pref_summary_live_key_set">Entered</string>
+    <string name="f91_pref_summary_live_key_unset">Not entered yet</string>
+    <string name="f91_pref_title_live_get_key">Get a free key</string>
+    <string name="f91_pref_summary_live_crypto">Prices from CoinGecko, no account needed. The change and the line cover the last 24 hours. Needs the Internet Helper app.</string>
+    <string name="f91_pref_summary_live_stock">Stock prices need your own free key from that service. It is kept in Gadgetbridge on this phone and only sent to that service. Needs the Internet Helper app.</string>
+    <string name="f91_live_enter_coin">Enter a coin, e.g. BTC or ETH-EUR.</string>
+    <string name="f91_live_enter_key">Stock prices need your own free key; enter it below.</string>
+    <string name="f91_live_enter_symbol">Enter a symbol, e.g. AAPL.</string>
+    <string name="f91_live_allow_prices">Allow \"Kepler live prices\" in Gadgetbridge settings, Internet Helper.</string>
+    <string name="f91_live_unknown_symbol">No price found for that symbol.</string>
+    <string name="f91_live_bad_key">The service did not accept the key.</string>
+    <string name="f91_live_limited">Too many requests for now. It tries again in 15 minutes.</string>
+    <string name="f91_live_unexpected">The price service sent something unexpected.</string>
+    <string name="f91_live_unreachable">The price service is not reachable.</string>
+    <string name="f91_live_unreachable_status">The price service is not reachable (%d).</string>
+    <string name="internet_helper_pref_kepler_live_prices_title">Kepler live prices</string>
+    <string name="internet_helper_pref_kepler_live_prices_summary">Fetch the crypto or stock price for the Kepler watch\'s live picture (CoinGecko, Finnhub, Alpha Vantage)</string>
     <string name="f91_live_allow_calendar">Allow Gadgetbridge to read your calendar in the Android settings.</string>
 </resources>
