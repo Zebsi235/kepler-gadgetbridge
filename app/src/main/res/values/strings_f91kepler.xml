@@ -8,4 +8,18 @@
     <string name="f91_pref_summary_second_zone_name">%1$s. Three letters, A to Z. Leave empty and the name comes from the zone.</string>
     <string name="f91_pref_title_reconnect_on_bt_on">Reconnect when Bluetooth comes on</string>
     <string name="f91_pref_summary_reconnect_on_bt_on">Connect to the watch again as soon as the phone\'s Bluetooth is switched back on, without opening the app.</string>
+    <!-- Live picture: the phone draws a card for the Image screen -->
+    <string name="f91_pref_header_live">Live picture</string>
+    <string name="f91_pref_title_live_preset">Live picture</string>
+    <string name="f91_pref_summary_live">The phone can draw a picture for you: your next calendar event. It is refreshed every 15 minutes while the watch is connected and replaces your own picture.</string>
+    <string name="f91_live_off">Off</string>
+    <string name="f91_live_calendar">Calendar</string>
+    <string name="f91_pref_title_live_send">Send to watch</string>
+    <string name="f91_pref_summary_live_calendar">Your next event in the coming 7 days.</string>
+    <string name="f91_live_no_events">No events this week</string>
+    <string name="f91_live_today">Today</string>
+    <string name="f91_live_tomorrow">Tmrw</string>
+    <string name="f91_live_all_day">all day</string>
+    <string name="f91_live_soon" formatted="false">in %dm</string>
+    <string name="f91_live_allow_calendar">Allow Gadgetbridge to read your calendar in the Android settings.</string>
 </resources>
