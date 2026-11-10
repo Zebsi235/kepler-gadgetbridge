@@ -56,7 +56,9 @@ public class F91KeplerFirmwareGateTest {
             "f91_pref_category_sleep", F91KeplerConstants.PREF_SLEEP_ENABLED,
             F91KeplerConstants.PREF_SLEEP_START, F91KeplerConstants.PREF_SLEEP_END,
             "f91_pref_category_modes", F91KeplerModes.PREF_MODES,
-            "f91_pref_category_image", F91KeplerConstants.PREF_IMAGE_UPLOAD));
+            "f91_pref_category_image", F91KeplerConstants.PREF_IMAGE_UPLOAD,
+            "f91_pref_category_live", F91KeplerConstants.PREF_LIVE_PRESET,
+            F91KeplerConstants.PREF_LIVE_SEND));
 
     private static File resDir() {
         File dir = new File("").getAbsoluteFile();

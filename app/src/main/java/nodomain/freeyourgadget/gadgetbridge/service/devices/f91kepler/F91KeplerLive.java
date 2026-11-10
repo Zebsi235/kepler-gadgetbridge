@@ -156,8 +156,14 @@ final class F91KeplerLive {
                 context.getString(R.string.f91_live_today), context.getString(R.string.f91_live_tomorrow),
                 context.getString(R.string.f91_live_all_day), context.getString(R.string.f91_live_soon));
         final Locale locale = Locale.getDefault();
-        final DateTimeFormatter dayFormat = DateTimeFormatter.ofPattern(
-                DateFormat.getBestDateTimePattern(locale, "EEEdMMM"), locale);
+        DateTimeFormatter dayFormat;
+        try {
+            dayFormat = DateTimeFormatter.ofPattern(DateFormat.getBestDateTimePattern(locale, "EEEdMMM"), locale);
+        } catch (final RuntimeException e) {
+            // An ICU pattern java.time cannot read: a plain short one will do.
+            LOG.warn("F91 live picture: day pattern not usable, using the default", e);
+            dayFormat = DateTimeFormatter.ofPattern("EEE d MMM", locale);
+        }
         final String title = allDay ? dayTitle : bestTitle;
         return F91KeplerLivePicture.event(title == null ? "" : title,
                 Instant.ofEpochMilli(allDay ? dayBegin : bestBegin), allDay,

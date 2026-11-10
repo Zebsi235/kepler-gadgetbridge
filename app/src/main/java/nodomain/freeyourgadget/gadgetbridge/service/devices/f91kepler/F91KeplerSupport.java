@@ -622,6 +622,7 @@ public class F91KeplerSupport extends AbstractBTLESingleDeviceSupport {
     @Override
     public void dispose() {
         stuckHandler.removeCallbacksAndMessages(null);
+        liveDisposed = true;
         liveHandler.removeCallbacksAndMessages(null);
         liveExecutor.shutdownNow();
         notificationExpiryHandler.removeCallbacksAndMessages(null);
@@ -2307,21 +2308,23 @@ public class F91KeplerSupport extends AbstractBTLESingleDeviceSupport {
     // --- Live picture ---------------------------------------------------------
 
     private final Handler liveHandler = new Handler(Looper.getMainLooper());
-    /** Calendar queries (and later network) stay off the GATT and main threads. */
+    /** Calendar queries (and later network) stay off the main thread; the send is posted back. */
     private final ExecutorService liveExecutor = Executors.newSingleThreadExecutor();
-    private final Runnable liveTick = () -> refreshLive(false);
+    private final Runnable liveTick = () -> refreshLive(false, false);
+    private volatile boolean liveDisposed;
 
     /**
      * Draw the chosen live picture and send it like an uploaded photo. On
      * connect and every {@link F91KeplerConstants#LIVE_INTERVAL_MS} while
      * connected ({@code force} false: only when due); Send now and a new
      * choice force it, also while the watch is away (the next connect sends it).
+     * {@code tell}: a problem is also shown as a toast (Send now).
      */
-    private void refreshLive(final boolean force) {
+    private void refreshLive(final boolean force, final boolean tell) {
         liveHandler.removeCallbacks(liveTick);
         final SharedPreferences prefs = GBApplication.getDeviceSpecificSharedPrefs(getDevice().getAddress());
         final F91KeplerLivePicture.Preset preset = F91KeplerLive.preset(prefs);
-        if (preset == F91KeplerLivePicture.Preset.OFF) {
+        if (preset == F91KeplerLivePicture.Preset.OFF || liveDisposed) {
             return;
         }
         if (!force) {
@@ -2338,39 +2341,70 @@ public class F91KeplerSupport extends AbstractBTLESingleDeviceSupport {
         }
         final boolean use24h = is24HourMode();
         try {
-            liveExecutor.execute(() -> makeAndSendLive(preset, use24h, force));
+            liveExecutor.execute(() -> makeLive(preset, use24h, force, tell));
         } catch (final java.util.concurrent.RejectedExecutionException e) {
             LOG.debug("F91 live picture: support already closed");
         }
     }
 
-    private void makeAndSendLive(final F91KeplerLivePicture.Preset preset, final boolean use24h,
-                                 final boolean force) {
-        final SharedPreferences prefs = GBApplication.getDeviceSpecificSharedPrefs(getDevice().getAddress());
+    /** On the live executor: draw the card, then hand it to the main thread. */
+    private void makeLive(final F91KeplerLivePicture.Preset preset, final boolean use24h,
+                          final boolean force, final boolean tell) {
+        byte[] frame = null;
+        String problem = null;
         try {
-            final byte[] frame = F91KeplerLive.make(getContext(), preset, use24h).pack();
-            final byte[] stored = F91KeplerImageStore.load(getDevice());
+            frame = F91KeplerLive.make(getContext(), preset, use24h).pack();
+        } catch (final F91KeplerLive.Failure f) {
+            problem = f.getMessage();
+        } catch (final RuntimeException e) {
+            LOG.warn("F91 live picture failed", e);
+        }
+        final byte[] made = frame;
+        final String why = problem;
+        liveHandler.post(() -> deliverLive(preset, made, why, force, tell));
+    }
+
+    /**
+     * On the main thread, where onSendConfiguration also runs, so a switch to Off
+     * in the meantime is seen: store and send the card, or record the problem.
+     */
+    private void deliverLive(final F91KeplerLivePicture.Preset preset, @Nullable final byte[] frame,
+                             @Nullable final String problem, final boolean force, final boolean tell) {
+        if (liveDisposed) {
+            return;
+        }
+        final SharedPreferences prefs = GBApplication.getDeviceSpecificSharedPrefs(getDevice().getAddress());
+        if (F91KeplerLive.preset(prefs) != preset) {
+            return;                     // the choice changed while drawing; its own refresh runs
+        }
+        try {
+            if (problem != null) {
+                LOG.warn("F91 live picture: {}", problem);
+                prefs.edit().putString(F91KeplerConstants.PREF_LIVE_STATUS, problem).apply();
+                if (tell) {
+                    GB.toast(getContext(), problem, Toast.LENGTH_LONG, GB.WARN);
+                }
+                return;
+            }
+            if (frame == null) {
+                return;
+            }
             prefs.edit().putLong(F91KeplerConstants.PREF_LIVE_LAST_SENT, System.currentTimeMillis())
                     .putString(F91KeplerConstants.PREF_LIVE_STATUS, "").apply();
-            if (!force && Arrays.equals(frame, stored)) {
+            if (!force && Arrays.equals(frame, F91KeplerImageStore.load(getDevice()))) {
                 // Same card as before: the connect check has already put it on the watch.
                 LOG.debug("F91 live picture unchanged, not re-sending");
-            } else {
-                F91KeplerImageStore.save(getDevice(), frame);
-                prefs.edit().putString(F91KeplerConstants.PREF_LIVE_FRAME, F91KeplerLive.hex(frame)).apply();
-                LOG.info("F91 live picture made ({})", preset.value);
-                sendStoredImage();
+                return;
             }
-        } catch (final F91KeplerLive.Failure f) {
-            LOG.warn("F91 live picture: {}", f.getMessage());
-            prefs.edit().putString(F91KeplerConstants.PREF_LIVE_STATUS, f.getMessage()).apply();
-            if (force) {
-                GB.toast(getContext(), f.getMessage(), Toast.LENGTH_LONG, GB.WARN);
-            }
-        } catch (final IOException | RuntimeException e) {
-            LOG.warn("F91 live picture failed", e);
+            F91KeplerImageStore.save(getDevice(), frame);
+            prefs.edit().putString(F91KeplerConstants.PREF_LIVE_FRAME, F91KeplerLive.hex(frame)).apply();
+            LOG.info("F91 live picture made ({})", preset.value);
+            sendStoredImage();
+        } catch (final IOException e) {
+            LOG.warn("F91 live picture could not be stored", e);
         } finally {
             if (getDevice().isInitialized()) {
+                liveHandler.removeCallbacks(liveTick);
                 liveHandler.postDelayed(liveTick, F91KeplerConstants.LIVE_INTERVAL_MS);
             }
         }
@@ -2379,7 +2413,8 @@ public class F91KeplerSupport extends AbstractBTLESingleDeviceSupport {
     /** Off removes the last card (a stale one) unless a photo replaced it meanwhile. */
     private void onLivePresetChanged() {
         if (!dropLiveFrameIfOff()) {
-            refreshLive(true);
+            // No toast: picking Calendar may be asking for its permission right now.
+            refreshLive(true, false);
         }
     }
 
@@ -2539,7 +2574,7 @@ public class F91KeplerSupport extends AbstractBTLESingleDeviceSupport {
                 onLivePresetChanged();
                 break;
             case F91KeplerConstants.PREF_LIVE_SEND:
-                refreshLive(true);
+                refreshLive(true, true);
                 break;
             default:
                 if (config.startsWith(F91KeplerConstants.PREF_TRANSFER_RETRY_PREFIX)) {
