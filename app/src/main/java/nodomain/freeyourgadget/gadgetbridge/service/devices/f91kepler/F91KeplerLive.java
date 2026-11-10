@@ -181,7 +181,8 @@ final class F91KeplerLive {
 
     private static final String TASKS_ORG_PERMISSION = "org.tasks.permission.READ_TASKS";
     private static final String OPENTASKS_PERMISSION = "org.dmfs.permission.READ_TASKS";
-    private static final int MAX_TODOS = 100;
+    /** Enough for the count; the card shows three. */
+    private static final int MAX_TODOS = 1000;
 
     /**
      * Open to-dos from Tasks.org (its v0 API, else its older agenda provider),
@@ -190,48 +191,59 @@ final class F91KeplerLive {
     private static List<F91KeplerLivePicture.Todo> openTodos(final Context context) throws Failure {
         final PackageManager pm = context.getPackageManager();
         final boolean tasksOrgApi = pm.resolveContentProvider("org.tasks.api", 0) != null;
-        final boolean tasksOrg = tasksOrgApi || pm.resolveContentProvider("org.tasks", 0) != null;
+        final boolean tasksOrgLegacy = pm.resolveContentProvider("org.tasks", 0) != null;
         final boolean openTasks = pm.resolveContentProvider("org.dmfs.tasks", 0) != null;
-        if (!tasksOrg && !openTasks) {
+        if (!tasksOrgApi && !tasksOrgLegacy && !openTasks) {
             throw new Failure(context.getString(R.string.f91_live_no_task_app));
         }
-        final boolean tasksOrgAllowed = tasksOrg && allowed(context, TASKS_ORG_PERMISSION);
+        final boolean tasksOrgAllowed = (tasksOrgApi || tasksOrgLegacy) && allowed(context, TASKS_ORG_PERMISSION);
         final boolean openTasksAllowed = openTasks && allowed(context, OPENTASKS_PERMISSION);
         if (!tasksOrgAllowed && !openTasksAllowed) {
             throw new Failure(context.getString(R.string.f91_live_allow_tasks));
         }
         final long now = System.currentTimeMillis();
-        try {
-            if (tasksOrgAllowed) {
-                final List<F91KeplerLivePicture.Todo> found = tasksOrgApi
-                        ? query(context, Uri.parse("content://org.tasks.api/v0/tasks").buildUpon()
-                                .appendQueryParameter("completed", "0")
-                                .appendQueryParameter("start_before", String.valueOf(now))
-                                .appendQueryParameter("sort", "due")
-                                .appendQueryParameter("limit", String.valueOf(MAX_TODOS)).build(),
-                                new String[]{"title", "due_date"}, null)
-                        : query(context, Uri.parse("content://org.tasks/todoagenda"),
-                                new String[]{"title", "dueDate"},
-                                "completed=0 AND deleted=0 AND hideUntil<" + now);
-                if (found != null) {
-                    return found;
-                }
-            }
-            if (openTasksAllowed) {
-                final List<F91KeplerLivePicture.Todo> found = query(context,
-                        Uri.parse("content://org.dmfs.tasks/tasks"), new String[]{"title", "due"},
-                        "is_closed=0 AND _deleted=0 AND visible=1");
-                if (found != null) {
-                    return found;
-                }
-            }
-        } catch (final SecurityException e) {
-            throw new Failure(context.getString(R.string.f91_live_allow_tasks));
-        } catch (final RuntimeException e) {
-            LOG.warn("F91 live picture: task query failed", e);
+        // Each source in turn; one that fails hands over to the next.
+        final boolean[] refused = {false};
+        List<F91KeplerLivePicture.Todo> found = null;
+        if (tasksOrgAllowed && tasksOrgApi) {
+            found = tryQuery(context, Uri.parse("content://org.tasks.api/v0/tasks").buildUpon()
+                    .appendQueryParameter("completed", "0")
+                    .appendQueryParameter("start_before", String.valueOf(now))
+                    .appendQueryParameter("sort", "due")
+                    .appendQueryParameter("limit", String.valueOf(MAX_TODOS)).build(),
+                    new String[]{"title", "due_date"}, null, refused);
         }
-        // Installed and allowed, but nothing readable: keep the last card.
-        throw new Failure(context.getString(R.string.f91_live_read_failed));
+        if (found == null && tasksOrgAllowed && tasksOrgLegacy) {
+            found = tryQuery(context, Uri.parse("content://org.tasks/todoagenda"),
+                    new String[]{"title", "dueDate"},
+                    "completed=0 AND deleted=0 AND hideUntil<" + now, refused);
+        }
+        if (found == null && openTasksAllowed) {
+            found = tryQuery(context, Uri.parse("content://org.dmfs.tasks/tasks"),
+                    new String[]{"title", "due"}, "is_closed=0 AND _deleted=0 AND visible=1", refused);
+        }
+        if (found != null) {
+            return found;
+        }
+        // Installed but nothing readable: keep the last card.
+        throw new Failure(context.getString(refused[0] ? R.string.f91_live_allow_tasks
+                : R.string.f91_live_read_failed));
+    }
+
+    @Nullable
+    private static List<F91KeplerLivePicture.Todo> tryQuery(final Context context, final Uri uri,
+                                                          final String[] projection,
+                                                          @Nullable final String selection,
+                                                          final boolean[] refused) {
+        try {
+            return query(context, uri, projection, selection);
+        } catch (final SecurityException e) {
+            refused[0] = true;
+            LOG.warn("F91 live picture: no access to {}", uri.getAuthority());
+        } catch (final RuntimeException e) {
+            LOG.warn("F91 live picture: task query failed on {}", uri.getAuthority(), e);
+        }
+        return null;
     }
 
     /** Title and due (ms, 0 = none) of each row, or null when the provider gave no cursor. */

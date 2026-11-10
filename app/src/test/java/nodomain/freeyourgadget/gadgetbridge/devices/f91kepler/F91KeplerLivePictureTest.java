@@ -173,7 +173,7 @@ public class F91KeplerLivePictureTest {
         for (int i = 0; i < 3; i++) {
             assertEquals(9, lit(c, 0, 13 + i * 9, 3, 3));   // 3x3 bullet
         }
-        assertEquals(0, lit(c, 0, 40, 96, 0));
+        assertEquals(0, lit(c, 5, 38, 91, 1));  // a fourth item is not drawn
     }
 
     @Test

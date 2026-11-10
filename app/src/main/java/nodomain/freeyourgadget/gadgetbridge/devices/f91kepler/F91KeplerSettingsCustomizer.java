@@ -176,6 +176,7 @@ public class F91KeplerSettingsCustomizer implements DeviceSpecificSettingsCustom
         if (preset == null || send == null) {
             return;
         }
+        hideTodoWithoutTaskApp(handler.getContext(), preset);
         handler.addPreferenceHandlerFor(F91KeplerConstants.PREF_LIVE_PRESET, (pref, newValue) -> {
             final String value = String.valueOf(newValue);
             askForAccess(handler, F91KeplerLivePicture.Preset.from(value), false);
@@ -231,6 +232,26 @@ public class F91KeplerSettingsCustomizer implements DeviceSpecificSettingsCustom
             GB.toast(context, context.getString(hint), Toast.LENGTH_LONG, GB.INFO);
         }
         return true;
+    }
+
+    /** To do is offered only with a task app installed (or while it is the choice). */
+    private static void hideTodoWithoutTaskApp(final Context context, final ListPreference preset) {
+        if (todoPermissions(context).length > 0
+                || F91KeplerLivePicture.Preset.TODO.value.equals(preset.getValue())) {
+            return;
+        }
+        final CharSequence[] entries = preset.getEntries();
+        final CharSequence[] values = preset.getEntryValues();
+        final java.util.List<CharSequence> e = new java.util.ArrayList<>();
+        final java.util.List<CharSequence> v = new java.util.ArrayList<>();
+        for (int i = 0; i < values.length; i++) {
+            if (!F91KeplerLivePicture.Preset.TODO.value.equals(values[i].toString())) {
+                e.add(entries[i]);
+                v.add(values[i]);
+            }
+        }
+        preset.setEntries(e.toArray(new CharSequence[0]));
+        preset.setEntryValues(v.toArray(new CharSequence[0]));
     }
 
     /** The read permissions of the task apps that are installed. */
