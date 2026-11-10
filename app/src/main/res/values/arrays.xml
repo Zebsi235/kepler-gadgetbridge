@@ -5202,4 +5202,13 @@
         <item>repebble</item>
     </string-array>
 
+    <!-- Live picture (F91 Kepler): what the phone draws for the Image screen. -->
+    <string-array name="f91_live_preset">
+        <item>@string/f91_live_off</item>
+        <item>@string/f91_live_calendar</item>
+    </string-array>
+    <string-array name="f91_live_preset_values" translatable="false">
+        <item>off</item>
+        <item>next_event</item>
+    </string-array>
 </resources>

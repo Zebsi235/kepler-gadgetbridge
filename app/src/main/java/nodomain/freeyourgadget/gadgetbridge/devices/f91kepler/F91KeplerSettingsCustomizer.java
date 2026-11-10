@@ -16,7 +16,11 @@
     along with this program.  If not, see <https://www.gnu.org/licenses/>. */
 package nodomain.freeyourgadget.gadgetbridge.devices.f91kepler;
 
+import android.Manifest;
+import android.app.Activity;
+import android.content.Context;
 import android.content.Intent;
+import android.content.pm.PackageManager;
 import android.content.SharedPreferences;
 import android.os.Parcel;
 import android.text.InputFilter;
@@ -24,6 +28,7 @@ import android.widget.Toast;
 
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
+import androidx.core.app.ActivityCompat;
 import androidx.preference.EditTextPreference;
 import androidx.preference.ListPreference;
 import androidx.preference.Preference;
@@ -160,6 +165,71 @@ public class F91KeplerSettingsCustomizer implements DeviceSpecificSettingsCustom
         // firmware version was read on connect (GBDeviceEventVersionInfo).
         applyFirmwareVisibility(handler);
         showSoundSwitches(handler);
+        showLive(handler, null);
+    }
+
+    // --- Live picture ------------------------------------------------------------
+
+    private static void setUpLive(final DeviceSpecificSettingsHandler handler) {
+        final ListPreference preset = handler.findPreference(F91KeplerConstants.PREF_LIVE_PRESET);
+        final Preference send = handler.findPreference(F91KeplerConstants.PREF_LIVE_SEND);
+        if (preset == null || send == null) {
+            return;
+        }
+        handler.addPreferenceHandlerFor(F91KeplerConstants.PREF_LIVE_PRESET, (pref, newValue) -> {
+            final String value = String.valueOf(newValue);
+            if (F91KeplerLivePicture.Preset.NEXT_EVENT.value.equals(value)) {
+                askForCalendar(handler);
+            }
+            showLive(handler, value);
+            return true;
+        });
+        send.setOnPreferenceClickListener(pref -> {
+            if (F91KeplerLivePicture.Preset.NEXT_EVENT.value.equals(preset.getValue())
+                    && askForCalendar(handler)) {
+                return true;            // asked; Send again once allowed
+            }
+            handler.notifyPreferenceChanged(F91KeplerConstants.PREF_LIVE_SEND);
+            return true;
+        });
+        showLive(handler, null);
+    }
+
+    /** Asks for calendar access when it is missing. Returns whether it asked. */
+    private static boolean askForCalendar(final DeviceSpecificSettingsHandler handler) {
+        final Context context = handler.getContext();
+        if (context.checkSelfPermission(Manifest.permission.READ_CALENDAR) == PackageManager.PERMISSION_GRANTED) {
+            return false;
+        }
+        if (context instanceof Activity) {
+            ActivityCompat.requestPermissions((Activity) context,
+                    new String[]{Manifest.permission.READ_CALENDAR}, 0);
+            return true;
+        }
+        GB.toast(context, context.getString(R.string.f91_live_allow_calendar), Toast.LENGTH_LONG, GB.INFO);
+        return true;
+    }
+
+    /** Send is shown with a picture chosen; its summary is the last problem or what is drawn. */
+    private static void showLive(final DeviceSpecificSettingsHandler handler, @Nullable final String newValue) {
+        final ListPreference preset = handler.findPreference(F91KeplerConstants.PREF_LIVE_PRESET);
+        final Preference send = handler.findPreference(F91KeplerConstants.PREF_LIVE_SEND);
+        final GBDevice device = handler.getDevice();
+        if (preset == null || send == null || device == null) {
+            return;
+        }
+        final F91KeplerLivePicture.Preset p = F91KeplerLivePicture.Preset.from(
+                newValue != null ? newValue : preset.getValue());
+        send.setVisible(p != F91KeplerLivePicture.Preset.OFF);
+        final String status = newValue != null ? "" : GBApplication.getDeviceSpecificSharedPrefs(
+                device.getAddress()).getString(F91KeplerConstants.PREF_LIVE_STATUS, "");
+        if (status != null && !status.isEmpty()) {
+            send.setSummary(status);
+        } else if (p == F91KeplerLivePicture.Preset.NEXT_EVENT) {
+            send.setSummary(R.string.f91_pref_summary_live_calendar);
+        } else {
+            send.setSummary(null);
+        }
     }
 
     /**
@@ -317,6 +387,7 @@ public class F91KeplerSettingsCustomizer implements DeviceSpecificSettingsCustom
                 return true;
             });
         }
+        setUpLive(handler);
         final Preference imageUpload = handler.findPreference(F91KeplerConstants.PREF_IMAGE_UPLOAD);
         if (imageUpload == null) {
             return;

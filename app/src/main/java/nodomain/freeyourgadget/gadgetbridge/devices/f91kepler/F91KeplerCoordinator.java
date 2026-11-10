@@ -203,6 +203,7 @@ public class F91KeplerCoordinator extends AbstractBLEDeviceCoordinator {
         xml.add(R.xml.devicesettings_f91kepler_31_screens);
         if (!F91KeplerFirmware.knownBelow(fw, F91KeplerFirmware.MIN_IMAGE)) {
             xml.add(R.xml.devicesettings_f91kepler_image);
+            xml.add(R.xml.devicesettings_f91kepler_live);
         }
         final int[] out = new int[xml.size()];
         for (int i = 0; i < out.length; i++) {

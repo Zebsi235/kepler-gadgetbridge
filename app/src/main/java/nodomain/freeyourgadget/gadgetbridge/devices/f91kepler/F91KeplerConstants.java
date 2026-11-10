@@ -469,4 +469,21 @@ public final class F91KeplerConstants {
     public static final int TRANSFER_STATE_WAITING = 5;
     /** onSendConfiguration key prefix + {@link F91KeplerTransfer#name()}: send that kind again. */
     public static final String PREF_TRANSFER_RETRY_PREFIX = "f91_transfer_retry_";
+
+    // --- Live picture (the phone draws a card for the Image screen) ---------------
+
+    /** Which live picture: a {@link F91KeplerLivePicture.Preset} value; "off" = none. */
+    public static final String PREF_LIVE_PRESET = "f91_live_preset";
+    /** "Send now": the onSendConfiguration key for an immediate refresh. */
+    public static final String PREF_LIVE_SEND = "f91_live_send";
+    /** Internal: fingerprint of the last live frame stored, so Off removes only that one. */
+    public static final String PREF_LIVE_FRAME = "f91_live_frame";
+    /** Internal: when the last live frame was made (epoch ms). */
+    public static final String PREF_LIVE_LAST_SENT = "f91_live_last_sent";
+    /** Internal: the last result in the user's words, shown under Send now. */
+    public static final String PREF_LIVE_STATUS = "f91_live_status";
+    /** Each refresh is one 480-byte upload and the data changes slowly: at most every 15 min. */
+    public static final long LIVE_INTERVAL_MS = 15L * 60 * 1000;
+    /** After the connect setup (and its image check) has settled. */
+    public static final long LIVE_CONNECT_DELAY_MS = 8_000L;
 }
