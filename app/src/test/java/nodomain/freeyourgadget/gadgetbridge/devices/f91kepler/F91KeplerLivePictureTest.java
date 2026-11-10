@@ -150,8 +150,43 @@ public class F91KeplerLivePictureTest {
         assertTrue(lit(c, 0, 10, 96, 20) > 0);
     }
 
+    // --- To-do ---------------------------------------------------------------------
+
+    @Test
+    public void dueOnesFirstThenTheRestInOrder() {
+        final List<String> order = F91KeplerLivePicture.order(Arrays.asList(
+                new F91KeplerLivePicture.Todo("milk", 0),
+                new F91KeplerLivePicture.Todo("tax", 300),
+                new F91KeplerLivePicture.Todo("  ", 50),
+                new F91KeplerLivePicture.Todo("call", 100),
+                new F91KeplerLivePicture.Todo("bread", 0)));
+        assertEquals(Arrays.asList("call", "tax", "milk", "bread"), order);
+    }
+
+    @Test
+    public void todoCardHasCountRuleAndBullets() {
+        final F91KeplerLiveCanvas c = F91KeplerLivePicture.render(
+                Arrays.asList("one", "two", "three", "four"), "To do", "All done");
+        assertTrue(lit(c, 84, 0, 12, 7) > 0);   // the count, right
+        assertTrue(c.isLit(0, 8));               // dotted rule
+        assertFalse(c.isLit(1, 8));
+        for (int i = 0; i < 3; i++) {
+            assertEquals(9, lit(c, 0, 13 + i * 9, 3, 3));   // 3x3 bullet
+        }
+        assertEquals(0, lit(c, 0, 40, 96, 0));
+    }
+
+    @Test
+    public void noTodosIsAllDone() {
+        final F91KeplerLiveCanvas c = F91KeplerLivePicture.render(Collections.<String>emptyList(),
+                "To do", "All done");
+        assertEquals(0, lit(c, 0, 0, 96, 10));
+        assertTrue(lit(c, 0, 10, 96, 20) > 0);
+    }
+
     @Test
     public void presetFallsBackToOff() {
+        assertEquals(F91KeplerLivePicture.Preset.TODO, F91KeplerLivePicture.Preset.from("todo"));
         assertEquals(F91KeplerLivePicture.Preset.NEXT_EVENT, F91KeplerLivePicture.Preset.from("next_event"));
         assertEquals(F91KeplerLivePicture.Preset.OFF, F91KeplerLivePicture.Preset.from("nonsense"));
         assertEquals(F91KeplerLivePicture.Preset.OFF, F91KeplerLivePicture.Preset.from(null));

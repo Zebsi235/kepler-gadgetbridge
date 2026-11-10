@@ -67,6 +67,9 @@
     <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE"
         android:maxSdkVersion="28" />
     <uses-permission android:name="android.permission.READ_CALENDAR" />
+    <!-- F91 Kepler live picture: open to-dos from Tasks.org or OpenTasks -->
+    <uses-permission android:name="org.tasks.permission.READ_TASKS" />
+    <uses-permission android:name="org.dmfs.permission.READ_TASKS" />
     <uses-permission
         android:name="android.permission.MEDIA_CONTENT_CONTROL"
         tools:ignore="ProtectedPermissions" />
@@ -1512,6 +1515,10 @@
 
     <queries>
         <package android:name="com.google.android.apps.healthdata" />
+        <!-- F91 Kepler live picture: the to-do apps' providers -->
+        <provider android:authorities="org.tasks.api" />
+        <provider android:authorities="org.tasks" />
+        <provider android:authorities="org.dmfs.tasks" />
 
         <!--
              This is required such that the app can query and resolve packages that have written
