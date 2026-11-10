@@ -8,4 +8,14 @@
     <string name="f91_pref_summary_second_zone_name">%1$s. Three letters, A to Z. Leave empty and the name comes from the zone.</string>
     <string name="f91_pref_title_reconnect_on_bt_on">Reconnect when Bluetooth comes on</string>
     <string name="f91_pref_summary_reconnect_on_bt_on">Connect to the watch again as soon as the phone\'s Bluetooth is switched back on, without opening the app.</string>
+    <string name="f91_pref_header_control">Restart and pairing</string>
+    <string name="f91_pref_title_light_up">Light up the display</string>
+    <string name="f91_pref_summary_control">Restart turns the watch off and on. Clear pairings erases every phone the watch knows.</string>
+    <string name="f91_pref_title_restart">Restart watch</string>
+    <string name="f91_pref_title_clear_pairings">Clear pairings</string>
+    <string name="f91_restart_confirm_title">Restart the watch?</string>
+    <string name="f91_restart_confirm_message">It restarts and reconnects in a few seconds.</string>
+    <string name="f91_clear_pairings_confirm_title">Erase the watch\'s pairings?</string>
+    <string name="f91_clear_pairings_confirm_message">The watch erases all pairings and restarts. Then remove it in Gadgetbridge and forget it in Android\'s Bluetooth settings, and pair it again.</string>
+    <string name="f91_control_not_connected">Connect the watch first.</string>
 </resources>

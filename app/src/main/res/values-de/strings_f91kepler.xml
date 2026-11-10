@@ -155,4 +155,14 @@
     <string name="f91_snooze_9">9 Minuten</string>
     <string name="f91_snooze_15">15 Minuten</string>
     <string name="f91_sound_test_connect">Verbinde die Uhr, um den Ton zu testen</string>
+    <string name="f91_pref_header_control">Neustart und Kopplung</string>
+    <string name="f91_pref_title_light_up">Display einschalten</string>
+    <string name="f91_pref_summary_control">Neustart schaltet die Uhr aus und wieder an. Kopplungen löschen entfernt alle Telefone, die die Uhr kennt.</string>
+    <string name="f91_pref_title_restart">Uhr neu starten</string>
+    <string name="f91_pref_title_clear_pairings">Kopplungen löschen</string>
+    <string name="f91_restart_confirm_title">Uhr neu starten?</string>
+    <string name="f91_restart_confirm_message">Sie startet neu und verbindet sich nach ein paar Sekunden wieder.</string>
+    <string name="f91_clear_pairings_confirm_title">Kopplungen der Uhr löschen?</string>
+    <string name="f91_clear_pairings_confirm_message">Die Uhr löscht alle Kopplungen und startet neu. Entferne sie danach in Gadgetbridge, vergiss sie in den Bluetooth-Einstellungen von Android und kopple sie neu.</string>
+    <string name="f91_control_not_connected">Verbinde zuerst die Uhr.</string>
 </resources>

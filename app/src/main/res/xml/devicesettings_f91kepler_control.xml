@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="utf-8"?>
+<androidx.preference.PreferenceScreen
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto">
+
+    <!-- Light up, restart, clear pairings: the same commands as the iPhone app's
+         Watch page. F91KeplerSettingsCustomizer asks first (restart, clear) and
+         forwards the click to F91KeplerSupport#onSendConfiguration. Every
+         customer firmware has them, so they are always shown (enabled while
+         connected). -->
+    <PreferenceCategory
+        android:key="f91_pref_category_control"
+        android:title="@string/f91_pref_header_control">
+
+        <Preference
+            android:key="f91_light_up"
+            android:title="@string/f91_pref_title_light_up" />
+
+        <Preference
+            android:selectable="false"
+            android:summary="@string/f91_pref_summary_control" />
+
+        <Preference
+            android:key="f91_restart"
+            android:title="@string/f91_pref_title_restart" />
+
+        <Preference
+            android:key="f91_clear_pairings"
+            android:title="@string/f91_pref_title_clear_pairings" />
+
+    </PreferenceCategory>
+
+</androidx.preference.PreferenceScreen>

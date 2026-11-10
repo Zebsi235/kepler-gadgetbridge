@@ -369,12 +369,15 @@ public final class F91KeplerConstants {
     public static final byte CMD_DISPLAY_TEST_TEXT = 0x13;
     public static final byte CMD_FIND_ON = 0x14;   // flash the "FIND" alert on the watch (find my watch)
     public static final byte CMD_FIND_OFF = 0x15;  // stop the flashing alert
-    // Erases every bond and reboots (factory reset). Reached only through
-    // Gadgetbridge's Debug screen "Factory reset" button (onReset with
-    // RESET_FLAGS_FACTORY_RESET); never from a normal user path, because the
-    // phone keeps a bond the watch no longer has and must forget it in Android's
-    // Bluetooth settings before it can pair again.
+    // Erases every bond and reboots (factory reset). Reached through the Debug
+    // screen "Factory reset" and the settings' "Clear pairings" (after a confirm
+    // that says what follows: the phone keeps a bond the watch no longer has and
+    // must forget it in Android's Bluetooth settings before it can pair again).
     public static final byte CMD_CLEAR_BONDS = 0x16;
+    /** Settings buttons (clicks forwarded to the support class). */
+    public static final String PREF_LIGHT_UP = "f91_light_up";
+    public static final String PREF_RESTART = "f91_restart";
+    public static final String PREF_CLEAR_PAIRINGS = "f91_clear_pairings";
 
     // Notification bar bitmask bits (f91_notification.h).
     public static final int BIT_EMAIL = 0x01;
