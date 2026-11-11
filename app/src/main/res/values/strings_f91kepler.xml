@@ -11,7 +11,7 @@
     <!-- Live picture: the phone draws a card for the Image screen -->
     <string name="f91_pref_header_live">Live picture</string>
     <string name="f91_pref_title_live_preset">Live picture</string>
-    <string name="f91_pref_summary_live">The phone can draw a picture for you: your next calendar event. It is refreshed every 15 minutes while the watch is connected and replaces your own picture.</string>
+    <string name="f91_pref_summary_live">The phone can draw a picture for you: your next calendar event or your open to-dos. It is refreshed every 15 minutes while the watch is connected and replaces your own picture.</string>
     <string name="f91_live_off">Off</string>
     <string name="f91_live_calendar">Calendar</string>
     <string name="f91_pref_title_live_send">Send to watch</string>
@@ -21,5 +21,12 @@
     <string name="f91_live_tomorrow">Tmrw</string>
     <string name="f91_live_all_day">all day</string>
     <string name="f91_live_soon" formatted="false">in %dm</string>
+    <string name="f91_live_todo">To do</string>
+    <string name="f91_pref_summary_live_todo">Your open to-dos from Tasks.org or OpenTasks, the ones due soonest first.</string>
+    <string name="f91_live_todo_header">To do</string>
+    <string name="f91_live_all_done">All done</string>
+    <string name="f91_live_allow_tasks">Allow Gadgetbridge to read your tasks in the Android settings.</string>
+    <string name="f91_live_no_task_app">Install Tasks.org or OpenTasks to show your to-dos.</string>
+    <string name="f91_live_read_failed">Could not read it right now. The watch keeps the last picture.</string>
     <string name="f91_live_allow_calendar">Allow Gadgetbridge to read your calendar in the Android settings.</string>
 </resources>

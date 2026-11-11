@@ -36,7 +36,9 @@ import java.time.LocalDate;
 import java.time.ZoneId;
 import java.time.ZoneOffset;
 import java.time.format.DateTimeFormatter;
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.List;
 import java.util.Locale;
 
 import nodomain.freeyourgadget.gadgetbridge.R;
@@ -75,6 +77,10 @@ final class F91KeplerLive {
             case NEXT_EVENT:
                 return F91KeplerLivePicture.render(nextEvent(context, use24h),
                         context.getString(R.string.f91_live_no_events));
+            case TODO:
+                return F91KeplerLivePicture.render(F91KeplerLivePicture.order(openTodos(context)),
+                        context.getString(R.string.f91_live_todo_header),
+                        context.getString(R.string.f91_live_all_done));
             case OFF:
             default:
                 return new F91KeplerLiveCanvas();
@@ -144,8 +150,9 @@ final class F91KeplerLive {
         } catch (final SecurityException e) {
             throw new Failure(context.getString(R.string.f91_live_allow_calendar));
         } catch (final RuntimeException e) {
+            // Keep the last card rather than claim an empty week.
             LOG.warn("F91 live picture: calendar query failed", e);
-            return null;
+            throw new Failure(context.getString(R.string.f91_live_read_failed));
         }
         // A timed event beats an all-day one (a birthday would win all day).
         final boolean allDay = bestTitle == null;
@@ -156,18 +163,118 @@ final class F91KeplerLive {
                 context.getString(R.string.f91_live_today), context.getString(R.string.f91_live_tomorrow),
                 context.getString(R.string.f91_live_all_day), context.getString(R.string.f91_live_soon));
         final Locale locale = Locale.getDefault();
-        DateTimeFormatter dayFormat;
-        try {
-            dayFormat = DateTimeFormatter.ofPattern(DateFormat.getBestDateTimePattern(locale, "EEEdMMM"), locale);
-        } catch (final RuntimeException e) {
-            // An ICU pattern java.time cannot read: a plain short one will do.
-            LOG.warn("F91 live picture: day pattern not usable, using the default", e);
-            dayFormat = DateTimeFormatter.ofPattern("EEE d MMM", locale);
-        }
+        // "Mon, Nov 16" or "Mo., 16. Nov."; as numbers ("11/16", "16.11.") when the
+        // time would not fit beside it.
+        final DateTimeFormatter dayFormat = dayPattern(locale, "EEEdMMM", "EEE d MMM");
+        final DateTimeFormatter shortDayFormat = dayPattern(locale, "dM", "d/M");
         final String title = allDay ? dayTitle : bestTitle;
         return F91KeplerLivePicture.event(title == null ? "" : title,
                 Instant.ofEpochMilli(allDay ? dayBegin : bestBegin), allDay,
-                Instant.ofEpochMilli(now), zone, use24h, dayFormat, labels);
+                Instant.ofEpochMilli(now), zone, use24h, dayFormat, shortDayFormat, labels);
+    }
+
+    private static DateTimeFormatter dayPattern(final Locale locale, final String skeleton,
+                                                final String fallback) {
+        try {
+            return DateTimeFormatter.ofPattern(DateFormat.getBestDateTimePattern(locale, skeleton), locale);
+        } catch (final RuntimeException e) {
+            // An ICU pattern java.time cannot read: a plain short one will do.
+            LOG.warn("F91 live picture: day pattern not usable, using the default", e);
+            return DateTimeFormatter.ofPattern(fallback, locale);
+        }
+    }
+
+    // --- Open to-dos --------------------------------------------------------------
+
+    private static final String TASKS_ORG_PERMISSION = "org.tasks.permission.READ_TASKS";
+    private static final String OPENTASKS_PERMISSION = "org.dmfs.permission.READ_TASKS";
+    /** Enough for the count; the card shows three. */
+    private static final int MAX_TODOS = 1000;
+
+    /**
+     * Open to-dos from Tasks.org (its v0 API, else its older agenda provider),
+     * else from OpenTasks. Hidden-until-later and deleted ones are left out.
+     */
+    private static List<F91KeplerLivePicture.Todo> openTodos(final Context context) throws Failure {
+        final PackageManager pm = context.getPackageManager();
+        final boolean tasksOrgApi = pm.resolveContentProvider("org.tasks.api", 0) != null;
+        final boolean tasksOrgLegacy = pm.resolveContentProvider("org.tasks", 0) != null;
+        final boolean openTasks = pm.resolveContentProvider("org.dmfs.tasks", 0) != null;
+        if (!tasksOrgApi && !tasksOrgLegacy && !openTasks) {
+            throw new Failure(context.getString(R.string.f91_live_no_task_app));
+        }
+        final boolean tasksOrgAllowed = (tasksOrgApi || tasksOrgLegacy) && allowed(context, TASKS_ORG_PERMISSION);
+        final boolean openTasksAllowed = openTasks && allowed(context, OPENTASKS_PERMISSION);
+        if (!tasksOrgAllowed && !openTasksAllowed) {
+            throw new Failure(context.getString(R.string.f91_live_allow_tasks));
+        }
+        final long now = System.currentTimeMillis();
+        // Each source in turn; one that fails hands over to the next.
+        final boolean[] refused = {false};
+        List<F91KeplerLivePicture.Todo> found = null;
+        if (tasksOrgAllowed && tasksOrgApi) {
+            found = tryQuery(context, Uri.parse("content://org.tasks.api/v0/tasks").buildUpon()
+                    .appendQueryParameter("completed", "0")
+                    .appendQueryParameter("start_before", String.valueOf(now))
+                    .appendQueryParameter("sort", "due")
+                    .appendQueryParameter("limit", String.valueOf(MAX_TODOS)).build(),
+                    new String[]{"title", "due_date"}, null, refused);
+        }
+        if (found == null && tasksOrgAllowed && tasksOrgLegacy) {
+            found = tryQuery(context, Uri.parse("content://org.tasks/todoagenda"),
+                    new String[]{"title", "dueDate"},
+                    "completed=0 AND deleted=0 AND hideUntil<" + now, refused);
+        }
+        if (found == null && openTasksAllowed) {
+            found = tryQuery(context, Uri.parse("content://org.dmfs.tasks/tasks"),
+                    new String[]{"title", "due"}, "is_closed=0 AND _deleted=0 AND visible=1", refused);
+        }
+        if (found != null) {
+            return found;
+        }
+        // Installed but nothing readable: keep the last card.
+        throw new Failure(context.getString(refused[0] ? R.string.f91_live_allow_tasks
+                : R.string.f91_live_read_failed));
+    }
+
+    @Nullable
+    private static List<F91KeplerLivePicture.Todo> tryQuery(final Context context, final Uri uri,
+                                                          final String[] projection,
+                                                          @Nullable final String selection,
+                                                          final boolean[] refused) {
+        try {
+            return query(context, uri, projection, selection);
+        } catch (final SecurityException e) {
+            refused[0] = true;
+            LOG.warn("F91 live picture: no access to {}", uri.getAuthority());
+        } catch (final RuntimeException e) {
+            LOG.warn("F91 live picture: task query failed on {}", uri.getAuthority(), e);
+        }
+        return null;
+    }
+
+    /** Title and due (ms, 0 = none) of each row, or null when the provider gave no cursor. */
+    @Nullable
+    private static List<F91KeplerLivePicture.Todo> query(final Context context, final Uri uri,
+                                                       final String[] projection,
+                                                       @Nullable final String selection) {
+        try (Cursor c = context.getContentResolver().query(uri, projection, selection, null, null)) {
+            if (c == null) {
+                return null;
+            }
+            final int title = c.getColumnIndexOrThrow(projection[0]);
+            final int due = c.getColumnIndexOrThrow(projection[1]);
+            final List<F91KeplerLivePicture.Todo> out = new ArrayList<>();
+            while (c.moveToNext() && out.size() < MAX_TODOS) {
+                out.add(new F91KeplerLivePicture.Todo(c.isNull(title) ? "" : c.getString(title),
+                        c.isNull(due) ? 0 : c.getLong(due)));
+            }
+            return out;
+        }
+    }
+
+    private static boolean allowed(final Context context, final String permission) {
+        return context.checkSelfPermission(permission) == PackageManager.PERMISSION_GRANTED;
     }
 
     /** An all-day instant (UTC midnight) as the start of that day in {@code zone}. */

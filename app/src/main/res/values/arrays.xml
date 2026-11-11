@@ -5206,9 +5206,11 @@
     <string-array name="f91_live_preset">
         <item>@string/f91_live_off</item>
         <item>@string/f91_live_calendar</item>
+        <item>@string/f91_live_todo</item>
     </string-array>
     <string-array name="f91_live_preset_values" translatable="false">
         <item>off</item>
         <item>next_event</item>
+        <item>todo</item>
     </string-array>
 </resources>

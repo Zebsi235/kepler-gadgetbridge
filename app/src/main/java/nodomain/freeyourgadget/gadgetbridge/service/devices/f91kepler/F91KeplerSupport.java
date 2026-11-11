@@ -2389,15 +2389,15 @@ public class F91KeplerSupport extends AbstractBTLESingleDeviceSupport {
             if (frame == null) {
                 return;
             }
-            prefs.edit().putLong(F91KeplerConstants.PREF_LIVE_LAST_SENT, System.currentTimeMillis())
-                    .putString(F91KeplerConstants.PREF_LIVE_STATUS, "").apply();
             if (!force && Arrays.equals(frame, F91KeplerImageStore.load(getDevice()))) {
                 // Same card as before: the connect check has already put it on the watch.
                 LOG.debug("F91 live picture unchanged, not re-sending");
+                markLiveSent(prefs);
                 return;
             }
             F91KeplerImageStore.save(getDevice(), frame);
             prefs.edit().putString(F91KeplerConstants.PREF_LIVE_FRAME, F91KeplerLive.hex(frame)).apply();
+            markLiveSent(prefs);
             LOG.info("F91 live picture made ({})", preset.value);
             sendStoredImage();
         } catch (final IOException e) {
@@ -2408,6 +2408,12 @@ public class F91KeplerSupport extends AbstractBTLESingleDeviceSupport {
                 liveHandler.postDelayed(liveTick, F91KeplerConstants.LIVE_INTERVAL_MS);
             }
         }
+    }
+
+    /** Stamped only once the card is stored, so a failed save is retried on the next tick. */
+    private static void markLiveSent(final SharedPreferences prefs) {
+        prefs.edit().putLong(F91KeplerConstants.PREF_LIVE_LAST_SENT, System.currentTimeMillis())
+                .putString(F91KeplerConstants.PREF_LIVE_STATUS, "").apply();
     }
 
     /** Off removes the last card (a stale one) unless a photo replaced it meanwhile. */

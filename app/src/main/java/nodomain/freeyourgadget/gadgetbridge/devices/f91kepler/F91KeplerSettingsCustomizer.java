@@ -176,17 +176,15 @@ public class F91KeplerSettingsCustomizer implements DeviceSpecificSettingsCustom
         if (preset == null || send == null) {
             return;
         }
+        hideTodoWithoutTaskApp(handler.getContext(), preset);
         handler.addPreferenceHandlerFor(F91KeplerConstants.PREF_LIVE_PRESET, (pref, newValue) -> {
             final String value = String.valueOf(newValue);
-            if (F91KeplerLivePicture.Preset.NEXT_EVENT.value.equals(value)) {
-                askForCalendar(handler);
-            }
+            askForAccess(handler, F91KeplerLivePicture.Preset.from(value), false);
             showLive(handler, value);
             return true;
         });
         send.setOnPreferenceClickListener(pref -> {
-            if (F91KeplerLivePicture.Preset.NEXT_EVENT.value.equals(preset.getValue())
-                    && askForCalendar(handler)) {
+            if (askForAccess(handler, F91KeplerLivePicture.Preset.from(preset.getValue()), true)) {
                 return true;            // asked; Send again once allowed
             }
             handler.notifyPreferenceChanged(F91KeplerConstants.PREF_LIVE_SEND);
@@ -195,19 +193,79 @@ public class F91KeplerSettingsCustomizer implements DeviceSpecificSettingsCustom
         showLive(handler, null);
     }
 
-    /** Asks for calendar access when it is missing. Returns whether it asked. */
-    private static boolean askForCalendar(final DeviceSpecificSettingsHandler handler) {
+    /**
+     * Asks for the access {@code preset} reads with, when it is missing. Returns
+     * whether it asked. {@code tapped}: the user pressed Send, so also say what
+     * is missing (Android shows no dialog once access was refused for good).
+     */
+    private static boolean askForAccess(final DeviceSpecificSettingsHandler handler,
+                                        final F91KeplerLivePicture.Preset preset, final boolean tapped) {
         final Context context = handler.getContext();
-        if (context.checkSelfPermission(Manifest.permission.READ_CALENDAR) == PackageManager.PERMISSION_GRANTED) {
+        final String[] wanted;
+        final int hint;
+        switch (preset) {
+            case NEXT_EVENT:
+                wanted = new String[]{Manifest.permission.READ_CALENDAR};
+                hint = R.string.f91_live_allow_calendar;
+                break;
+            case TODO:
+                wanted = todoPermissions(context);
+                hint = R.string.f91_live_allow_tasks;
+                break;
+            default:
+                return false;
+        }
+        final java.util.List<String> missing = new java.util.ArrayList<>();
+        for (final String p : wanted) {
+            if (context.checkSelfPermission(p) != PackageManager.PERMISSION_GRANTED) {
+                missing.add(p);
+            }
+        }
+        // To-do: one task app allowed is enough.
+        if (missing.isEmpty() || (preset == F91KeplerLivePicture.Preset.TODO && missing.size() < wanted.length)) {
             return false;
         }
         if (context instanceof Activity) {
-            ActivityCompat.requestPermissions((Activity) context,
-                    new String[]{Manifest.permission.READ_CALENDAR}, 0);
-            return true;
+            ActivityCompat.requestPermissions((Activity) context, missing.toArray(new String[0]), 0);
         }
-        GB.toast(context, context.getString(R.string.f91_live_allow_calendar), Toast.LENGTH_LONG, GB.INFO);
+        if (tapped || !(context instanceof Activity)) {
+            GB.toast(context, context.getString(hint), Toast.LENGTH_LONG, GB.INFO);
+        }
         return true;
+    }
+
+    /** To do is offered only with a task app installed (or while it is the choice). */
+    private static void hideTodoWithoutTaskApp(final Context context, final ListPreference preset) {
+        if (todoPermissions(context).length > 0
+                || F91KeplerLivePicture.Preset.TODO.value.equals(preset.getValue())) {
+            return;
+        }
+        final CharSequence[] entries = preset.getEntries();
+        final CharSequence[] values = preset.getEntryValues();
+        final java.util.List<CharSequence> e = new java.util.ArrayList<>();
+        final java.util.List<CharSequence> v = new java.util.ArrayList<>();
+        for (int i = 0; i < values.length; i++) {
+            if (!F91KeplerLivePicture.Preset.TODO.value.equals(values[i].toString())) {
+                e.add(entries[i]);
+                v.add(values[i]);
+            }
+        }
+        preset.setEntries(e.toArray(new CharSequence[0]));
+        preset.setEntryValues(v.toArray(new CharSequence[0]));
+    }
+
+    /** The read permissions of the task apps that are installed. */
+    private static String[] todoPermissions(final Context context) {
+        final java.util.List<String> out = new java.util.ArrayList<>();
+        final PackageManager pm = context.getPackageManager();
+        if (pm.resolveContentProvider("org.tasks.api", 0) != null
+                || pm.resolveContentProvider("org.tasks", 0) != null) {
+            out.add("org.tasks.permission.READ_TASKS");
+        }
+        if (pm.resolveContentProvider("org.dmfs.tasks", 0) != null) {
+            out.add("org.dmfs.permission.READ_TASKS");
+        }
+        return out.toArray(new String[0]);
     }
 
     /** Send is shown with a picture chosen; its summary is the last problem or what is drawn. */
@@ -227,6 +285,8 @@ public class F91KeplerSettingsCustomizer implements DeviceSpecificSettingsCustom
             send.setSummary(status);
         } else if (p == F91KeplerLivePicture.Preset.NEXT_EVENT) {
             send.setSummary(R.string.f91_pref_summary_live_calendar);
+        } else if (p == F91KeplerLivePicture.Preset.TODO) {
+            send.setSummary(R.string.f91_pref_summary_live_todo);
         } else {
             send.setSummary(null);
         }

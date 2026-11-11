@@ -127,6 +127,29 @@ public class F91KeplerLivePictureTest {
     }
 
     @Test
+    public void longDayDropsTheWeekdayNotTheTime() {
+        final Instant start = ZonedDateTime.of(2026, 11, 16, 14, 0, 0, 0, BERLIN).toInstant();
+        final DateTimeFormatter us = DateTimeFormatter.ofPattern("EEE, MMM d", Locale.US);
+        final DateTimeFormatter usShort = DateTimeFormatter.ofPattern("MMM d", Locale.US);
+        assertEquals("Nov 16 14:00", F91KeplerLivePicture.event("x", start, false, NOW, BERLIN, true,
+                us, usShort, F91KeplerLivePicture.WhenLabels.ENGLISH).when);
+        assertEquals("Nov 16 2:00pm", F91KeplerLivePicture.event("x", start, false, NOW, BERLIN, false,
+                us, usShort, F91KeplerLivePicture.WhenLabels.ENGLISH).when);
+        final DateTimeFormatter de = DateTimeFormatter.ofPattern("EEE, d. MMM", Locale.GERMAN);
+        final DateTimeFormatter deShort = DateTimeFormatter.ofPattern("d. MMM", Locale.GERMAN);
+        assertEquals("16. Nov. 14:00", F91KeplerLivePicture.event("x", start, false, NOW, BERLIN, true,
+                de, deShort, F91KeplerLivePicture.WhenLabels.ENGLISH).when);
+        final DateTimeFormatter deNumbers = DateTimeFormatter.ofPattern("d.M.", Locale.GERMAN);
+        final F91KeplerLivePicture.WhenLabels deLabels = new F91KeplerLivePicture.WhenLabels(
+                "Heute", "Morgen", "ganztags", "in %dm");
+        assertEquals("16.11. ganztags", F91KeplerLivePicture.event("x", start, true, NOW, BERLIN, true,
+                de, deNumbers, deLabels).when);
+        // Short enough: the weekday stays.
+        assertEquals("Mon 16 Nov 14:00", F91KeplerLivePicture.event("x", start, false, NOW, BERLIN, true,
+                DAY, usShort, F91KeplerLivePicture.WhenLabels.ENGLISH).when);
+    }
+
+    @Test
     public void eventCardHasRuleAndTitle() {
         final F91KeplerLiveCanvas c = F91KeplerLivePicture.render(at(10, 16, 30, false), "none");
         // dotted rule on row 8: even columns lit, odd dark
@@ -150,8 +173,43 @@ public class F91KeplerLivePictureTest {
         assertTrue(lit(c, 0, 10, 96, 20) > 0);
     }
 
+    // --- To-do ---------------------------------------------------------------------
+
+    @Test
+    public void dueOnesFirstThenTheRestInOrder() {
+        final List<String> order = F91KeplerLivePicture.order(Arrays.asList(
+                new F91KeplerLivePicture.Todo("milk", 0),
+                new F91KeplerLivePicture.Todo("tax", 300),
+                new F91KeplerLivePicture.Todo("  ", 50),
+                new F91KeplerLivePicture.Todo("call", 100),
+                new F91KeplerLivePicture.Todo("bread", 0)));
+        assertEquals(Arrays.asList("call", "tax", "milk", "bread"), order);
+    }
+
+    @Test
+    public void todoCardHasCountRuleAndBullets() {
+        final F91KeplerLiveCanvas c = F91KeplerLivePicture.render(
+                Arrays.asList("one", "two", "three", "four"), "To do", "All done");
+        assertTrue(lit(c, 84, 0, 12, 7) > 0);   // the count, right
+        assertTrue(c.isLit(0, 8));               // dotted rule
+        assertFalse(c.isLit(1, 8));
+        for (int i = 0; i < 3; i++) {
+            assertEquals(9, lit(c, 0, 13 + i * 9, 3, 3));   // 3x3 bullet
+        }
+        assertEquals(0, lit(c, 5, 38, 91, 1));  // a fourth item is not drawn
+    }
+
+    @Test
+    public void noTodosIsAllDone() {
+        final F91KeplerLiveCanvas c = F91KeplerLivePicture.render(Collections.<String>emptyList(),
+                "To do", "All done");
+        assertEquals(0, lit(c, 0, 0, 96, 10));
+        assertTrue(lit(c, 0, 10, 96, 20) > 0);
+    }
+
     @Test
     public void presetFallsBackToOff() {
+        assertEquals(F91KeplerLivePicture.Preset.TODO, F91KeplerLivePicture.Preset.from("todo"));
         assertEquals(F91KeplerLivePicture.Preset.NEXT_EVENT, F91KeplerLivePicture.Preset.from("next_event"));
         assertEquals(F91KeplerLivePicture.Preset.OFF, F91KeplerLivePicture.Preset.from("nonsense"));
         assertEquals(F91KeplerLivePicture.Preset.OFF, F91KeplerLivePicture.Preset.from(null));

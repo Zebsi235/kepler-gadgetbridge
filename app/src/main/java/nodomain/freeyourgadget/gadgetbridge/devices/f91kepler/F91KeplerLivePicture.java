@@ -28,18 +28,21 @@ import java.util.List;
 import java.util.Locale;
 
 /**
- * "Live pictures": the phone draws a small card -- here the next calendar
- * event -- and sends it to the watch's Image screen like a photo. No firmware
+ * "Live pictures": the phone draws a small card -- the next calendar
+ * event or the open to-dos -- and sends it to the watch's Image screen like a photo. No firmware
  * change: each refresh is one 480-byte upload, so it replaces the user's own
  * picture. Layouts as in the iPhone app; plain Java, unit-tested on the JVM.
  */
 public final class F91KeplerLivePicture {
+    /** Characters on the when line of the event card. */
+    static final int WHEN_CHARS = 16;
+
     private F91KeplerLivePicture() {
     }
 
     /** What the Image screen shows. The values are stored in the preference. */
     public enum Preset {
-        OFF("off"), NEXT_EVENT("next_event");
+        OFF("off"), NEXT_EVENT("next_event"), TODO("todo");
 
         public final String value;
 
@@ -101,20 +104,37 @@ public final class F91KeplerLivePicture {
     public static Event event(final String title, final Instant start, final boolean allDay,
                               final Instant now, final ZoneId zone, final boolean use24h,
                               final DateTimeFormatter dayFormat, final WhenLabels labels) {
+        return event(title, start, allDay, now, zone, use24h, dayFormat, dayFormat, labels);
+    }
+
+    /**
+     * As above; {@code shortDayFormat} (short, e.g. "d.M.") names the day when
+     * {@code dayFormat} and the time would not fit the 16-character line together,
+     * so the time is never cut off.
+     */
+    public static Event event(final String title, final Instant start, final boolean allDay,
+                              final Instant now, final ZoneId zone, final boolean use24h,
+                              final DateTimeFormatter dayFormat, final DateTimeFormatter shortDayFormat,
+                              final WhenLabels labels) {
         final ZonedDateTime s = start.atZone(zone);
         final LocalDate today = now.atZone(zone).toLocalDate();
-        final String day;
+        String day;
+        boolean otherDay = false;
         if (s.toLocalDate().equals(today)) {
             day = labels.today;
         } else if (s.toLocalDate().equals(today.plusDays(1))) {
             day = labels.tomorrow;
         } else {
             day = dayFormat.format(s);
+            otherDay = true;
         }
         final String time = allDay
                 ? labels.allDay
                 : DateTimeFormatter.ofPattern(use24h ? "HH:mm" : "h:mma", Locale.US).format(s)
                         .toLowerCase(Locale.ROOT);
+        if (otherDay && day.length() + 1 + time.length() > WHEN_CHARS) {
+            day = shortDayFormat.format(s);
+        }
         final long minutes = Duration.between(now, start).getSeconds() / 60;
         final boolean soonish = !allDay && !start.isBefore(now) && minutes < 60;
         final String soon = soonish ? String.format(Locale.ROOT, labels.soonFormat, minutes) : null;
@@ -135,9 +155,9 @@ public final class F91KeplerLivePicture {
             // Right-aligned; the when line gives way so the two never touch.
             final String s = F91KeplerLiveCanvas.fit(e.soon, 6);
             c.text(s, F91KeplerLiveCanvas.WIDTH - F91KeplerLiveCanvas.textWidth(s) + 1, 0);
-            c.text(F91KeplerLiveCanvas.fit(e.when, 16 - s.length() - 1), 0, 0);
+            c.text(F91KeplerLiveCanvas.fit(e.when, WHEN_CHARS - s.length() - 1), 0, 0);
         } else {
-            c.text(F91KeplerLiveCanvas.fit(e.when, 16), 0, 0);
+            c.text(F91KeplerLiveCanvas.fit(e.when, WHEN_CHARS), 0, 0);
         }
         c.hline(8, 0, F91KeplerLiveCanvas.WIDTH - 1, true);
         final List<String> lines = F91KeplerLiveCanvas.wrap(e.title, 16, 3);
@@ -145,6 +165,63 @@ public final class F91KeplerLivePicture {
             c.text(lines.get(i), 0, 11 + i * 9);
         }
         return c;
+    }
+
+    // --- To-do -------------------------------------------------------------------
+
+    /**
+     * A header with the count, then up to three open items, each with a square
+     * bullet. No items: {@code emptyText} in the middle.
+     */
+    public static F91KeplerLiveCanvas render(final List<String> todos, final String header,
+                                             final String emptyText) {
+        if (todos.isEmpty()) {
+            return centered(emptyText);
+        }
+        final F91KeplerLiveCanvas c = new F91KeplerLiveCanvas();
+        c.text(F91KeplerLiveCanvas.fit(header, 11), 0, 0);
+        final String n = String.valueOf(todos.size());
+        c.text(n, F91KeplerLiveCanvas.WIDTH - F91KeplerLiveCanvas.textWidth(n) + 1, 0);
+        c.hline(8, 0, F91KeplerLiveCanvas.WIDTH - 1, true);
+        for (int i = 0; i < Math.min(3, todos.size()); i++) {
+            final int y = 11 + i * 9;
+            c.fill(0, y + 2, 3, 3);
+            c.text(F91KeplerLiveCanvas.fit(todos.get(i), 15), 5, y);
+        }
+        return c;
+    }
+
+    /** One open to-do: its title and due time (epoch ms, 0 = none). */
+    public static final class Todo {
+        public final String title;
+        public final long due;
+
+        public Todo(final String title, final long due) {
+            this.title = title;
+            this.due = due;
+        }
+    }
+
+    /**
+     * Due ones first (soonest first), then the rest in the app's own order;
+     * blank titles dropped. As in the iPhone app.
+     */
+    public static List<String> order(final List<Todo> todos) {
+        final List<Todo> sorted = new java.util.ArrayList<>(todos);
+        // List.sort is stable, so the undated keep their order.
+        sorted.sort((a, b) -> {
+            if (a.due > 0 && b.due > 0) {
+                return Long.compare(a.due, b.due);
+            }
+            return Boolean.compare(b.due > 0, a.due > 0);
+        });
+        final List<String> out = new java.util.ArrayList<>();
+        for (final Todo t : sorted) {
+            if (t.title != null && !t.title.trim().isEmpty()) {
+                out.add(t.title.trim());
+            }
+        }
+        return out;
     }
 
     // --- Shared ------------------------------------------------------------------
