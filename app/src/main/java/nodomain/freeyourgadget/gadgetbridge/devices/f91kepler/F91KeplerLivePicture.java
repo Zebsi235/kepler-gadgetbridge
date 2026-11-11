@@ -34,6 +34,9 @@ import java.util.Locale;
  * picture. Layouts as in the iPhone app; plain Java, unit-tested on the JVM.
  */
 public final class F91KeplerLivePicture {
+    /** Characters on the when line of the event card. */
+    static final int WHEN_CHARS = 16;
+
     private F91KeplerLivePicture() {
     }
 
@@ -101,20 +104,37 @@ public final class F91KeplerLivePicture {
     public static Event event(final String title, final Instant start, final boolean allDay,
                               final Instant now, final ZoneId zone, final boolean use24h,
                               final DateTimeFormatter dayFormat, final WhenLabels labels) {
+        return event(title, start, allDay, now, zone, use24h, dayFormat, dayFormat, labels);
+    }
+
+    /**
+     * As above; {@code shortDayFormat} (no weekday, e.g. "d MMM") names the day when
+     * {@code dayFormat} and the time would not fit the 16-character line together,
+     * so the time is never cut off.
+     */
+    public static Event event(final String title, final Instant start, final boolean allDay,
+                              final Instant now, final ZoneId zone, final boolean use24h,
+                              final DateTimeFormatter dayFormat, final DateTimeFormatter shortDayFormat,
+                              final WhenLabels labels) {
         final ZonedDateTime s = start.atZone(zone);
         final LocalDate today = now.atZone(zone).toLocalDate();
-        final String day;
+        String day;
+        boolean otherDay = false;
         if (s.toLocalDate().equals(today)) {
             day = labels.today;
         } else if (s.toLocalDate().equals(today.plusDays(1))) {
             day = labels.tomorrow;
         } else {
             day = dayFormat.format(s);
+            otherDay = true;
         }
         final String time = allDay
                 ? labels.allDay
                 : DateTimeFormatter.ofPattern(use24h ? "HH:mm" : "h:mma", Locale.US).format(s)
                         .toLowerCase(Locale.ROOT);
+        if (otherDay && day.length() + 1 + time.length() > WHEN_CHARS) {
+            day = shortDayFormat.format(s);
+        }
         final long minutes = Duration.between(now, start).getSeconds() / 60;
         final boolean soonish = !allDay && !start.isBefore(now) && minutes < 60;
         final String soon = soonish ? String.format(Locale.ROOT, labels.soonFormat, minutes) : null;
@@ -135,9 +155,9 @@ public final class F91KeplerLivePicture {
             // Right-aligned; the when line gives way so the two never touch.
             final String s = F91KeplerLiveCanvas.fit(e.soon, 6);
             c.text(s, F91KeplerLiveCanvas.WIDTH - F91KeplerLiveCanvas.textWidth(s) + 1, 0);
-            c.text(F91KeplerLiveCanvas.fit(e.when, 16 - s.length() - 1), 0, 0);
+            c.text(F91KeplerLiveCanvas.fit(e.when, WHEN_CHARS - s.length() - 1), 0, 0);
         } else {
-            c.text(F91KeplerLiveCanvas.fit(e.when, 16), 0, 0);
+            c.text(F91KeplerLiveCanvas.fit(e.when, WHEN_CHARS), 0, 0);
         }
         c.hline(8, 0, F91KeplerLiveCanvas.WIDTH - 1, true);
         final List<String> lines = F91KeplerLiveCanvas.wrap(e.title, 16, 3);

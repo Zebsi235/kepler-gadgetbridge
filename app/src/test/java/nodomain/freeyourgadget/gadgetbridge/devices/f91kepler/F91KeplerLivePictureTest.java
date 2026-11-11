@@ -127,6 +127,24 @@ public class F91KeplerLivePictureTest {
     }
 
     @Test
+    public void longDayDropsTheWeekdayNotTheTime() {
+        final Instant start = ZonedDateTime.of(2026, 11, 16, 14, 0, 0, 0, BERLIN).toInstant();
+        final DateTimeFormatter us = DateTimeFormatter.ofPattern("EEE, MMM d", Locale.US);
+        final DateTimeFormatter usShort = DateTimeFormatter.ofPattern("MMM d", Locale.US);
+        assertEquals("Nov 16 14:00", F91KeplerLivePicture.event("x", start, false, NOW, BERLIN, true,
+                us, usShort, F91KeplerLivePicture.WhenLabels.ENGLISH).when);
+        assertEquals("Nov 16 2:00pm", F91KeplerLivePicture.event("x", start, false, NOW, BERLIN, false,
+                us, usShort, F91KeplerLivePicture.WhenLabels.ENGLISH).when);
+        final DateTimeFormatter de = DateTimeFormatter.ofPattern("EEE, d. MMM", Locale.GERMAN);
+        final DateTimeFormatter deShort = DateTimeFormatter.ofPattern("d. MMM", Locale.GERMAN);
+        assertEquals("16. Nov. 14:00", F91KeplerLivePicture.event("x", start, false, NOW, BERLIN, true,
+                de, deShort, F91KeplerLivePicture.WhenLabels.ENGLISH).when);
+        // Short enough: the weekday stays.
+        assertEquals("Mon 16 Nov 14:00", F91KeplerLivePicture.event("x", start, false, NOW, BERLIN, true,
+                DAY, usShort, F91KeplerLivePicture.WhenLabels.ENGLISH).when);
+    }
+
+    @Test
     public void eventCardHasRuleAndTitle() {
         final F91KeplerLiveCanvas c = F91KeplerLivePicture.render(at(10, 16, 30, false), "none");
         // dotted rule on row 8: even columns lit, odd dark
