@@ -139,6 +139,11 @@ public class F91KeplerLivePictureTest {
         final DateTimeFormatter deShort = DateTimeFormatter.ofPattern("d. MMM", Locale.GERMAN);
         assertEquals("16. Nov. 14:00", F91KeplerLivePicture.event("x", start, false, NOW, BERLIN, true,
                 de, deShort, F91KeplerLivePicture.WhenLabels.ENGLISH).when);
+        final DateTimeFormatter deNumbers = DateTimeFormatter.ofPattern("d.M.", Locale.GERMAN);
+        final F91KeplerLivePicture.WhenLabels deLabels = new F91KeplerLivePicture.WhenLabels(
+                "Heute", "Morgen", "ganztags", "in %dm");
+        assertEquals("16.11. ganztags", F91KeplerLivePicture.event("x", start, true, NOW, BERLIN, true,
+                de, deNumbers, deLabels).when);
         // Short enough: the weekday stays.
         assertEquals("Mon 16 Nov 14:00", F91KeplerLivePicture.event("x", start, false, NOW, BERLIN, true,
                 DAY, usShort, F91KeplerLivePicture.WhenLabels.ENGLISH).when);

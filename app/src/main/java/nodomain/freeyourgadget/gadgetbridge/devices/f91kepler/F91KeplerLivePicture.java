@@ -108,7 +108,7 @@ public final class F91KeplerLivePicture {
     }
 
     /**
-     * As above; {@code shortDayFormat} (no weekday, e.g. "d MMM") names the day when
+     * As above; {@code shortDayFormat} (short, e.g. "d.M.") names the day when
      * {@code dayFormat} and the time would not fit the 16-character line together,
      * so the time is never cut off.
      */

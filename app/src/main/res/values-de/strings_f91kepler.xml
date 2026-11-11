@@ -165,7 +165,7 @@
     <string name="f91_live_no_events">Keine Termine diese Woche</string>
     <string name="f91_live_today">Heute</string>
     <string name="f91_live_tomorrow">Morgen</string>
-    <string name="f91_live_all_day">ganzer Tag</string>
+    <string name="f91_live_all_day">ganztags</string>
     <string name="f91_live_soon" formatted="false">%d Min</string>
     <string name="f91_live_todo">Offen</string>
     <string name="f91_pref_summary_live_todo">Deine offenen Aufgaben aus Tasks.org oder OpenTasks, die zuerst fälligen oben.</string>
