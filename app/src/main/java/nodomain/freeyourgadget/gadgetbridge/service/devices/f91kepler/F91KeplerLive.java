@@ -193,9 +193,10 @@ final class F91KeplerLive {
                 context.getString(R.string.f91_live_today), context.getString(R.string.f91_live_tomorrow),
                 context.getString(R.string.f91_live_all_day), context.getString(R.string.f91_live_soon));
         final Locale locale = Locale.getDefault();
-        // "Mon, Nov 16" or "Mo., 16. Nov."; without the weekday when the time would not fit.
+        // "Mon, Nov 16" or "Mo., 16. Nov."; as numbers ("11/16", "16.11.") when the
+        // time would not fit beside it.
         final DateTimeFormatter dayFormat = dayPattern(locale, "EEEdMMM", "EEE d MMM");
-        final DateTimeFormatter shortDayFormat = dayPattern(locale, "dMMM", "d MMM");
+        final DateTimeFormatter shortDayFormat = dayPattern(locale, "dM", "d/M");
         final String title = allDay ? dayTitle : bestTitle;
         return F91KeplerLivePicture.event(title == null ? "" : title,
                 Instant.ofEpochMilli(allDay ? dayBegin : bestBegin), allDay,
