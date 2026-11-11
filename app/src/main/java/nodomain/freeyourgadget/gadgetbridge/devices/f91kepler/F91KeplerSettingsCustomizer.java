@@ -260,10 +260,9 @@ public class F91KeplerSettingsCustomizer implements DeviceSpecificSettingsCustom
                 break;
             case CRYPTO:
             case STOCK:
-                // Prices come through the Internet Helper: GB asks for its permission
-                // only on the start screen, and that ask can be switched off.
-                if (GBApplication.hasDirectInternetAccess()
-                        || !AndroidUtils.isPackageInstalled(PermissionsUtils.PACKAGE_INTERNET_HELPER)) {
+                // Prices always come through the Internet Helper: GB asks for its
+                // permission only on the start screen, and that ask can be switched off.
+                if (!AndroidUtils.isPackageInstalled(PermissionsUtils.PACKAGE_INTERNET_HELPER)) {
                     return false;
                 }
                 wanted = new String[]{PermissionsUtils.CUSTOM_PERM_INTERNET_HELPER};
