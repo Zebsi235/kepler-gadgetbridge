@@ -2193,7 +2193,7 @@ public class F91KeplerSupport extends AbstractBTLESingleDeviceSupport {
 
     @Override
     public void onReboot() {
-        // Debug screen "Reboot": 0x01, a deferred reset.
+        // Debug screen "Reboot" and the settings' "Restart watch": 0x01, a deferred reset.
         final TransactionBuilder builder = createTransactionBuilder("reset");
         builder.write(F91KeplerConstants.UUID_CHAR_DEVICE_COMMAND, F91KeplerConstants.CMD_RESET);
         builder.queue();
@@ -2201,10 +2201,10 @@ public class F91KeplerSupport extends AbstractBTLESingleDeviceSupport {
 
     @Override
     public void onFactoryReset() {
-        // Debug screen "Factory reset": 0x16 erases every bond on the watch and
-        // reboots. After it the phone still holds its side of the bond and must
-        // forget the watch in Android's Bluetooth settings before pairing again
-        // -- that is why the ordinary UI never offers it.
+        // Debug screen "Factory reset" and the settings' "Clear pairings" (after a
+        // confirm): 0x16 erases every bond on the watch and reboots. After it the
+        // phone still holds its side of the bond and must forget the watch in
+        // Android's Bluetooth settings before pairing again; the confirm says so.
         final TransactionBuilder builder = createTransactionBuilder("factory reset");
         builder.write(F91KeplerConstants.UUID_CHAR_DEVICE_COMMAND, F91KeplerConstants.CMD_CLEAR_BONDS);
         builder.queue();
@@ -2581,6 +2581,18 @@ public class F91KeplerSupport extends AbstractBTLESingleDeviceSupport {
                 }
                 break;
             }
+            case F91KeplerConstants.PREF_LIGHT_UP: {
+                final TransactionBuilder builder = createTransactionBuilder("light up");
+                builder.write(F91KeplerConstants.UUID_CHAR_DEVICE_COMMAND, F91KeplerConstants.CMD_DISPLAY_ON);
+                builder.queue();
+                break;
+            }
+            case F91KeplerConstants.PREF_RESTART:
+                onReboot();
+                break;
+            case F91KeplerConstants.PREF_CLEAR_PAIRINGS:
+                onFactoryReset();
+                break;
             case F91KeplerConstants.PREF_IMAGE_UPLOAD:
                 sendStoredImage();
                 break;

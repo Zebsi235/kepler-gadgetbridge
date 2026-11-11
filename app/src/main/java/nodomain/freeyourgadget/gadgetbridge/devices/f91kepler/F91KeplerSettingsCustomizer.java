@@ -170,6 +170,7 @@ public class F91KeplerSettingsCustomizer implements DeviceSpecificSettingsCustom
         applyFirmwareVisibility(handler);
         showSoundSwitches(handler);
         showLive(handler, null);
+        enableControls(handler);
     }
 
     // --- Live picture ------------------------------------------------------------
@@ -366,6 +367,70 @@ public class F91KeplerSettingsCustomizer implements DeviceSpecificSettingsCustom
         }
     }
 
+    // --- Light up, restart, clear pairings ---------------------------------------------
+
+    private static final String[] CONTROL_KEYS = {
+            F91KeplerConstants.PREF_LIGHT_UP, F91KeplerConstants.PREF_RESTART,
+            F91KeplerConstants.PREF_CLEAR_PAIRINGS,
+    };
+
+    private static void setUpControls(final DeviceSpecificSettingsHandler handler) {
+        final Preference light = handler.findPreference(F91KeplerConstants.PREF_LIGHT_UP);
+        final Preference restart = handler.findPreference(F91KeplerConstants.PREF_RESTART);
+        final Preference clear = handler.findPreference(F91KeplerConstants.PREF_CLEAR_PAIRINGS);
+        if (light == null || restart == null || clear == null) {
+            return;
+        }
+        light.setOnPreferenceClickListener(pref -> {
+            send(handler, F91KeplerConstants.PREF_LIGHT_UP);
+            return true;
+        });
+        restart.setOnPreferenceClickListener(pref -> {
+            confirm(handler, R.string.f91_restart_confirm_title, R.string.f91_restart_confirm_message,
+                    R.string.f91_pref_title_restart, F91KeplerConstants.PREF_RESTART);
+            return true;
+        });
+        clear.setOnPreferenceClickListener(pref -> {
+            confirm(handler, R.string.f91_clear_pairings_confirm_title,
+                    R.string.f91_clear_pairings_confirm_message, R.string.f91_pref_title_clear_pairings,
+                    F91KeplerConstants.PREF_CLEAR_PAIRINGS);
+            return true;
+        });
+        enableControls(handler);
+    }
+
+    /** The buttons work only on a connected watch. */
+    private static void enableControls(final DeviceSpecificSettingsHandler handler) {
+        final GBDevice device = handler.getDevice();
+        final boolean ready = device != null && device.isInitialized();
+        for (final String key : CONTROL_KEYS) {
+            final Preference p = handler.findPreference(key);
+            if (p != null) {
+                p.setEnabled(ready);
+            }
+        }
+    }
+
+    private static void confirm(final DeviceSpecificSettingsHandler handler, final int title,
+                                final int message, final int action, final String key) {
+        new com.google.android.material.dialog.MaterialAlertDialogBuilder(handler.getContext())
+                .setTitle(title)
+                .setMessage(message)
+                .setPositiveButton(action, (dialog, which) -> send(handler, key))
+                .setNegativeButton(android.R.string.cancel, null)
+                .show();
+    }
+
+    private static void send(final DeviceSpecificSettingsHandler handler, final String key) {
+        final GBDevice device = handler.getDevice();
+        if (device == null || !device.isInitialized()) {
+            GB.toast(handler.getContext(), handler.getContext().getString(R.string.f91_control_not_connected),
+                    Toast.LENGTH_SHORT, GB.INFO);
+            return;
+        }
+        handler.notifyPreferenceChanged(key);
+    }
+
     /**
      * A setting the watch also holds, changed while it is not connected: flagged so
      * the next connect writes it instead of adopting the watch's value. The flags
@@ -484,6 +549,7 @@ public class F91KeplerSettingsCustomizer implements DeviceSpecificSettingsCustom
     public void customizeSettings(final DeviceSpecificSettingsHandler handler, final Prefs prefs,
                                   final String rootKey) {
         applyFirmwareVisibility(handler);
+        setUpControls(handler);
         for (final String key : SEND_KEYS) {
             // The listener runs only for a change the user makes (not when the screen
             // loads). With the phone's Bluetooth off Gadgetbridge has no support object

@@ -53,4 +53,14 @@
     <string name="internet_helper_pref_kepler_live_prices_title">Kepler live prices</string>
     <string name="internet_helper_pref_kepler_live_prices_summary">Fetch the crypto or stock price for the Kepler watch\'s live picture (CoinGecko, Finnhub, Alpha Vantage)</string>
     <string name="f91_live_allow_calendar">Allow Gadgetbridge to read your calendar in the Android settings.</string>
+    <string name="f91_pref_header_control">Restart and pairing</string>
+    <string name="f91_pref_title_light_up">Light up the display</string>
+    <string name="f91_pref_summary_control">Restart turns the watch off and on. Clear pairings erases every phone the watch knows.</string>
+    <string name="f91_pref_title_restart">Restart watch</string>
+    <string name="f91_pref_title_clear_pairings">Clear pairings</string>
+    <string name="f91_restart_confirm_title">Restart the watch?</string>
+    <string name="f91_restart_confirm_message">It restarts and reconnects in a few seconds.</string>
+    <string name="f91_clear_pairings_confirm_title">Erase the watch\'s pairings?</string>
+    <string name="f91_clear_pairings_confirm_message">The watch erases all pairings and restarts. Then remove it in Gadgetbridge and forget it in Android\'s Bluetooth settings, and pair it again.</string>
+    <string name="f91_control_not_connected">Connect the watch first.</string>
 </resources>
