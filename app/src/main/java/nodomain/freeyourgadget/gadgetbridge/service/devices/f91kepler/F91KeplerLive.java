@@ -163,18 +163,24 @@ final class F91KeplerLive {
                 context.getString(R.string.f91_live_today), context.getString(R.string.f91_live_tomorrow),
                 context.getString(R.string.f91_live_all_day), context.getString(R.string.f91_live_soon));
         final Locale locale = Locale.getDefault();
-        DateTimeFormatter dayFormat;
-        try {
-            dayFormat = DateTimeFormatter.ofPattern(DateFormat.getBestDateTimePattern(locale, "EEEdMMM"), locale);
-        } catch (final RuntimeException e) {
-            // An ICU pattern java.time cannot read: a plain short one will do.
-            LOG.warn("F91 live picture: day pattern not usable, using the default", e);
-            dayFormat = DateTimeFormatter.ofPattern("EEE d MMM", locale);
-        }
+        // "Mon, Nov 16" or "Mo., 16. Nov."; without the weekday when the time would not fit.
+        final DateTimeFormatter dayFormat = dayPattern(locale, "EEEdMMM", "EEE d MMM");
+        final DateTimeFormatter shortDayFormat = dayPattern(locale, "dMMM", "d MMM");
         final String title = allDay ? dayTitle : bestTitle;
         return F91KeplerLivePicture.event(title == null ? "" : title,
                 Instant.ofEpochMilli(allDay ? dayBegin : bestBegin), allDay,
-                Instant.ofEpochMilli(now), zone, use24h, dayFormat, labels);
+                Instant.ofEpochMilli(now), zone, use24h, dayFormat, shortDayFormat, labels);
+    }
+
+    private static DateTimeFormatter dayPattern(final Locale locale, final String skeleton,
+                                                final String fallback) {
+        try {
+            return DateTimeFormatter.ofPattern(DateFormat.getBestDateTimePattern(locale, skeleton), locale);
+        } catch (final RuntimeException e) {
+            // An ICU pattern java.time cannot read: a plain short one will do.
+            LOG.warn("F91 live picture: day pattern not usable, using the default", e);
+            return DateTimeFormatter.ofPattern(fallback, locale);
+        }
     }
 
     // --- Open to-dos --------------------------------------------------------------
