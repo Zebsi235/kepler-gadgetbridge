@@ -43,6 +43,7 @@
     <string name="f91_live_enter_key">Stock prices need your own free key; enter it below.</string>
     <string name="f91_live_enter_symbol">Enter a symbol, e.g. AAPL.</string>
     <string name="f91_live_allow_prices">Allow \"Kepler live prices\" in Gadgetbridge settings, Internet Helper.</string>
+    <string name="f91_live_allow_helper">Allow Gadgetbridge to use the Internet Helper in the Android settings.</string>
     <string name="f91_live_unknown_symbol">No price found for that symbol.</string>
     <string name="f91_live_bad_key">The service did not accept the key.</string>
     <string name="f91_live_limited">Too many requests for now. It tries again in %d minutes.</string>

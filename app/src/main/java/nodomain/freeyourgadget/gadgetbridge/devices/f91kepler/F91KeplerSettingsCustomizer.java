@@ -48,7 +48,9 @@ import nodomain.freeyourgadget.gadgetbridge.activities.devicesettings.DeviceSpec
 import nodomain.freeyourgadget.gadgetbridge.activities.devicesettings.DeviceSpecificSettingsHandler;
 import nodomain.freeyourgadget.gadgetbridge.impl.GBDevice;
 import nodomain.freeyourgadget.gadgetbridge.util.Prefs;
+import nodomain.freeyourgadget.gadgetbridge.util.AndroidUtils;
 import nodomain.freeyourgadget.gadgetbridge.util.GB;
+import nodomain.freeyourgadget.gadgetbridge.util.PermissionsUtils;
 
 /**
  * Opens the image screen from the watch's settings (the click is wired here so
@@ -255,6 +257,17 @@ public class F91KeplerSettingsCustomizer implements DeviceSpecificSettingsCustom
             case TODO:
                 wanted = todoPermissions(context);
                 hint = R.string.f91_live_allow_tasks;
+                break;
+            case CRYPTO:
+            case STOCK:
+                // Prices come through the Internet Helper: GB asks for its permission
+                // only on the start screen, and that ask can be switched off.
+                if (GBApplication.hasDirectInternetAccess()
+                        || !AndroidUtils.isPackageInstalled(PermissionsUtils.PACKAGE_INTERNET_HELPER)) {
+                    return false;
+                }
+                wanted = new String[]{PermissionsUtils.CUSTOM_PERM_INTERNET_HELPER};
+                hint = R.string.f91_live_allow_helper;
                 break;
             default:
                 return false;

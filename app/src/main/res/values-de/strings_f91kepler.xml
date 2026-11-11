@@ -189,6 +189,7 @@
     <string name="f91_live_enter_key">Aktienkurse brauchen deinen eigenen kostenlosen Schlüssel; gib ihn unten ein.</string>
     <string name="f91_live_enter_symbol">Gib ein Symbol ein, z. B. AAPL.</string>
     <string name="f91_live_allow_prices">Erlaube \"Kepler-Live-Kurse\" in den Gadgetbridge-Einstellungen unter Internet Helper.</string>
+    <string name="f91_live_allow_helper">Erlaube Gadgetbridge in den Android-Einstellungen, den Internet Helper zu nutzen.</string>
     <string name="f91_live_unknown_symbol">Für dieses Symbol gibt es keinen Kurs.</string>
     <string name="f91_live_bad_key">Der Dienst hat den Schlüssel nicht angenommen.</string>
     <string name="f91_live_limited">Gerade zu viele Anfragen. Neuer Versuch in %d Minuten.</string>

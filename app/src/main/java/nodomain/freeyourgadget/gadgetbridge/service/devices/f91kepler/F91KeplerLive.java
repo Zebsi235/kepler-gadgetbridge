@@ -292,10 +292,12 @@ final class F91KeplerLive {
         if (!GBApplication.getPrefs().getBoolean(F91KeplerConstants.PREF_INTERNETHELPER_ALLOW_LIVE_PRICES, false)) {
             throw new Failure(context.getString(R.string.f91_live_allow_prices));
         }
-        if (!AndroidUtils.isPackageInstalled(PermissionsUtils.PACKAGE_INTERNET_HELPER)
-                || !PermissionsUtils.checkPermission(context, PermissionsUtils.CUSTOM_PERM_INTERNET_HELPER)) {
-            // Gadgetbridge's own words: install the helper, or allow it.
+        if (!AndroidUtils.isPackageInstalled(PermissionsUtils.PACKAGE_INTERNET_HELPER)) {
+            // Gadgetbridge's own words: install the helper.
             throw new Failure(InternetUtils.noInternetAccessReason(context));
+        }
+        if (!PermissionsUtils.checkPermission(context, PermissionsUtils.CUSTOM_PERM_INTERNET_HELPER)) {
+            throw new Failure(context.getString(R.string.f91_live_allow_helper));
         }
         try (InternetHelperHttpResponse r = InternetHelperHttpClient.get(url, headers, null, 15_000L)) {
             return new Response(r.getStatus(), read(r.getBody()));
