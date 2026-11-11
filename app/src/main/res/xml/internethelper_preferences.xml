@@ -50,5 +50,12 @@
             android:title="@string/internet_helper_pref_bangle_app_loader_title"
             android:summary="@string/internet_helper_pref_bangle_app_loader_summary"
             app:iconSpaceReserved="false" />
+        <SwitchPreferenceCompat
+            android:defaultValue="false"
+            android:key="pref_key_internethelper_allow_kepler_live_prices"
+            android:layout="@layout/preference_checkbox"
+            android:title="@string/internet_helper_pref_kepler_live_prices_title"
+            android:summary="@string/internet_helper_pref_kepler_live_prices_summary"
+            app:iconSpaceReserved="false" />
     </PreferenceCategory>
 </PreferenceScreen>

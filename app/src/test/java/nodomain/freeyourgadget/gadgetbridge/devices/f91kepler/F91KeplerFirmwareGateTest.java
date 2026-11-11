@@ -58,7 +58,9 @@ public class F91KeplerFirmwareGateTest {
             "f91_pref_category_modes", F91KeplerModes.PREF_MODES,
             "f91_pref_category_image", F91KeplerConstants.PREF_IMAGE_UPLOAD,
             "f91_pref_category_live", F91KeplerConstants.PREF_LIVE_PRESET,
-            F91KeplerConstants.PREF_LIVE_SEND));
+            F91KeplerConstants.PREF_LIVE_SEND, F91KeplerConstants.PREF_LIVE_COIN,
+            F91KeplerConstants.PREF_LIVE_STOCK_SERVICE, F91KeplerConstants.PREF_LIVE_STOCK_SYMBOL,
+            F91KeplerConstants.PREF_LIVE_STOCK_KEY, F91KeplerConstants.PREF_LIVE_GET_KEY));
 
     private static File resDir() {
         File dir = new File("").getAbsoluteFile();

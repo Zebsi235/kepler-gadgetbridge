@@ -484,6 +484,16 @@ public final class F91KeplerConstants {
     public static final String PREF_LIVE_STATUS = "f91_live_status";
     /** Each refresh is one 480-byte upload and the data changes slowly: at most every 15 min. */
     public static final long LIVE_INTERVAL_MS = 15L * 60 * 1000;
+    /** Live picture, crypto: the coin ("BTC", "ETH-EUR" or a CoinGecko id). */
+    public static final String PREF_LIVE_COIN = "f91_live_coin";
+    /** Live picture, stock: the price service (F91KeplerLiveQuote.StockService value). */
+    public static final String PREF_LIVE_STOCK_SERVICE = "f91_live_stock_service";
+    public static final String PREF_LIVE_STOCK_SYMBOL = "f91_live_stock_symbol";
+    /** The user's own key for that service; only ever sent to it. */
+    public static final String PREF_LIVE_STOCK_KEY = "f91_live_stock_key";
+    public static final String PREF_LIVE_GET_KEY = "f91_live_get_key";
+    /** The Internet Helper switch that allows the price requests (off by default). */
+    public static final String PREF_INTERNETHELPER_ALLOW_LIVE_PRICES = "pref_key_internethelper_allow_kepler_live_prices";
     /** After the connect setup (and its image check) has settled. */
     public static final long LIVE_CONNECT_DELAY_MS = 8_000L;
 }

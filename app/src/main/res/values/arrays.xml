@@ -5205,12 +5205,24 @@
     <!-- Live picture (F91 Kepler): what the phone draws for the Image screen. -->
     <string-array name="f91_live_preset">
         <item>@string/f91_live_off</item>
+        <item>@string/f91_live_crypto</item>
+        <item>@string/f91_live_stock</item>
         <item>@string/f91_live_calendar</item>
         <item>@string/f91_live_todo</item>
     </string-array>
     <string-array name="f91_live_preset_values" translatable="false">
         <item>off</item>
+        <item>crypto</item>
+        <item>stock</item>
         <item>next_event</item>
         <item>todo</item>
+    </string-array>
+    <string-array name="f91_live_stock_service" translatable="false">
+        <item>Finnhub</item>
+        <item>Alpha Vantage</item>
+    </string-array>
+    <string-array name="f91_live_stock_service_values" translatable="false">
+        <item>finnhub</item>
+        <item>alpha_vantage</item>
     </string-array>
 </resources>
