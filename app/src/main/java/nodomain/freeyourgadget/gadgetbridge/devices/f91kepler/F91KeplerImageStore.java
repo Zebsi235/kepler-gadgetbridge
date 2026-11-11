@@ -84,4 +84,16 @@ public final class F91KeplerImageStore {
             out.write(frame);
         }
     }
+
+    /** Forget the stored frame, so connects stop re-sending it. */
+    public static void delete(final GBDevice device) {
+        try {
+            final File file = file(device);
+            if (file.isFile() && !file.delete()) {
+                LOG.warn("Could not delete the stored F91 image");
+            }
+        } catch (final IOException e) {
+            LOG.warn("Could not delete the stored F91 image", e);
+        }
+    }
 }

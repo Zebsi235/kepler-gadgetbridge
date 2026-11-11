@@ -16,14 +16,21 @@
     along with this program.  If not, see <https://www.gnu.org/licenses/>. */
 package nodomain.freeyourgadget.gadgetbridge.devices.f91kepler;
 
+import android.Manifest;
+import android.app.Activity;
+import android.content.Context;
 import android.content.Intent;
+import android.content.pm.PackageManager;
 import android.content.SharedPreferences;
+import android.net.Uri;
 import android.os.Parcel;
 import android.text.InputFilter;
+import android.text.InputType;
 import android.widget.Toast;
 
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
+import androidx.core.app.ActivityCompat;
 import androidx.preference.EditTextPreference;
 import androidx.preference.ListPreference;
 import androidx.preference.Preference;
@@ -41,7 +48,9 @@ import nodomain.freeyourgadget.gadgetbridge.activities.devicesettings.DeviceSpec
 import nodomain.freeyourgadget.gadgetbridge.activities.devicesettings.DeviceSpecificSettingsHandler;
 import nodomain.freeyourgadget.gadgetbridge.impl.GBDevice;
 import nodomain.freeyourgadget.gadgetbridge.util.Prefs;
+import nodomain.freeyourgadget.gadgetbridge.util.AndroidUtils;
 import nodomain.freeyourgadget.gadgetbridge.util.GB;
+import nodomain.freeyourgadget.gadgetbridge.util.PermissionsUtils;
 
 /**
  * Opens the image screen from the watch's settings (the click is wired here so
@@ -160,7 +169,202 @@ public class F91KeplerSettingsCustomizer implements DeviceSpecificSettingsCustom
         // firmware version was read on connect (GBDeviceEventVersionInfo).
         applyFirmwareVisibility(handler);
         showSoundSwitches(handler);
+        showLive(handler, null);
         enableControls(handler);
+    }
+
+    // --- Live picture ------------------------------------------------------------
+
+    private static void setUpLive(final DeviceSpecificSettingsHandler handler) {
+        final ListPreference preset = handler.findPreference(F91KeplerConstants.PREF_LIVE_PRESET);
+        final Preference send = handler.findPreference(F91KeplerConstants.PREF_LIVE_SEND);
+        if (preset == null || send == null) {
+            return;
+        }
+        hideTodoWithoutTaskApp(handler.getContext(), preset);
+        setUpPrices(handler);
+        handler.addPreferenceHandlerFor(F91KeplerConstants.PREF_LIVE_PRESET, (pref, newValue) -> {
+            final String value = String.valueOf(newValue);
+            askForAccess(handler, F91KeplerLivePicture.Preset.from(value), false);
+            showLive(handler, value);
+            return true;
+        });
+        send.setOnPreferenceClickListener(pref -> {
+            if (askForAccess(handler, F91KeplerLivePicture.Preset.from(preset.getValue()), true)) {
+                return true;            // asked; Send again once allowed
+            }
+            handler.notifyPreferenceChanged(F91KeplerConstants.PREF_LIVE_SEND);
+            return true;
+        });
+        showLive(handler, null);
+    }
+
+    /** Coin, price service, symbol, key: each change redraws the card at once. */
+    private static void setUpPrices(final DeviceSpecificSettingsHandler handler) {
+        final EditTextPreference coin = handler.findPreference(F91KeplerConstants.PREF_LIVE_COIN);
+        final EditTextPreference symbol = handler.findPreference(F91KeplerConstants.PREF_LIVE_STOCK_SYMBOL);
+        final EditTextPreference key = handler.findPreference(F91KeplerConstants.PREF_LIVE_STOCK_KEY);
+        final ListPreference service = handler.findPreference(F91KeplerConstants.PREF_LIVE_STOCK_SERVICE);
+        final Preference getKey = handler.findPreference(F91KeplerConstants.PREF_LIVE_GET_KEY);
+        if (coin == null || symbol == null || key == null || service == null || getKey == null) {
+            return;
+        }
+        final EditTextPreference.OnBindEditTextListener upper = editText -> {
+            editText.setSingleLine(true);
+            editText.setInputType(InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_FLAG_CAP_CHARACTERS
+                    | InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS);
+        };
+        coin.setOnBindEditTextListener(upper);
+        symbol.setOnBindEditTextListener(upper);
+        key.setOnBindEditTextListener(editText -> {
+            editText.setSingleLine(true);
+            editText.setInputType(InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_VARIATION_PASSWORD);
+        });
+        // Never shows the key itself.
+        key.setSummaryProvider(p -> p.getContext().getString(
+                ((EditTextPreference) p).getText() == null || ((EditTextPreference) p).getText().trim().isEmpty()
+                        ? R.string.f91_pref_summary_live_key_unset : R.string.f91_pref_summary_live_key_set));
+        handler.addPreferenceHandlerFor(F91KeplerConstants.PREF_LIVE_COIN);
+        handler.addPreferenceHandlerFor(F91KeplerConstants.PREF_LIVE_STOCK_SYMBOL);
+        handler.addPreferenceHandlerFor(F91KeplerConstants.PREF_LIVE_STOCK_KEY);
+        handler.addPreferenceHandlerFor(F91KeplerConstants.PREF_LIVE_STOCK_SERVICE, (pref, newValue) -> true);
+        getKey.setOnPreferenceClickListener(pref -> {
+            final String url = F91KeplerLiveQuote.StockService.from(service.getValue()).signUp;
+            try {
+                handler.getContext().startActivity(new Intent(Intent.ACTION_VIEW, Uri.parse(url))
+                        .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK));
+            } catch (final android.content.ActivityNotFoundException e) {
+                GB.toast(handler.getContext(), url, Toast.LENGTH_LONG, GB.INFO);
+            }
+            return true;
+        });
+    }
+
+    /**
+     * Asks for the access {@code preset} reads with, when it is missing. Returns
+     * whether it asked. {@code tapped}: the user pressed Send, so also say what
+     * is missing (Android shows no dialog once access was refused for good).
+     */
+    private static boolean askForAccess(final DeviceSpecificSettingsHandler handler,
+                                        final F91KeplerLivePicture.Preset preset, final boolean tapped) {
+        final Context context = handler.getContext();
+        final String[] wanted;
+        final int hint;
+        switch (preset) {
+            case NEXT_EVENT:
+                wanted = new String[]{Manifest.permission.READ_CALENDAR};
+                hint = R.string.f91_live_allow_calendar;
+                break;
+            case TODO:
+                wanted = todoPermissions(context);
+                hint = R.string.f91_live_allow_tasks;
+                break;
+            case CRYPTO:
+            case STOCK:
+                // Prices always come through the Internet Helper: GB asks for its
+                // permission only on the start screen, and that ask can be switched off.
+                if (!AndroidUtils.isPackageInstalled(PermissionsUtils.PACKAGE_INTERNET_HELPER)) {
+                    return false;
+                }
+                wanted = new String[]{PermissionsUtils.CUSTOM_PERM_INTERNET_HELPER};
+                hint = R.string.f91_live_allow_helper;
+                break;
+            default:
+                return false;
+        }
+        final java.util.List<String> missing = new java.util.ArrayList<>();
+        for (final String p : wanted) {
+            if (context.checkSelfPermission(p) != PackageManager.PERMISSION_GRANTED) {
+                missing.add(p);
+            }
+        }
+        // To-do: one task app allowed is enough.
+        if (missing.isEmpty() || (preset == F91KeplerLivePicture.Preset.TODO && missing.size() < wanted.length)) {
+            return false;
+        }
+        if (context instanceof Activity) {
+            ActivityCompat.requestPermissions((Activity) context, missing.toArray(new String[0]), 0);
+        }
+        if (tapped || !(context instanceof Activity)) {
+            GB.toast(context, context.getString(hint), Toast.LENGTH_LONG, GB.INFO);
+        }
+        return true;
+    }
+
+    /** To do is offered only with a task app installed (or while it is the choice). */
+    private static void hideTodoWithoutTaskApp(final Context context, final ListPreference preset) {
+        if (todoPermissions(context).length > 0
+                || F91KeplerLivePicture.Preset.TODO.value.equals(preset.getValue())) {
+            return;
+        }
+        final CharSequence[] entries = preset.getEntries();
+        final CharSequence[] values = preset.getEntryValues();
+        final java.util.List<CharSequence> e = new java.util.ArrayList<>();
+        final java.util.List<CharSequence> v = new java.util.ArrayList<>();
+        for (int i = 0; i < values.length; i++) {
+            if (!F91KeplerLivePicture.Preset.TODO.value.equals(values[i].toString())) {
+                e.add(entries[i]);
+                v.add(values[i]);
+            }
+        }
+        preset.setEntries(e.toArray(new CharSequence[0]));
+        preset.setEntryValues(v.toArray(new CharSequence[0]));
+    }
+
+    /** The read permissions of the task apps that are installed. */
+    private static String[] todoPermissions(final Context context) {
+        final java.util.List<String> out = new java.util.ArrayList<>();
+        final PackageManager pm = context.getPackageManager();
+        if (pm.resolveContentProvider("org.tasks.api", 0) != null
+                || pm.resolveContentProvider("org.tasks", 0) != null) {
+            out.add("org.tasks.permission.READ_TASKS");
+        }
+        if (pm.resolveContentProvider("org.dmfs.tasks", 0) != null) {
+            out.add("org.dmfs.permission.READ_TASKS");
+        }
+        return out.toArray(new String[0]);
+    }
+
+    private static void setVisible(final DeviceSpecificSettingsHandler handler, final String key,
+                                   final boolean visible) {
+        final Preference p = handler.findPreference(key);
+        if (p != null) {
+            p.setVisible(visible);
+        }
+    }
+
+    /** Send is shown with a picture chosen; its summary is the last problem or what is drawn. */
+    private static void showLive(final DeviceSpecificSettingsHandler handler, @Nullable final String newValue) {
+        final ListPreference preset = handler.findPreference(F91KeplerConstants.PREF_LIVE_PRESET);
+        final Preference send = handler.findPreference(F91KeplerConstants.PREF_LIVE_SEND);
+        final GBDevice device = handler.getDevice();
+        if (preset == null || send == null || device == null) {
+            return;
+        }
+        final F91KeplerLivePicture.Preset p = F91KeplerLivePicture.Preset.from(
+                newValue != null ? newValue : preset.getValue());
+        send.setVisible(p != F91KeplerLivePicture.Preset.OFF);
+        final boolean stock = p == F91KeplerLivePicture.Preset.STOCK;
+        setVisible(handler, F91KeplerConstants.PREF_LIVE_COIN, p == F91KeplerLivePicture.Preset.CRYPTO);
+        setVisible(handler, F91KeplerConstants.PREF_LIVE_STOCK_SERVICE, stock);
+        setVisible(handler, F91KeplerConstants.PREF_LIVE_STOCK_SYMBOL, stock);
+        setVisible(handler, F91KeplerConstants.PREF_LIVE_STOCK_KEY, stock);
+        setVisible(handler, F91KeplerConstants.PREF_LIVE_GET_KEY, stock);
+        final String status = newValue != null ? "" : GBApplication.getDeviceSpecificSharedPrefs(
+                device.getAddress()).getString(F91KeplerConstants.PREF_LIVE_STATUS, "");
+        if (status != null && !status.isEmpty()) {
+            send.setSummary(status);
+        } else if (p == F91KeplerLivePicture.Preset.NEXT_EVENT) {
+            send.setSummary(R.string.f91_pref_summary_live_calendar);
+        } else if (p == F91KeplerLivePicture.Preset.TODO) {
+            send.setSummary(R.string.f91_pref_summary_live_todo);
+        } else if (p == F91KeplerLivePicture.Preset.CRYPTO) {
+            send.setSummary(R.string.f91_pref_summary_live_crypto);
+        } else if (p == F91KeplerLivePicture.Preset.STOCK) {
+            send.setSummary(R.string.f91_pref_summary_live_stock);
+        } else {
+            send.setSummary(null);
+        }
     }
 
     // --- Light up, restart, clear pairings ---------------------------------------------
@@ -383,6 +587,7 @@ public class F91KeplerSettingsCustomizer implements DeviceSpecificSettingsCustom
                 return true;
             });
         }
+        setUpLive(handler);
         final Preference imageUpload = handler.findPreference(F91KeplerConstants.PREF_IMAGE_UPLOAD);
         if (imageUpload == null) {
             return;
