@@ -68,7 +68,7 @@ final class F91KeplerOadRunner implements F91KeplerOadSession.Port {
     @Nullable
     private InstallSession install;
     @Nullable
-    private InstallItem item;
+    private F91KeplerOadInstallItem item;
     private int lastPercent = -1;
     private long startedAt;
 
