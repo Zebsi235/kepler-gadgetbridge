@@ -94,7 +94,7 @@ public final class F91KeplerOadSession {
     /** Below this the phone does not start; the watch firmware may refuse on its own too. */
     public static final int MIN_BATTERY_PERCENT = 30;
 
-    enum State { IDLE, BLOCK_SIZE, IDENTIFY, START, DOWNLOAD, ENABLE, ENDED }
+    enum State { IDLE, BLOCK_SIZE, VERSION, IDENTIFY, START, DOWNLOAD, ENABLE, ENDED }
 
     private final Port port;
     private final List<F91KeplerOad.Image> images;
@@ -104,6 +104,8 @@ public final class F91KeplerOadSession {
     private int blocksTotal;
     private int highestSent = -1;
     private int resends;
+    /** The running image's version from GET_SW_VER ("M.m.r"), or null. */
+    private String runningVersion;
 
     public F91KeplerOadSession(final Port port, final List<F91KeplerOad.Image> images) {
         if (images == null || images.isEmpty()) {
@@ -134,6 +136,11 @@ public final class F91KeplerOadSession {
 
     public F91KeplerOad.Image image() {
         return images.get(imageIndex);
+    }
+
+    /** The version the watch runs, as it answered GET_SW_VER; null if not asked or no answer. */
+    public String runningVersion() {
+        return runningVersion;
     }
 
     public int blockSize() {
@@ -217,6 +224,22 @@ public final class F91KeplerOadSession {
                         return;
                     }
                     blockSize = size;
+                    if (image().mcuboot) {
+                        askVersion();
+                    } else {
+                        identify();
+                    }
+                }
+                return;
+            case F91KeplerOad.CMD_GET_SW_VER:
+                if (state == State.VERSION) {
+                    runningVersion = F91KeplerOad.runningVersion(value);
+                    if (runningVersion != null && !F91KeplerOad.isNewer(image().versionText(), runningVersion)) {
+                        // The watch would refuse at identify (status 11); say so before anything is sent.
+                        endRefusal(new Result(Outcome.FAILED, -1, "the watch already runs " + runningVersion,
+                                false, false, true));
+                        return;
+                    }
                     identify();
                 }
                 return;
@@ -264,6 +287,16 @@ public final class F91KeplerOadSession {
     }
 
     private boolean identifyRetried;
+
+    /**
+     * Ask which version runs (1-fw: DIS 0x2A26 on the R7 is compiled in and
+     * wrong, GET_SW_VER is the image header the watch compares at identify).
+     */
+    private void askVersion() {
+        state = State.VERSION;
+        port.armTimeout(STALL_MS);
+        port.write(F91KeplerOad.EXT_CTRL, F91KeplerOad.command(F91KeplerOad.CMD_GET_SW_VER));
+    }
 
     private void identify() {
         state = State.IDENTIFY;
@@ -317,6 +350,11 @@ public final class F91KeplerOadSession {
 
     public void onTimeout() {
         if (state == State.ENDED || state == State.IDLE) {
+            return;
+        }
+        if (state == State.VERSION) {
+            // No answer to the version query: the watch still checks the version at identify.
+            identify();
             return;
         }
         if (state == State.IDENTIFY && !identifyRetried) {

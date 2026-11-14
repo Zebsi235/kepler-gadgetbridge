@@ -61,13 +61,8 @@ class F91KeplerOadInstallHandler(private val context: Context) : InstallHandlerV
         if (!pkg.fits(F91KeplerOadPackage.HARDWARE_REV_A_R7)) {
             return Compatibility.Incompatible(context.getString(R.string.f91_ota_wrong_hardware))
         }
-        // The watch boots only a newer M.m.r (MCUboot ignores the build number) and refuses
-        // anything else with status 11; say so before the transfer starts.
-        val running = F91KeplerFirmware.parse(device.firmwareVersion)
-        val offered = F91KeplerFirmware.parse(pkg.version)
-        if (running != null && offered != null && F91KeplerFirmware.compare(offered, running) <= 0) {
-            return Compatibility.Incompatible(context.getString(R.string.f91_ota_up_to_date))
-        }
+        // Whether the file is newer is asked over OAD when the update starts (GET_SW_VER):
+        // the version in the device info is compiled in and not the signed one on the R7.
         batteryRefusal(context, device)?.let { return Compatibility.Incompatible(it) }
         return Compatibility.Compatible()
     }

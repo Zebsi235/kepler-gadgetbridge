@@ -302,6 +302,39 @@ public final class F91KeplerOad {
         return r.equals(e) || r.startsWith(e + "-") || r.startsWith(e + " ");
     }
 
+    /**
+     * The control point's answer to GET_SW_VER on an MCUboot watch:
+     * {@code [0x07, major, minor, rev hi, rev lo]}, the header version of the
+     * running image (1-fw). This, not DIS 0x2A26, is the version the watch
+     * compares at identify: on the R7 the DIS string is compiled in and does not
+     * follow the signed version. Null for anything else.
+     */
+    @Nullable
+    public static String runningVersion(@Nullable final byte[] value) {
+        if (value == null || value.length < 5 || (value[0] & 0xFF) != CMD_GET_SW_VER) {
+            return null;
+        }
+        return (value[1] & 0xFF) + "." + (value[2] & 0xFF) + "." + ((value[3] & 0xFF) << 8 | (value[4] & 0xFF));
+    }
+
+    /**
+     * Whether {@code offered} is newer than {@code running} by M.m.r (MCUboot
+     * ignores the build number). True when either side does not parse: then the
+     * watch decides at identify.
+     */
+    public static boolean isNewer(@Nullable final String offered, @Nullable final String running) {
+        final int[] o = F91KeplerFirmware.parse(offered);
+        final int[] r = F91KeplerFirmware.parse(running);
+        return o == null || r == null || F91KeplerFirmware.compare(o, r) > 0;
+    }
+
+    /** Same M.m.r on both sides (build suffixes ignored); false when either does not parse. */
+    public static boolean sameVersion(@Nullable final String a, @Nullable final String b) {
+        final int[] x = F91KeplerFirmware.parse(a);
+        final int[] y = F91KeplerFirmware.parse(b);
+        return x != null && y != null && F91KeplerFirmware.compare(x, y) == 0;
+    }
+
     /** softVer "MmPP" (4 ASCII digits, 1-fw) as "M.m.P"; anything else as it is. */
     public static String versionText(final String softVer) {
         if (softVer == null || !softVer.matches("[0-9]{4}")) {

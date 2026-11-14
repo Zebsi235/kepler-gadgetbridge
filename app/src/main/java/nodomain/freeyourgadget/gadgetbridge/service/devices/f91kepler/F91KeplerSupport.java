@@ -884,7 +884,8 @@ public class F91KeplerSupport extends AbstractBTLESingleDeviceSupport {
         versionCmd.fwVersion = fw;
         connectedFw = fw;
         handleGBDeviceEvent(versionCmd);
-        oad.checkAfterUpdate(fw);
+        // After an update: which image runs (asked over OAD; DIS is not the signed version on the R7).
+        oad.checkAfterUpdate();
         resendWideTimezone(fw);
         restorePhoneOwnedConfig(fw);
     }

@@ -93,6 +93,32 @@ public class F91KeplerOadTest {
         assertTrue(rig.result.notNewer);
         assertFalse(rig.result.retryable);
         assertEquals(0L, rig.session.image().startAddr);
+        assertEquals("4.0.1", rig.session.runningVersion());
+        assertEquals(0, rig.watch.identifies);                     // refused on GET_SW_VER, nothing sent
+    }
+
+    @Test
+    public void notNewerWithoutVersionAnswerIsRefusedAtIdentify() throws Exception {
+        final Rig rig = new Rig(244);
+        rig.watch.running = new int[]{4, 0, 1};
+        rig.watch.answerSwVer = false;
+        rig.run(mcubootImage(20_000, 0x00000L, 4, 0, 1, 0));
+        assertNull(rig.result);                                  // version query unanswered
+        rig.session.onTimeout();                                 // go on: the watch checks at identify
+        rig.drain();
+        assertEquals(Outcome.FAILED, rig.result.outcome);
+        assertTrue(rig.result.notNewer);
+        assertEquals(F91KeplerOad.INCOMPATIBLE_FILE, rig.result.status);
+        assertEquals(1, rig.watch.identifies);
+    }
+
+    @Test
+    public void newerImageGoesOnAfterTheVersionQuery() throws Exception {
+        final Rig rig = new Rig(244);
+        rig.watch.running = new int[]{3, 3, 6};
+        rig.run(mcubootImage(20_000, 0x00000L, 3, 3, 7, 0));
+        assertEquals(Outcome.DONE, rig.result.outcome);
+        assertEquals("3.3.6", rig.session.runningVersion());
     }
 
     @Test
@@ -139,6 +165,20 @@ public class F91KeplerOadTest {
         assertFalse(F91KeplerOad.runsVersion("4.0.1", "4.0.12"));
         assertFalse(F91KeplerOad.runsVersion("4.0.120", "4.0.12"));
         assertFalse(F91KeplerOad.runsVersion(null, "4.0.12"));
+        // GET_SW_VER on the R7: [0x07, major, minor, rev hi, rev lo] (1-fw).
+        assertEquals("3.3.7", F91KeplerOad.runningVersion(new byte[]{7, 3, 3, 0, 7}));
+        assertEquals("3.3.300", F91KeplerOad.runningVersion(new byte[]{7, 3, 3, 1, 44}));
+        assertNull(F91KeplerOad.runningVersion(new byte[]{1, 3, 3, 0, 7}));
+        assertNull(F91KeplerOad.runningVersion(new byte[]{7, 3, 3}));
+        assertTrue(F91KeplerOad.sameVersion("3.3.7", "3.3.7"));
+        assertTrue(F91KeplerOad.sameVersion("3.3.7", "3.3.7-bl"));
+        assertFalse(F91KeplerOad.sameVersion("3.3.6", "3.3.7"));
+        assertFalse(F91KeplerOad.sameVersion(null, "3.3.7"));
+        assertTrue(F91KeplerOad.isNewer("3.3.7", "3.3.6"));
+        assertTrue(F91KeplerOad.isNewer("3.10.0", "3.9.9"));
+        assertFalse(F91KeplerOad.isNewer("3.3.6", "3.3.6"));
+        assertFalse(F91KeplerOad.isNewer("3.3.5", "3.3.6"));
+        assertTrue(F91KeplerOad.isNewer("3.3.7", null));           // unknown: the watch decides
     }
 
     @Test
@@ -452,6 +492,9 @@ public class F91KeplerOadTest {
         /** Running image major.minor.revision; MCUboot boots only a newer one. */
         int[] running = {0, 0, 0};
         boolean unconfirmed;
+        /** Answers GET_SW_VER with the running version (1-fw's R7 build does). */
+        boolean answerSwVer = true;
+        int identifies;
 
         private static int compareVersion(final byte[] hdr, final int[] run) {
             final int[] img = {hdr[20] & 0xFF, hdr[21] & 0xFF, (hdr[22] & 0xFF) | (hdr[23] & 0xFF) << 8};
@@ -486,6 +529,9 @@ public class F91KeplerOadTest {
         }
 
         List<byte[][]> write(final UUID c, final byte[] v) {
+            if (c.equals(F91KeplerOad.IMG_IDENTIFY)) {
+                identifies++;
+            }
             if (c.equals(F91KeplerOad.IMG_IDENTIFY) && dropFirstIdentify) {
                 dropFirstIdentify = false;                       // fresh link: no answer
                 return Collections.emptyList();
@@ -548,6 +594,12 @@ public class F91KeplerOadTest {
                         }
                         enabled = true;
                         return silentEnable ? Collections.emptyList() : one(c, new byte[]{4, 0});
+                    case F91KeplerOad.CMD_GET_SW_VER:
+                        if (!answerSwVer) {
+                            return Collections.emptyList();
+                        }
+                        return one(c, new byte[]{7, (byte) running[0], (byte) running[1],
+                                (byte) (running[2] >> 8), (byte) running[2]});
                     case F91KeplerOad.CMD_CANCEL_OAD:
                         reset();
                         return one(c, new byte[]{5, 0});

@@ -262,6 +262,8 @@ final class F91KeplerOadRunner implements F91KeplerOadSession.Port {
             handler.post(() -> {
                 if (session != null) {
                     session.onControl(value);
+                } else {
+                    onVersionAfterUpdate(value);
                 }
             });
             return true;
@@ -281,6 +283,8 @@ final class F91KeplerOadRunner implements F91KeplerOadSession.Port {
         // A pending restart into the updater keeps its deadline: the update must end
         // with an outcome even when the reconnect comes to a new support object.
         handler.removeCallbacks(timeout);
+        handler.removeCallbacks(versionLate);
+        versionAsked = false;
         if (session != null) {
             session.onLinkLost();
         }
@@ -328,14 +332,42 @@ final class F91KeplerOadRunner implements F91KeplerOadSession.Port {
         }
     }
 
+    /** Waiting for the GET_SW_VER answer of {@link #checkAfterUpdate}. */
+    private boolean versionAsked;
+    private final Runnable versionLate = () -> versionAsked = false;
+
     /**
-     * First firmware string after an update: tell the user whether the new
-     * image runs or the watch went back to the old one (dual image rollback).
+     * First connection after an update: ask the watch which image runs and tell
+     * the user whether the new one does or the watch went back to the old one
+     * (MCUboot reverts an image that does not confirm itself). Asks GET_SW_VER on
+     * the OAD control point: DIS 0x2A26 on the R7 is compiled in and does not
+     * follow the signed version (1-fw, 14 Nov). Without an answer the expected
+     * version stays stored and the next connection asks again.
      */
-    void checkAfterUpdate(@Nullable final String runningFw) {
-        if (runningFw == null) {
+    void checkAfterUpdate() {
+        if (running() || versionAsked || !available()) {
             return;
         }
+        final String expected = GBApplication.getDeviceSpecificSharedPrefs(address())
+                .getString(F91KeplerConstants.PREF_OAD_EXPECT, null);
+        if (expected == null) {
+            return;
+        }
+        versionAsked = true;
+        handler.postDelayed(versionLate, F91KeplerOadSession.STALL_MS);
+        final TransactionBuilder b = support.createTransactionBuilder("oad version after update");
+        b.notify(F91KeplerOad.EXT_CTRL, true);
+        b.write(F91KeplerOad.EXT_CTRL, F91KeplerOad.command(F91KeplerOad.CMD_GET_SW_VER));
+        b.queue();
+    }
+
+    private void onVersionAfterUpdate(final byte[] value) {
+        final String runningFw = F91KeplerOad.runningVersion(value);
+        if (!versionAsked || runningFw == null) {
+            return;
+        }
+        versionAsked = false;
+        handler.removeCallbacks(versionLate);
         final SharedPreferences prefs = GBApplication.getDeviceSpecificSharedPrefs(address());
         final String expected = prefs.getString(F91KeplerConstants.PREF_OAD_EXPECT, null);
         if (expected == null) {
@@ -343,12 +375,12 @@ final class F91KeplerOadRunner implements F91KeplerOadSession.Port {
         }
         prefs.edit().remove(F91KeplerConstants.PREF_OAD_EXPECT).apply();
         final Context context = support.getContext();
-        if (F91KeplerOad.runsVersion(runningFw, expected)) {
+        if (F91KeplerOad.sameVersion(runningFw, expected)) {
             LOG.info("F91 OAD: the watch runs {} as expected", runningFw);
             GB.toast(context, context.getString(R.string.f91_ota_now_runs, expected), Toast.LENGTH_LONG, GB.INFO);
         } else {
             LOG.warn("F91 OAD: expected {}, the watch runs {} (rolled back)", expected, runningFw);
-            GB.toast(context, context.getString(R.string.f91_ota_rolled_back, runningFw.trim(), expected),
+            GB.toast(context, context.getString(R.string.f91_ota_rolled_back, runningFw, expected),
                     Toast.LENGTH_LONG, GB.WARN);
         }
     }
