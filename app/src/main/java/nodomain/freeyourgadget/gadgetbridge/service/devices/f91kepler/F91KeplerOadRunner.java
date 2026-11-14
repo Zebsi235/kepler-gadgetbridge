@@ -122,6 +122,11 @@ final class F91KeplerOadRunner implements F91KeplerOadSession.Port {
         return session != null;
     }
 
+    /** An update runs or waits for the updater: other bulk writes stay off the link. */
+    boolean busy() {
+        return running() || PENDING.containsKey(address());
+    }
+
     private String address() {
         return support.getDevice().getAddress().toUpperCase(Locale.ROOT);
     }

@@ -1722,6 +1722,10 @@ public class F91KeplerSupport extends AbstractBTLESingleDeviceSupport {
     }
 
     private void sendWeather(final boolean byUser) {
+        if (oad.busy()) {
+            LOG.info("F91 weather: skipped, a firmware update is running");
+            return;
+        }
         transfers.queue("send weather", F91KeplerTransfer.WEATHER, byUser, builder -> {
             addWeather(builder);
             if (has31()) {
@@ -2370,6 +2374,11 @@ public class F91KeplerSupport extends AbstractBTLESingleDeviceSupport {
     private void refreshLive(final boolean force, final boolean tell) {
         liveHandler.removeCallbacks(liveTick);
         final SharedPreferences prefs = GBApplication.getDeviceSpecificSharedPrefs(getDevice().getAddress());
+        if (oad.busy()) {
+            // A firmware update owns the link; try again at the next tick.
+            liveHandler.postDelayed(liveTick, F91KeplerLive.interval(prefs));
+            return;
+        }
         final F91KeplerLivePicture.Preset preset = F91KeplerLive.preset(prefs);
         if (preset == F91KeplerLivePicture.Preset.OFF || liveDisposed) {
             return;
