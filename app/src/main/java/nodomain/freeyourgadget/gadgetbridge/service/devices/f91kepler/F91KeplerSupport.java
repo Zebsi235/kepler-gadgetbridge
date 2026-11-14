@@ -233,6 +233,7 @@ public class F91KeplerSupport extends AbstractBTLESingleDeviceSupport {
         addSupportedService(GattService.SERVICE_BATTERY.uuid);
         addSupportedService(GattService.SERVICE_DEVICE_INFORMATION.uuid);
         addSupportedService(F91KeplerOad.SERVICE);
+        addSupportedService(F91KeplerOad.RESET_SERVICE);
 
         final IntentListener batteryListener = intent -> {
             if (BatteryInfoProfile.ACTION_BATTERY_INFO.equals(intent.getAction())) {
@@ -280,6 +281,21 @@ public class F91KeplerSupport extends AbstractBTLESingleDeviceSupport {
         chimeToneInFlight = false;
         soundAdopt = false;
         builder.setDeviceState(GBDevice.State.INITIALIZING);
+        if (oad.updaterOnly()) {
+            // TI's persistent app (on-chip OAD): nothing of the watch's own runs, so
+            // none of the usual connect writes; only the update goes on (or waits).
+            LOG.info("F91 the watch runs only its updater");
+            // A watch first met in this state can still be offered its firmware.
+            recordOadService();
+            builder.setDeviceState(GBDevice.State.INITIALIZED);
+            builder.run(() -> {
+                if (!oad.onUpdaterConnected()) {
+                    GB.toast(getContext(), getContext().getString(R.string.f91_ota_updater_waiting),
+                            Toast.LENGTH_LONG, GB.WARN);
+                }
+            });
+            return builder;
+        }
         renameOldDefault();
         recordOadService();
         if (GBApplication.getPrefs().syncTime()) {
@@ -651,7 +667,7 @@ public class F91KeplerSupport extends AbstractBTLESingleDeviceSupport {
      * offered (and the install screen accepts a file) only for one that has it.
      */
     private void recordOadService() {
-        final boolean has = oad.available();
+        final boolean has = oad.updatable();
         final SharedPreferences prefs = GBApplication.getDeviceSpecificSharedPrefs(getDevice().getAddress());
         if (prefs.getBoolean(F91KeplerConstants.PREF_OAD_SERVICE, false) != has) {
             prefs.edit().putBoolean(F91KeplerConstants.PREF_OAD_SERVICE, has).apply();

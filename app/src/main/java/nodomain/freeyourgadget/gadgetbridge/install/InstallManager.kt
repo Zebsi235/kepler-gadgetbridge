@@ -144,7 +144,7 @@ object InstallManager {
     private fun onDeviceChanged(session: InstallSession, device: GBDevice) {
         val handler = session.handler ?: return
         val parsedFiles = session.stateMachine.parsedFiles ?: return
-        if (session.state.value is InstallState.Installing && !device.isInitialized) {
+        if (session.state.value is InstallState.Installing && !device.isInitialized && !session.expectingReconnect) {
             session.stateMachine.deviceLost(GBApplication.getContext().getString(R.string.device_not_connected))
         }
         session.stateMachine.deviceChecked(check(handler, parsedFiles, device))

@@ -59,9 +59,18 @@ public final class F91KeplerOad {
     public static final UUID IMG_IDENTIFY = UUID.fromString("f000ffc1" + TI_BASE);
     public static final UUID IMG_BLOCK = UUID.fromString("f000ffc2" + TI_BASE);
     public static final UUID EXT_CTRL = UUID.fromString("f000ffc5" + TI_BASE);
-    /** OAD reset service, only on the on-chip "persistent app" layout. */
+    /**
+     * OAD reset service of the on-chip layout (1-fw's choice for the CC2652R7): the
+     * watch firmware carries only this; writing {@link #RESET_CMD_START_OAD} to it
+     * restarts the watch into TI's small "persistent app", which shows the OAD
+     * service above, takes the image, and starts the new firmware after ENABLE.
+     */
     public static final UUID RESET_SERVICE = UUID.fromString("f000ffd0" + TI_BASE);
     public static final UUID RESET_START = UUID.fromString("f000ffd1" + TI_BASE);
+    /** oad_reset_service.h: 0x01 = restart into the persistent app for an update. */
+    public static final int RESET_CMD_START_OAD = 0x01;
+    /** How long the watch may take to come back as the updater before the update is given up. */
+    public static final long UPDATER_RECONNECT_MS = 60_000L;
 
     // Control point commands (oad.h OAD_EXT_CTRL_*).
     public static final int CMD_GET_BLK_SZ = 0x01;
@@ -226,8 +235,16 @@ public final class F91KeplerOad {
 
         /** Software version as "x.y.z" when the four bytes are digits, else as they are. */
         public String versionText() {
-            return softVer.trim();
+            return F91KeplerOad.versionText(softVer);
         }
+    }
+
+    /** softVer "MmPP" (4 ASCII digits, 1-fw) as "M.m.P"; anything else as it is. */
+    public static String versionText(final String softVer) {
+        if (softVer == null || !softVer.matches("[0-9]{4}")) {
+            return softVer == null ? "" : softVer.trim();
+        }
+        return softVer.charAt(0) + "." + softVer.charAt(1) + "." + Integer.parseInt(softVer.substring(2));
     }
 
     /** Parse and check an OAD image: header sane, length matches, CRC right. */

@@ -29,13 +29,13 @@ public class F91KeplerOadTest {
 
     @Test
     public void parsesHeaderAndCutsIdentify() throws Exception {
-        final byte[] file = image(5000, 0x58000L, "0400", true);
+        final byte[] file = image(5000, 0x58000L, "4012", true);
         final F91KeplerOad.Image img = F91KeplerOad.parse(file);
         assertEquals("CC26x2R1", img.imgId);
         assertEquals(5000, img.len);
         assertEquals(F91KeplerOad.IMG_TYPE_APP, img.imgType);
         assertEquals(0x58000L, img.startAddr);
-        assertEquals("0400", img.versionText());
+        assertEquals("4.0.12", img.versionText());
         assertTrue(img.signed);
         final byte[] id = img.identify();
         assertEquals(F91KeplerOad.IDENTIFY_LEN, id.length);
@@ -43,7 +43,7 @@ public class F91KeplerOadTest {
         assertEquals(3, id[8]);                                  // bimVer
         assertEquals(F91KeplerOad.IMG_TYPE_APP, id[12]);         // imgType
         assertEquals(5000, le32(id, 14));                        // len
-        assertEquals("0400", new String(id, 18, 4, StandardCharsets.US_ASCII));
+        assertEquals("4012", new String(id, 18, 4, StandardCharsets.US_ASCII));
     }
 
     @Test
@@ -89,7 +89,7 @@ public class F91KeplerOadTest {
     @Test
     public void fullUpdateWithLargeBlocks() throws Exception {
         final Rig rig = new Rig(244);
-        rig.run(image(200_000, 0, "0400", true));
+        rig.run(image(200_000, 0, "4012", true));
         assertEquals(Outcome.DONE, rig.result.outcome);
         assertTrue(rig.watch.enabled);
         assertArrayEquals(rig.images.get(0).bytes, rig.watch.flash());
@@ -100,7 +100,7 @@ public class F91KeplerOadTest {
     @Test
     public void fullUpdateWithDefaultBlocks() throws Exception {
         final Rig rig = new Rig(F91KeplerOad.DEFAULT_BLOCK_SIZE);
-        rig.run(image(4_001, 0, "0400", false));
+        rig.run(image(4_001, 0, "4012", false));
         assertEquals(Outcome.DONE, rig.result.outcome);
         assertArrayEquals(rig.images.get(0).bytes, rig.watch.flash());
     }
@@ -109,7 +109,7 @@ public class F91KeplerOadTest {
     public void triesTheOtherSlotImage() throws Exception {
         final Rig rig = new Rig(244);
         rig.watch.acceptStart = 0x58000L;                        // slot A runs, B is free
-        rig.run(image(20_000, 0x00000L, "0400", true), image(20_000, 0x58000L, "0400", true));
+        rig.run(image(20_000, 0x00000L, "4012", true), image(20_000, 0x58000L, "4012", true));
         assertEquals(Outcome.DONE, rig.result.outcome);
         assertEquals(0x58000L, rig.session.image().startAddr);
         assertArrayEquals(rig.images.get(1).bytes, rig.watch.flash());
@@ -119,7 +119,7 @@ public class F91KeplerOadTest {
     public void refusedWhenNoImageFits() throws Exception {
         final Rig rig = new Rig(244);
         rig.watch.acceptStart = 0x12345L;
-        rig.run(image(20_000, 0, "0400", true));
+        rig.run(image(20_000, 0, "4012", true));
         assertEquals(Outcome.FAILED, rig.result.outcome);
         assertEquals(F91KeplerOad.INCOMPATIBLE_IMAGE, rig.result.status);
         assertFalse(rig.result.retryable);
@@ -129,7 +129,7 @@ public class F91KeplerOadTest {
     @Test
     public void wrongImageIdIsRefused() throws Exception {
         final Rig rig = new Rig(244);
-        final byte[] file = image(8_000, 0, "0400", true);
+        final byte[] file = image(8_000, 0, "4012", true);
         System.arraycopy("OTHERCHP".getBytes(StandardCharsets.US_ASCII), 0, file, 0, 8);
         fixCrc(file);
         rig.run(file);
@@ -141,7 +141,7 @@ public class F91KeplerOadTest {
     public void watchCrcFailureEndsWithoutEnable() throws Exception {
         final Rig rig = new Rig(244);
         rig.watch.corruptBlock = 7;                              // flash write goes bad on the watch
-        rig.run(image(20_000, 0, "0400", true));
+        rig.run(image(20_000, 0, "4012", true));
         assertEquals(Outcome.FAILED, rig.result.outcome);
         assertEquals(F91KeplerOad.CRC_ERR, rig.result.status);
         assertFalse(rig.watch.enabled);
@@ -151,14 +151,14 @@ public class F91KeplerOadTest {
     public void dropMidTransferIsRetryableAndRestartsAtZero() throws Exception {
         final Rig rig = new Rig(244);
         rig.dropAfterBlocks = 40;
-        rig.run(image(50_000, 0, "0400", true));
+        rig.run(image(50_000, 0, "4012", true));
         assertEquals(Outcome.FAILED, rig.result.outcome);
         assertTrue(rig.result.retryable);
         assertFalse(rig.watch.enabled);
 
         // Stock TI target: a new attempt starts at block 0 and still completes.
         final Rig again = new Rig(244);
-        again.run(image(50_000, 0, "0400", true));
+        again.run(image(50_000, 0, "4012", true));
         assertEquals(Outcome.DONE, again.result.outcome);
         assertEquals(0, again.firstRequested);
     }
@@ -167,7 +167,7 @@ public class F91KeplerOadTest {
     public void resumingWatchIsFollowed() throws Exception {
         final Rig rig = new Rig(244);
         rig.watch.resumeFrom = 100;                              // a watch that kept 100 blocks
-        final byte[] file = image(50_000, 0, "0400", true);
+        final byte[] file = image(50_000, 0, "4012", true);
         rig.watch.preload(Arrays.copyOf(file, 100 * 240));
         rig.run(file);
         assertEquals(Outcome.DONE, rig.result.outcome);
@@ -180,7 +180,7 @@ public class F91KeplerOadTest {
     public void lostBlockNotificationStallsThenTimesOut() throws Exception {
         final Rig rig = new Rig(244);
         rig.swallowRequestAfter = 12;
-        rig.run(image(20_000, 0, "0400", true));
+        rig.run(image(20_000, 0, "4012", true));
         assertNull(rig.result);                                  // waiting
         assertEquals(F91KeplerOadSession.STALL_MS, rig.timeoutMs);
         rig.session.onTimeout();
@@ -192,7 +192,7 @@ public class F91KeplerOadTest {
     public void cancelTellsTheWatch() throws Exception {
         final Rig rig = new Rig(244);
         rig.cancelAfterBlocks = 5;
-        rig.run(image(20_000, 0, "0400", true));
+        rig.run(image(20_000, 0, "4012", true));
         assertEquals(Outcome.CANCELLED, rig.result.outcome);
         assertEquals(F91KeplerOad.CMD_CANCEL_OAD, rig.lastControl);
         assertFalse(rig.watch.enabled);
@@ -202,7 +202,7 @@ public class F91KeplerOadTest {
     public void rebootBeforeEnableAnswerCountsAsDone() throws Exception {
         final Rig rig = new Rig(244);
         rig.watch.silentEnable = true;
-        rig.run(image(10_000, 0, "0400", true));
+        rig.run(image(10_000, 0, "4012", true));
         assertNull(rig.result);
         rig.session.onLinkLost();
         assertEquals(Outcome.DONE, rig.result.outcome);
@@ -212,7 +212,7 @@ public class F91KeplerOadTest {
     @Test
     public void finishedIsReportedOnce() throws Exception {
         final Rig rig = new Rig(244);
-        rig.run(image(5_000, 0, "0400", true));
+        rig.run(image(5_000, 0, "4012", true));
         rig.session.onTimeout();
         rig.session.onLinkLost();
         rig.session.cancel();

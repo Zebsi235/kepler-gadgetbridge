@@ -28,9 +28,13 @@ import androidx.annotation.Nullable;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.util.Locale;
+import java.util.Map;
 import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
 
 import nodomain.freeyourgadget.gadgetbridge.R;
+import nodomain.freeyourgadget.gadgetbridge.devices.f91kepler.F91KeplerConstants;
 import nodomain.freeyourgadget.gadgetbridge.devices.f91kepler.F91KeplerOad;
 import nodomain.freeyourgadget.gadgetbridge.devices.f91kepler.F91KeplerOadInstallHandler;
 import nodomain.freeyourgadget.gadgetbridge.devices.f91kepler.F91KeplerOadInstallItem;
@@ -68,15 +72,58 @@ final class F91KeplerOadRunner implements F91KeplerOadSession.Port {
         this.support = support;
     }
 
-    /** The watch shows the OAD characteristics on this link. */
+    /**
+     * An update that waits for the watch to come back as TI's persistent app. Kept
+     * per watch address outside this object: the reconnect may come to a new support.
+     */
+    private static final class Pending {
+        final InstallSession install;
+        final F91KeplerOadInstallItem item;
+
+        Pending(final InstallSession install, final F91KeplerOadInstallItem item) {
+            this.install = install;
+            this.item = item;
+        }
+    }
+
+    private static final Map<String, Pending> PENDING = new ConcurrentHashMap<>();
+    private final Runnable updaterLate = this::onUpdaterLate;
+
+    /** The watch shows the OAD characteristics on this link (the persistent app does). */
     boolean available() {
         return support.getCharacteristic(F91KeplerOad.IMG_BLOCK) != null
                 && support.getCharacteristic(F91KeplerOad.EXT_CTRL) != null
                 && support.getCharacteristic(F91KeplerOad.IMG_IDENTIFY) != null;
     }
 
+    /** The watch firmware can restart into the persistent app for an update. */
+    boolean canRestartIntoUpdater() {
+        return support.getCharacteristic(F91KeplerOad.RESET_START) != null;
+    }
+
+    /** Either way this watch takes firmware updates. */
+    boolean updatable() {
+        return available() || canRestartIntoUpdater();
+    }
+
+    /**
+     * Only the updater is running: the OAD service is there but none of the watch's
+     * own services. That is the persistent app, after a restart for an update or
+     * after an image that failed its check (then the watch has no face until a good
+     * image arrives).
+     */
+    boolean updaterOnly() {
+        return available() && support.getCharacteristic(F91KeplerConstants.UUID_CHAR_NOTIFICATION_DISMISS) == null
+                && support.getCharacteristic(F91KeplerConstants.UUID_CHAR_IMAGE_CHUNK) == null
+                && support.getCharacteristic(F91KeplerConstants.UUID_CHAR_MUSIC_CMD) == null;
+    }
+
     boolean running() {
         return session != null;
+    }
+
+    private String address() {
+        return support.getDevice().getAddress().toUpperCase(Locale.ROOT);
     }
 
     void start(@NonNull final InstallSession installSession) {
@@ -88,19 +135,69 @@ final class F91KeplerOadRunner implements F91KeplerOadSession.Port {
             }
             return;
         }
-        if (running() || !available()) {
+        final F91KeplerOadInstallItem oadItem = (F91KeplerOadInstallItem) first;
+        if (running() || PENDING.containsKey(address()) || !updatable()) {
             installSession.failed(first, context.getString(R.string.f91_ota_not_supported));
             return;
         }
-        // The install screen checked the battery when the file was picked; check again now.
-        final String battery = F91KeplerOadInstallHandler.batteryRefusal(context, support.getDevice());
-        if (battery != null) {
-            installSession.failed(first, battery);
+        if (!updaterOnly()) {
+            // The install screen checked the battery when the file was picked; check again
+            // now. The updater reports no battery, but the watch refuses below 30 % itself.
+            final String battery = F91KeplerOadInstallHandler.batteryRefusal(context, support.getDevice());
+            if (battery != null) {
+                installSession.failed(first, battery);
+                return;
+            }
+        }
+        if (available()) {
+            begin(installSession, oadItem);
             return;
         }
-        final F91KeplerOadInstallItem oadItem = (F91KeplerOadInstallItem) first;
+        // On-chip layout: restart into the persistent app and carry on when it connects.
+        LOG.info("F91 OAD: restarting the watch into the updater for {}", oadItem.getPkg().version);
+        PENDING.put(address(), new Pending(installSession, oadItem));
+        installSession.setExpectingReconnect(true);
+        installSession.progress(first, 0);
+        support.getDevice().setBusyTask(R.string.f91_ota_restarting, context);
+        support.getDevice().sendDeviceUpdateIntent(context);
+        handler.postDelayed(updaterLate, F91KeplerOad.UPDATER_RECONNECT_MS);
+        final TransactionBuilder b = support.createTransactionBuilder("oad restart into updater");
+        b.write(F91KeplerOad.RESET_START, (byte) F91KeplerOad.RESET_CMD_START_OAD);
+        b.queue();
+    }
+
+    /**
+     * The watch connected as the updater (see {@link #updaterOnly}). Carries on the
+     * update that restarted it, if this app started one; true when it did.
+     */
+    boolean onUpdaterConnected() {
+        handler.removeCallbacks(updaterLate);
+        final Pending pending = PENDING.remove(address());
+        if (pending == null) {
+            LOG.warn("F91 OAD: the watch runs only its updater and no update is pending");
+            return false;
+        }
+        pending.install.setExpectingReconnect(false);
+        begin(pending.install, pending.item);
+        return true;
+    }
+
+    private void onUpdaterLate() {
+        final Pending pending = PENDING.remove(address());
+        if (pending == null) {
+            return;
+        }
+        LOG.warn("F91 OAD: the watch did not come back as the updater in {} s",
+                F91KeplerOad.UPDATER_RECONNECT_MS / 1000);
+        pending.install.setExpectingReconnect(false);
+        pending.install.failed(pending.item, support.getContext().getString(R.string.f91_ota_updater_missing));
+        clearBusy();
+    }
+
+    private void begin(final InstallSession installSession, final F91KeplerOadInstallItem oadItem) {
+        final Context context = support.getContext();
         install = installSession;
-        item = first;
+        item = oadItem;
         lastPercent = -1;
         startedAt = System.currentTimeMillis();
         session = new F91KeplerOadSession(this, oadItem.getPkg().images);
@@ -172,7 +269,9 @@ final class F91KeplerOadRunner implements F91KeplerOadSession.Port {
     }
 
     void dispose() {
-        handler.removeCallbacksAndMessages(null);
+        // A pending restart into the updater keeps its deadline: the update must end
+        // with an outcome even when the reconnect comes to a new support object.
+        handler.removeCallbacks(timeout);
         if (session != null) {
             session.onLinkLost();
         }
@@ -181,6 +280,13 @@ final class F91KeplerOadRunner implements F91KeplerOadSession.Port {
     private void onTimeout() {
         if (session != null) {
             session.onTimeout();
+        }
+    }
+
+    private void clearBusy() {
+        if (support.getDevice().isBusy()) {
+            support.getDevice().unsetBusyTask();
+            support.getDevice().sendDeviceUpdateIntent(support.getContext());
         }
     }
 
@@ -236,10 +342,7 @@ final class F91KeplerOadRunner implements F91KeplerOadSession.Port {
         session = null;
         install = null;
         item = null;
-        if (support.getDevice().isBusy()) {
-            support.getDevice().unsetBusyTask();
-            support.getDevice().sendDeviceUpdateIntent(context);
-        }
+        clearBusy();
         if (result.outcome != F91KeplerOadSession.Outcome.DONE && support.isConnected()) {
             final TransactionBuilder b = support.createTransactionBuilder("oad end");
             b.requestConnectionPriority(BluetoothGatt.CONNECTION_PRIORITY_LOW_POWER);

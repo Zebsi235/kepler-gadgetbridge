@@ -21,9 +21,9 @@ public class F91KeplerOadPackageTest {
 
     @Test
     public void bareImage() throws Exception {
-        final F91KeplerOadPackage p = read(F91KeplerOadTest.image(9000, 0, "0400", true));
+        final F91KeplerOadPackage p = read(F91KeplerOadTest.image(9000, 0, "4012", true));
         assertEquals(1, p.images.size());
-        assertEquals("0400", p.version);
+        assertEquals("4.0.12", p.version);
         assertNull(p.hardware);
         assertTrue(p.fits("anything"));
         assertEquals(9000, p.size());
@@ -32,8 +32,8 @@ public class F91KeplerOadPackageTest {
     @Test
     public void releaseZip() throws Exception {
         final F91KeplerOadPackage p = read(zip(MANIFEST,
-                "a.bin", F91KeplerOadTest.image(9000, 0x00000, "0400", true),
-                "b.bin", F91KeplerOadTest.image(9000, 0x58000, "0400", true)));
+                "a.bin", F91KeplerOadTest.image(9000, 0x00000, "4012", true),
+                "b.bin", F91KeplerOadTest.image(9000, 0x58000, "4012", true)));
         assertEquals("4.0.0", p.version);
         assertEquals(2, p.images.size());
         assertEquals(0x58000L, p.images.get(1).startAddr);
@@ -46,10 +46,10 @@ public class F91KeplerOadPackageTest {
         bad(zip("{\"format\":1,\"version\":\"4.0.0\",\"images\":[\"a.bin\"]}"), "missing a.bin");
         bad(zip("{\"format\":2,\"version\":\"4.0.0\",\"images\":[\"a.bin\"]}"), "unknown package format");
         bad(zip("not json"), "not valid JSON");
-        bad(zip(null, "a.bin", F91KeplerOadTest.image(9000, 0, "0400", true)), "no manifest.json");
+        bad(zip(null, "a.bin", F91KeplerOadTest.image(9000, 0, "4012", true)), "no manifest.json");
         bad(zip(MANIFEST,
-                "a.bin", F91KeplerOadTest.image(9000, 0, "0400", true),
-                "b.bin", F91KeplerOadTest.image(9000, 0x58000, "0401", true)), "different builds");
+                "a.bin", F91KeplerOadTest.image(9000, 0, "4012", true),
+                "b.bin", F91KeplerOadTest.image(9000, 0x58000, "4013", true)), "different builds");
         bad(new byte[F91KeplerOadPackage.MAX_FILE + 10], "too large");
         bad("hello".getBytes(StandardCharsets.US_ASCII), "too short");
     }

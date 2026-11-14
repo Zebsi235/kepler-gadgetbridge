@@ -29,6 +29,14 @@ class InstallSession internal constructor(
     val items: List<InstallItem>
         get() = stateMachine.items
 
+    /**
+     * Set by a device support while the device restarts on purpose in the middle of an
+     * install (e.g. into an updater) and is expected back; a lost connection then does
+     * not end the session. The support clears it and reports an outcome either way.
+     */
+    @Volatile
+    var expectingReconnect: Boolean = false
+
     fun progress(item: InstallItem, percent: Int) {
         stateMachine.progress(item, percent)
     }

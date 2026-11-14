@@ -222,4 +222,7 @@
     <string name="f91_ota_failed_retry">Das Update wurde abgebrochen (%1$s). Die Uhr läuft weiter mit der alten Firmware. Halte sie nah ans Handy und versuch es noch einmal.</string>
     <string name="f91_ota_cancelled">Das Update wurde abgebrochen. Die Uhr läuft weiter mit der alten Firmware.</string>
     <string name="f91_ota_busy">Firmware der Uhr wird aktualisiert</string>
+    <string name="f91_ota_restarting">Die Uhr startet für das Update neu</string>
+    <string name="f91_ota_updater_missing">Die Uhr hat sich für das Update nicht zurückgemeldet. Sie zeigt eventuell keine Uhrzeit, bis sie ihre Firmware bekommt: Lass sie neben dem Handy und öffne die Update-Datei noch einmal.</string>
+    <string name="f91_ota_updater_waiting">Die Uhr wartet auf ihre Firmware. Öffne die Update-Datei noch einmal, um das Update abzuschließen.</string>
 </resources>
