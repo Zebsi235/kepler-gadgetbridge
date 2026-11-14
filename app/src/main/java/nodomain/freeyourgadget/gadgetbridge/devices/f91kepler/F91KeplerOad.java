@@ -140,8 +140,8 @@ public final class F91KeplerOad {
     static final int TLV_ECDSA_SIG = 0x22;
     static final int TLV_RSA2048 = 0x20;
     static final int TLV_ED25519 = 0x24;
-    /** One slot on the R7 (1-fw: 2 x 336 KB). */
-    public static final int MAX_SLOT_BYTES = 336 * 1024;
+    /** Largest image file on the R7: a 336 KB slot minus its MCUboot trailer page (1-fw: 0x52000). */
+    public static final int MAX_SLOT_BYTES = 0x52000;
 
     /** A short English name for a status code, for logs and the failure text. */
     public static String statusName(final int status) {

@@ -64,12 +64,20 @@ public final class F91KeplerOadSession {
         public final String reason;
         /** The link dropped or stalled mid-transfer: safe to try again from the start. */
         public final boolean retryable;
+        /** The watch refused at identify because its battery is below its floor (1-fw: status 7). */
+        public final boolean watchBatteryLow;
 
         Result(final Outcome outcome, final int status, final String reason, final boolean retryable) {
+            this(outcome, status, reason, retryable, false);
+        }
+
+        Result(final Outcome outcome, final int status, final String reason, final boolean retryable,
+               final boolean watchBatteryLow) {
             this.outcome = outcome;
             this.status = status;
             this.reason = reason;
             this.retryable = retryable;
+            this.watchBatteryLow = watchBatteryLow;
         }
 
         @Override
@@ -165,7 +173,21 @@ public final class F91KeplerOadSession {
             identify();
             return;
         }
+        if (status == F91KeplerOad.NO_RESOURCES) {
+            // 1-fw: at identify, 7 means the watch battery is below 30 %.
+            endBatteryLow();
+            return;
+        }
         end(Outcome.FAILED, status, "the watch refused the image", false);
+    }
+
+    private void endBatteryLow() {
+        if (state == State.ENDED) {
+            return;
+        }
+        state = State.ENDED;
+        port.armTimeout(0);
+        port.finished(new Result(Outcome.FAILED, F91KeplerOad.NO_RESOURCES, "the watch battery is too low", false, true));
     }
 
     /** A notification on the control point. */

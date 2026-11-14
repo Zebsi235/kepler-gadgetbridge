@@ -369,6 +369,14 @@ final class F91KeplerOadRunner implements F91KeplerOadSession.Port {
                 case CANCELLED:
                     install.failed(item, context.getString(R.string.f91_ota_cancelled));
                     break;
+                case FAILED:
+                    if (result.watchBatteryLow) {
+                        install.failed(item, context.getString(R.string.f91_ota_watch_battery_low,
+                                F91KeplerOadSession.MIN_BATTERY_PERCENT));
+                        break;
+                    }
+                    // fall through
+
                 default:
                     final String why = result.status >= 0 ? F91KeplerOad.statusName(result.status) : result.reason;
                     install.failed(item, context.getString(

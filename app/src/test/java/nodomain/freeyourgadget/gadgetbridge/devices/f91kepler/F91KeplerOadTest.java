@@ -74,6 +74,17 @@ public class F91KeplerOadTest {
     }
 
     @Test
+    public void watchBatteryLowAtIdentify() throws Exception {
+        final Rig rig = new Rig(244);
+        rig.watch.batteryPercent = 20;
+        rig.run(mcubootImage(20_000, 0x00000L, 4, 0, 1, 0), mcubootImage(20_000, 0x54000L, 4, 0, 1, 0));
+        assertEquals(Outcome.FAILED, rig.result.outcome);
+        assertTrue(rig.result.watchBatteryLow);
+        assertFalse(rig.result.retryable);
+        assertEquals(0L, rig.session.image().startAddr);           // no slot hopping on 7
+    }
+
+    @Test
     public void versionAfterUpdate() {
         assertEquals("4.0.0", F91KeplerOad.versionText("4000"));
         assertTrue(F91KeplerOad.runsVersion("4.0.12", "4.0.12"));
@@ -385,6 +396,7 @@ public class F91KeplerOadTest {
         boolean silentEnable;
         boolean enabled;
         boolean mcuboot;
+        int batteryPercent = 80;
         int blockWrites;
         private String state = "IDLE";
         private int len;
@@ -412,12 +424,18 @@ public class F91KeplerOadTest {
             if (c.equals(F91KeplerOad.IMG_IDENTIFY) && v.length == F91KeplerOad.MCUBOOT_IDENTIFY_LEN) {
                 // 1-fw's patched oad.c: image_header + u32 file length; slot by load address.
                 final ByteBuffer h = ByteBuffer.wrap(v).order(ByteOrder.LITTLE_ENDIAN);
+                // 1-fw 51c1cce: 10 bad magic/length, 9 wrong slot, 8 too big, 7 battery low.
                 int status = F91KeplerOad.SUCCESS;
                 final long fileLen = h.getInt(32) & 0xFFFFFFFFL;
                 final long min = (h.getShort(8) & 0xFFFF) + (h.getInt(12) & 0xFFFFFFFFL) + (h.getShort(10) & 0xFFFF);
-                if (h.getInt(0) != F91KeplerOad.MCUBOOT_MAGIC || fileLen < min || fileLen > 0x54000
-                        || (acceptStart >= 0 && (h.getInt(4) & 0xFFFFFFFFL) != acceptStart)) {
+                if (h.getInt(0) != F91KeplerOad.MCUBOOT_MAGIC || fileLen < min) {
+                    status = F91KeplerOad.INVALID_FILE;
+                } else if (acceptStart >= 0 && (h.getInt(4) & 0xFFFFFFFFL) != acceptStart) {
                     status = F91KeplerOad.INCOMPATIBLE_IMAGE;
+                } else if (fileLen > 0x52000) {
+                    status = F91KeplerOad.IMAGE_TOO_BIG;
+                } else if (batteryPercent < 30) {
+                    status = F91KeplerOad.NO_RESOURCES;
                 }
                 if (state.equals("IDLE") && status == F91KeplerOad.SUCCESS) {
                     len = (int) fileLen;
