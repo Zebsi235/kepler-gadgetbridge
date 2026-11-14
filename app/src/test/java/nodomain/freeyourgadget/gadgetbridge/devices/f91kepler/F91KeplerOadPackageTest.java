@@ -42,6 +42,19 @@ public class F91KeplerOadPackageTest {
     }
 
     @Test
+    public void mcubootReleaseZipCarriesBothSlots() throws Exception {
+        final F91KeplerOadPackage p = read(zip(MANIFEST,
+                "a.bin", F91KeplerOadTest.mcubootImage(120_000, 0x00000L, 4, 0, 0, 0),
+                "b.bin", F91KeplerOadTest.mcubootImage(120_000, 0x54000L, 4, 0, 0, 0)));
+        assertEquals(2, p.images.size());
+        assertTrue(p.images.get(0).mcuboot);
+        assertEquals(0x54000L, p.images.get(1).startAddr);
+        bad(zip(MANIFEST,
+                "a.bin", F91KeplerOadTest.mcubootImage(120_000, 0x00000L, 4, 0, 0, 0),
+                "b.bin", F91KeplerOadTest.mcubootImage(120_000, 0x54000L, 4, 0, 1, 0)), "different builds");
+    }
+
+    @Test
     public void refusals() throws Exception {
         bad(zip("{\"format\":1,\"version\":\"4.0.0\",\"images\":[\"a.bin\"]}"), "missing a.bin");
         bad(zip("{\"format\":2,\"version\":\"4.0.0\",\"images\":[\"a.bin\"]}"), "unknown package format");

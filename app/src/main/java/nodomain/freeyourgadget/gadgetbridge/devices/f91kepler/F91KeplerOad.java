@@ -130,6 +130,19 @@ public final class F91KeplerOad {
     static final int CRC_START = 12;
     public static final int IDENTIFY_LEN = 22;
 
+    // MCUboot (bootutil/image.h): header, TLV areas, the TLVs we read.
+    static final int MCUBOOT_MAGIC = 0x96f3b83d;
+    static final int MCUBOOT_HEADER_LEN = 32;
+    public static final int MCUBOOT_IDENTIFY_LEN = MCUBOOT_HEADER_LEN + 4;
+    static final int TLV_INFO_MAGIC = 0x6907;
+    static final int TLV_PROT_INFO_MAGIC = 0x6908;
+    static final int TLV_SHA256 = 0x10;
+    static final int TLV_ECDSA_SIG = 0x22;
+    static final int TLV_RSA2048 = 0x20;
+    static final int TLV_ED25519 = 0x24;
+    /** One slot on the R7 (1-fw: 2 x 336 KB). */
+    public static final int MAX_SLOT_BYTES = 336 * 1024;
+
     /** A short English name for a status code, for logs and the failure text. */
     public static String statusName(final int status) {
         switch (status) {
@@ -163,27 +176,37 @@ public final class F91KeplerOad {
         }
     }
 
-    /** One TI OAD image file: the fixed header, its segments, and the bytes to send. */
+    /**
+     * One image file and the bytes to send: an MCUboot-signed image (the R7
+     * layout, 1-fw 14 Nov) or a TI OAD image (fixed header + segments).
+     */
     public static final class Image {
         public final byte[] bytes;
+        /** True for an MCUboot image, false for a TI OAD image. */
+        public final boolean mcuboot;
+        /** TI: the 8-char image id; MCUboot: "MCUboot". */
         public final String imgId;
+        /** TI only (0 for MCUboot). */
         public final int crc32;
         public final int bimVer;
         public final int metaVer;
         public final int techType;
         public final int imgType;
         public final int imgNo;
-        /** Image length per header; exactly these bytes go to the watch. */
+        /** Bytes that go to the watch: the whole image file. */
         public final int len;
+        /** TI: softVer "MmPP"; MCUboot: "major.minor.revision". */
         public final String softVer;
         public final long imgEndAddr;
-        /** Flash address the payload is linked for; -1 without a payload segment. */
+        /** TI: payload start; MCUboot: ih_load_addr (the slot it is linked for); -1 unknown. */
         public final long startAddr;
-        /** The image carries a security (signature) segment. */
+        /** TI: security segment present; MCUboot: a signature TLV present. */
         public final boolean signed;
+        private final byte[] identify;
 
         private Image(final byte[] bytes, final ByteBuffer b, final long startAddr, final boolean signed) {
             this.bytes = bytes;
+            this.mcuboot = false;
             this.imgId = new String(bytes, 0, 8, StandardCharsets.US_ASCII);
             this.crc32 = b.getInt(8);
             this.bimVer = b.get(12) & 0xFF;
@@ -196,17 +219,42 @@ public final class F91KeplerOad {
             this.imgEndAddr = b.getInt(36) & 0xFFFFFFFFL;
             this.startAddr = startAddr;
             this.signed = signed;
+            // imgIdentifyPld_t: imgID, bimVer, metaVer, imgCpStat, crcStat, imgType, imgNo, len, softVer
+            final ByteBuffer out = ByteBuffer.allocate(IDENTIFY_LEN).order(ByteOrder.LITTLE_ENDIAN);
+            out.put(bytes, 0, 8);
+            out.put(bytes, 12, 2);
+            out.put(bytes, 16, 4);
+            out.put(bytes, 24, 4);
+            out.put(bytes, 32, 4);
+            this.identify = out.array();
         }
 
-        /** The 22-byte Image Identify payload (imgIdentifyPld_t) cut from the header. */
+        private Image(final byte[] bytes, final long loadAddr, final String version, final boolean signed) {
+            this.bytes = bytes;
+            this.mcuboot = true;
+            this.imgId = "MCUboot";
+            this.crc32 = 0;
+            this.bimVer = 0;
+            this.metaVer = 0;
+            this.techType = 0;
+            this.imgType = IMG_TYPE_APP;
+            this.imgNo = 0;
+            this.len = bytes.length;
+            this.softVer = version;
+            this.imgEndAddr = loadAddr + bytes.length - 1;
+            this.startAddr = loadAddr;
+            this.signed = signed;
+            // struct image_header (32 bytes), then the file length (proposed to 1-fw:
+            // stock oad.c counts only ih_img_size, which drops the header and TLVs).
+            final ByteBuffer out = ByteBuffer.allocate(MCUBOOT_IDENTIFY_LEN).order(ByteOrder.LITTLE_ENDIAN);
+            out.put(bytes, 0, MCUBOOT_HEADER_LEN);
+            out.putInt(bytes.length);
+            this.identify = out.array();
+        }
+
+        /** The Image Identify write: TI imgIdentifyPld_t, or the MCUboot header + file length. */
         public byte[] identify() {
-            final ByteBuffer out = ByteBuffer.allocate(IDENTIFY_LEN).order(ByteOrder.LITTLE_ENDIAN);
-            out.put(bytes, 0, 8);    // imgID
-            out.put(bytes, 12, 2);   // bimVer, metaVer
-            out.put(bytes, 16, 4);   // imgCpStat, crcStat, imgType, imgNo
-            out.put(bytes, 24, 4);   // len
-            out.put(bytes, 32, 4);   // softVer
-            return out.array();
+            return identify.clone();
         }
 
         /** Image bytes carried per block of {@code blockSize} (the block number takes 4). */
@@ -233,9 +281,9 @@ public final class F91KeplerOad {
             return out.array();
         }
 
-        /** Software version as "x.y.z" when the four bytes are digits, else as they are. */
+        /** Software version as "x.y.z". */
         public String versionText() {
-            return F91KeplerOad.versionText(softVer);
+            return mcuboot ? softVer : F91KeplerOad.versionText(softVer);
         }
     }
 
@@ -262,8 +310,87 @@ public final class F91KeplerOad {
         return softVer.charAt(0) + "." + softVer.charAt(1) + "." + Integer.parseInt(softVer.substring(2));
     }
 
-    /** Parse and check an OAD image: header sane, length matches, CRC right. */
+    /** Parse and check an image file: MCUboot (by its magic) or TI OAD. */
     public static Image parse(final byte[] file) throws BadImage {
+        if (file != null && file.length >= 4
+                && ByteBuffer.wrap(file).order(ByteOrder.LITTLE_ENDIAN).getInt(0) == MCUBOOT_MAGIC) {
+            return parseMcuboot(file);
+        }
+        return parseTi(file);
+    }
+
+    /**
+     * An MCUboot-signed image: header sane, the TLV areas where the header says,
+     * and the SHA-256 TLV matching header + image + protected TLVs. Trailing
+     * bytes (padding) are cut. The signature is the watch's job.
+     */
+    static Image parseMcuboot(final byte[] file) throws BadImage {
+        if (file.length < MCUBOOT_HEADER_LEN) {
+            throw new BadImage("too short for an MCUboot header");
+        }
+        final ByteBuffer b = ByteBuffer.wrap(file).order(ByteOrder.LITTLE_ENDIAN);
+        final long loadAddr = b.getInt(4) & 0xFFFFFFFFL;
+        final int hdrSize = b.getShort(8) & 0xFFFF;
+        final int protSize = b.getShort(10) & 0xFFFF;
+        final long imgSize = b.getInt(12) & 0xFFFFFFFFL;
+        if (hdrSize < MCUBOOT_HEADER_LEN) {
+            throw new BadImage("MCUboot header size " + hdrSize);
+        }
+        final long hashed = hdrSize + imgSize + protSize;
+        if (hashed + 4 > file.length) {
+            throw new BadImage("image size does not fit the file (" + file.length + " bytes)");
+        }
+        int at = (int) (hdrSize + imgSize);
+        if (protSize > 0) {
+            if ((b.getShort(at) & 0xFFFF) != TLV_PROT_INFO_MAGIC || (b.getShort(at + 2) & 0xFFFF) != protSize) {
+                throw new BadImage("bad protected TLV area");
+            }
+            at += protSize;
+        }
+        if ((b.getShort(at) & 0xFFFF) != TLV_INFO_MAGIC) {
+            throw new BadImage("no TLV area after the image");
+        }
+        final int tlvTot = b.getShort(at + 2) & 0xFFFF;
+        final int end = at + tlvTot;
+        if (tlvTot < 4 || end > file.length) {
+            throw new BadImage("TLV area does not fit the file");
+        }
+        if (end > MAX_SLOT_BYTES) {
+            throw new BadImage("image is " + end + " bytes, a slot holds " + MAX_SLOT_BYTES);
+        }
+        byte[] sha = null;
+        boolean signed = false;
+        for (int t = at + 4; t + 4 <= end; ) {
+            final int type = b.getShort(t) & 0xFFFF;
+            final int len = b.getShort(t + 2) & 0xFFFF;
+            if (t + 4 + len > end) {
+                throw new BadImage("cut TLV");
+            }
+            if (type == TLV_SHA256 && len == 32) {
+                sha = Arrays.copyOfRange(file, t + 4, t + 4 + len);
+            } else if (type == TLV_ECDSA_SIG || type == TLV_RSA2048 || type == TLV_ED25519) {
+                signed = true;
+            }
+            t += 4 + len;
+        }
+        if (sha == null) {
+            throw new BadImage("no SHA-256 in the image");
+        }
+        try {
+            final java.security.MessageDigest md = java.security.MessageDigest.getInstance("SHA-256");
+            md.update(file, 0, (int) hashed);
+            if (!Arrays.equals(md.digest(), sha)) {
+                throw new BadImage("SHA-256 mismatch, the file is damaged");
+            }
+        } catch (final java.security.NoSuchAlgorithmException e) {
+            throw new BadImage("no SHA-256 on this phone");
+        }
+        final String version = (file[20] & 0xFF) + "." + (file[21] & 0xFF) + "." + (b.getShort(22) & 0xFFFF);
+        return new Image(Arrays.copyOf(file, end), loadAddr, version, signed);
+    }
+
+    /** Parse and check a TI OAD image: header sane, length matches, CRC right. */
+    static Image parseTi(final byte[] file) throws BadImage {
         if (file == null || file.length < FIXED_HEADER_LEN) {
             throw new BadImage("too short for an OAD header");
         }

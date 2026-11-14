@@ -28,6 +28,52 @@ public class F91KeplerOadTest {
     // ---- image file -------------------------------------------------------
 
     @Test
+    public void parsesMcubootImage() throws Exception {
+        final byte[] file = mcubootImage(100_000, 0x54000L, 4, 0, 12, 300);
+        final F91KeplerOad.Image img = F91KeplerOad.parse(file);
+        assertTrue(img.mcuboot);
+        assertTrue(img.signed);
+        assertEquals(0x54000L, img.startAddr);
+        assertEquals("4.0.12", img.versionText());
+        assertEquals(file.length - 300, img.len);                // padding cut
+        final byte[] id = img.identify();
+        assertEquals(F91KeplerOad.MCUBOOT_IDENTIFY_LEN, id.length);
+        assertArrayEquals(Arrays.copyOf(file, 32), Arrays.copyOf(id, 32));
+        assertEquals(img.len, le32(id, 32));
+    }
+
+    @Test
+    public void refusesDamagedMcubootImages() throws Exception {
+        final byte[] flipped = mcubootImage(10_000, 0, 4, 0, 0, 0);
+        flipped[5000] ^= 1;
+        bad(flipped, "SHA-256 mismatch");
+        bad(Arrays.copyOf(mcubootImage(10_000, 0, 4, 0, 0, 0), 9_000), "does not fit");
+        bad(mcubootImage(F91KeplerOad.MAX_SLOT_BYTES, 0, 4, 0, 0, 0), "a slot holds");
+    }
+
+    @Test
+    public void mcubootUpdateGoesToTheFreeSlot() throws Exception {
+        final Rig rig = new Rig(244);
+        rig.watch.acceptStart = 0x54000L;                        // slot A runs, B is free
+        rig.run(mcubootImage(250_000, 0x00000L, 4, 0, 1, 0), mcubootImage(250_000, 0x54000L, 4, 0, 1, 0));
+        assertEquals(Outcome.DONE, rig.result.outcome);
+        assertTrue(rig.watch.enabled);
+        assertEquals(0x54000L, rig.session.image().startAddr);
+        assertArrayEquals(rig.images.get(1).bytes, rig.watch.flash());
+        assertEquals(0, rig.session.resends());
+    }
+
+    @Test
+    public void mcubootRefusedWhenNoSlotFits() throws Exception {
+        final Rig rig = new Rig(244);
+        rig.watch.acceptStart = 0x54000L;
+        rig.run(mcubootImage(20_000, 0x00000L, 4, 0, 1, 0));
+        assertEquals(Outcome.FAILED, rig.result.outcome);
+        assertFalse(rig.result.retryable);
+        assertEquals(F91KeplerOad.INCOMPATIBLE_IMAGE, rig.result.status);
+    }
+
+    @Test
     public void versionAfterUpdate() {
         assertEquals("4.0.0", F91KeplerOad.versionText("4000"));
         assertTrue(F91KeplerOad.runsVersion("4.0.12", "4.0.12"));
@@ -338,6 +384,7 @@ public class F91KeplerOadTest {
         int resumeFrom = 0;
         boolean silentEnable;
         boolean enabled;
+        boolean mcuboot;
         int blockWrites;
         private String state = "IDLE";
         private int len;
@@ -362,6 +409,23 @@ public class F91KeplerOadTest {
         }
 
         List<byte[][]> write(final UUID c, final byte[] v) {
+            if (c.equals(F91KeplerOad.IMG_IDENTIFY) && v.length == F91KeplerOad.MCUBOOT_IDENTIFY_LEN) {
+                // 1-fw's patched oad.c: image_header + u32 file length; slot by load address.
+                final ByteBuffer h = ByteBuffer.wrap(v).order(ByteOrder.LITTLE_ENDIAN);
+                int status = F91KeplerOad.SUCCESS;
+                final long fileLen = h.getInt(32) & 0xFFFFFFFFL;
+                final long min = (h.getShort(8) & 0xFFFF) + (h.getInt(12) & 0xFFFFFFFFL) + (h.getShort(10) & 0xFFFF);
+                if (h.getInt(0) != F91KeplerOad.MCUBOOT_MAGIC || fileLen < min || fileLen > 0x54000
+                        || (acceptStart >= 0 && (h.getInt(4) & 0xFFFFFFFFL) != acceptStart)) {
+                    status = F91KeplerOad.INCOMPATIBLE_IMAGE;
+                }
+                if (state.equals("IDLE") && status == F91KeplerOad.SUCCESS) {
+                    len = (int) fileLen;
+                    mcuboot = true;
+                    state = "CONFIG";
+                }
+                return one(F91KeplerOad.IMG_IDENTIFY, new byte[]{(byte) status});
+            }
             if (c.equals(F91KeplerOad.IMG_IDENTIFY)) {
                 int status = F91KeplerOad.SUCCESS;
                 if (!"CC26x2R1".equals(new String(v, 0, 8, StandardCharsets.US_ASCII))) {
@@ -415,7 +479,7 @@ public class F91KeplerOadTest {
                 return one(F91KeplerOad.EXT_CTRL, request(F91KeplerOad.BUFFER_OFL, 0));
             }
             System.arraycopy(v, 4, flash, n * per, v.length - 4);
-            if (n == 0) {
+            if (n == 0 && !mcuboot) {
                 // Header in: check the slot the payload is linked for.
                 if (acceptStart >= 0 && payloadStart() != acceptStart) {
                     reset();
@@ -426,6 +490,11 @@ public class F91KeplerOadTest {
                 flash[n * per + 1] ^= 0x55;
             }
             next++;
+            if (next == total && mcuboot) {
+                // MCUboot checks hash and signature at boot, not here.
+                state = "COMPLETE";
+                return one(F91KeplerOad.EXT_CTRL, request(F91KeplerOad.DL_COMPLETE, next));
+            }
             if (next == total) {
                 final CRC32 crc = new CRC32();
                 crc.update(flash, 12, len - 12);
@@ -466,6 +535,33 @@ public class F91KeplerOadTest {
      * A TI OAD image: fixed header (44 B), optional security segment, payload
      * segment, random code bytes; CRC32 from offset 12, as TI's oad_image_tool does.
      */
+    /**
+     * An MCUboot image as imgtool writes it: 32-byte header (hdr_size 0x20),
+     * the image, the TLV area with SHA-256 over header + image and a dummy
+     * ECDSA signature, then {@code pad} bytes of 0xFF.
+     */
+    static byte[] mcubootImage(final int imgSize, final long loadAddr, final int major, final int minor,
+                               final int rev, final int pad) throws Exception {
+        final int hdr = 32;
+        final int tlv = 4 + (4 + 32) + (4 + 72);
+        final ByteBuffer b = ByteBuffer.allocate(hdr + imgSize + tlv + pad).order(ByteOrder.LITTLE_ENDIAN);
+        b.putInt(F91KeplerOad.MCUBOOT_MAGIC).putInt((int) loadAddr).putShort((short) hdr).putShort((short) 0)
+                .putInt(imgSize).putInt(0x100).put((byte) major).put((byte) minor).putShort((short) rev)
+                .putInt(0).putInt(0);
+        for (int i = 0; i < imgSize; i++) {
+            b.put((byte) (i * 13 + 5));
+        }
+        final java.security.MessageDigest md = java.security.MessageDigest.getInstance("SHA-256");
+        md.update(b.array(), 0, hdr + imgSize);
+        b.putShort((short) 0x6907).putShort((short) tlv);
+        b.putShort((short) 0x10).putShort((short) 32).put(md.digest());
+        b.putShort((short) 0x22).putShort((short) 72).put(new byte[72]);
+        for (int i = 0; i < pad; i++) {
+            b.put((byte) 0xFF);
+        }
+        return b.array();
+    }
+
     static byte[] image(final int len, final long startAddr, final String softVer, final boolean signed) {
         final ByteBuffer b = ByteBuffer.allocate(len).order(ByteOrder.LITTLE_ENDIAN);
         b.put("CC26x2R1".getBytes(StandardCharsets.US_ASCII));
