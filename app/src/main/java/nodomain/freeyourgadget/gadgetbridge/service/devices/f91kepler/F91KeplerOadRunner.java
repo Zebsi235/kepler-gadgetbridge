@@ -375,6 +375,10 @@ final class F91KeplerOadRunner implements F91KeplerOadSession.Port {
                                 F91KeplerOadSession.MIN_BATTERY_PERCENT));
                         break;
                     }
+                    if (result.notNewer) {
+                        install.failed(item, context.getString(R.string.f91_ota_up_to_date));
+                        break;
+                    }
                     // fall through
 
                 default:

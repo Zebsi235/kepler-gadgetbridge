@@ -66,18 +66,21 @@ public final class F91KeplerOadSession {
         public final boolean retryable;
         /** The watch refused at identify because its battery is below its floor (1-fw: status 7). */
         public final boolean watchBatteryLow;
+        /** The watch refused at identify: the image is not newer than the running one (1-fw: status 11). */
+        public final boolean notNewer;
 
         Result(final Outcome outcome, final int status, final String reason, final boolean retryable) {
-            this(outcome, status, reason, retryable, false);
+            this(outcome, status, reason, retryable, false, false);
         }
 
         Result(final Outcome outcome, final int status, final String reason, final boolean retryable,
-               final boolean watchBatteryLow) {
+               final boolean watchBatteryLow, final boolean notNewer) {
             this.outcome = outcome;
             this.status = status;
             this.reason = reason;
             this.retryable = retryable;
             this.watchBatteryLow = watchBatteryLow;
+            this.notNewer = notNewer;
         }
 
         @Override
@@ -173,21 +176,30 @@ public final class F91KeplerOadSession {
             identify();
             return;
         }
-        if (status == F91KeplerOad.NO_RESOURCES) {
-            // 1-fw: at identify, 7 means the watch battery is below 30 %.
-            endBatteryLow();
-            return;
+        // 1-fw's answers at identify (watch side after 51c1cce); none of them tries the other image.
+        switch (status) {
+            case F91KeplerOad.NO_RESOURCES:          // battery below 30 %
+                endRefusal(new Result(Outcome.FAILED, status, "the watch battery is too low", false, true, false));
+                return;
+            case F91KeplerOad.INCOMPATIBLE_FILE:     // not newer than the running image
+                endRefusal(new Result(Outcome.FAILED, status, "the watch already runs this or a newer version",
+                        false, false, true));
+                return;
+            case F91KeplerOad.FLASH_ERR:             // running image not confirmed yet
+                end(Outcome.FAILED, status, "the watch is not ready for an update yet", true);
+                return;
+            default:
+                end(Outcome.FAILED, status, "the watch refused the image", false);
         }
-        end(Outcome.FAILED, status, "the watch refused the image", false);
     }
 
-    private void endBatteryLow() {
+    private void endRefusal(final Result result) {
         if (state == State.ENDED) {
             return;
         }
         state = State.ENDED;
         port.armTimeout(0);
-        port.finished(new Result(Outcome.FAILED, F91KeplerOad.NO_RESOURCES, "the watch battery is too low", false, true));
+        port.finished(result);
     }
 
     /** A notification on the control point. */

@@ -85,6 +85,28 @@ public class F91KeplerOadTest {
     }
 
     @Test
+    public void notNewerIsRefusedWithoutTryingTheOtherSlot() throws Exception {
+        final Rig rig = new Rig(244);
+        rig.watch.running = new int[]{4, 0, 1};
+        rig.run(mcubootImage(20_000, 0x00000L, 4, 0, 1, 0), mcubootImage(20_000, 0x54000L, 4, 0, 1, 0));
+        assertEquals(Outcome.FAILED, rig.result.outcome);
+        assertTrue(rig.result.notNewer);
+        assertFalse(rig.result.retryable);
+        assertEquals(0L, rig.session.image().startAddr);
+    }
+
+    @Test
+    public void unconfirmedRunningImageIsRetryLater() throws Exception {
+        final Rig rig = new Rig(244);
+        rig.watch.unconfirmed = true;
+        rig.run(mcubootImage(20_000, 0x00000L, 4, 0, 1, 0));
+        assertEquals(Outcome.FAILED, rig.result.outcome);
+        assertEquals(F91KeplerOad.FLASH_ERR, rig.result.status);
+        assertTrue(rig.result.retryable);
+        assertFalse(rig.result.notNewer);
+    }
+
+    @Test
     public void versionAfterUpdate() {
         assertEquals("4.0.0", F91KeplerOad.versionText("4000"));
         assertTrue(F91KeplerOad.runsVersion("4.0.12", "4.0.12"));
@@ -397,6 +419,19 @@ public class F91KeplerOadTest {
         boolean enabled;
         boolean mcuboot;
         int batteryPercent = 80;
+        /** Running image major.minor.revision; MCUboot boots only a newer one. */
+        int[] running = {0, 0, 0};
+        boolean unconfirmed;
+
+        private static int compareVersion(final byte[] hdr, final int[] run) {
+            final int[] img = {hdr[20] & 0xFF, hdr[21] & 0xFF, (hdr[22] & 0xFF) | (hdr[23] & 0xFF) << 8};
+            for (int i = 0; i < 3; i++) {
+                if (img[i] != run[i]) {
+                    return Integer.compare(img[i], run[i]);
+                }
+            }
+            return 0;
+        }
         int blockWrites;
         private String state = "IDLE";
         private int len;
@@ -436,6 +471,10 @@ public class F91KeplerOadTest {
                     status = F91KeplerOad.IMAGE_TOO_BIG;
                 } else if (batteryPercent < 30) {
                     status = F91KeplerOad.NO_RESOURCES;
+                } else if (compareVersion(v, running) <= 0) {
+                    status = F91KeplerOad.INCOMPATIBLE_FILE;
+                } else if (unconfirmed) {
+                    status = F91KeplerOad.FLASH_ERR;
                 }
                 if (state.equals("IDLE") && status == F91KeplerOad.SUCCESS) {
                     len = (int) fileLen;

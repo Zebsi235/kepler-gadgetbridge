@@ -157,7 +157,7 @@ public final class F91KeplerOad {
             case IMAGE_TOO_BIG: return "image too big";
             case INCOMPATIBLE_IMAGE: return "incompatible image";
             case INVALID_FILE: return "not an image for this watch";
-            case INCOMPATIBLE_FILE: return "bootloader mismatch";
+            case INCOMPATIBLE_FILE: return "not newer than the running firmware";
             case AUTH_FAIL: return "signature check failed";
             case EXT_NOT_SUPPORTED: return "command not supported";
             case DL_COMPLETE: return "download complete";
