@@ -239,6 +239,21 @@ public final class F91KeplerOad {
         }
     }
 
+    /**
+     * Whether the DIS firmware string (0x2A26, always the running image) names
+     * {@code expected} ("4.0.12"): exact, or with a build suffix ("4.0.12-bl",
+     * "4.0.12 rc2"). After a dual-image update a different string means the
+     * watch rolled back to the old slot.
+     */
+    public static boolean runsVersion(@Nullable final String running, @Nullable final String expected) {
+        if (running == null || expected == null || expected.trim().isEmpty()) {
+            return false;
+        }
+        final String r = running.trim();
+        final String e = expected.trim();
+        return r.equals(e) || r.startsWith(e + "-") || r.startsWith(e + " ");
+    }
+
     /** softVer "MmPP" (4 ASCII digits, 1-fw) as "M.m.P"; anything else as it is. */
     public static String versionText(final String softVer) {
         if (softVer == null || !softVer.matches("[0-9]{4}")) {

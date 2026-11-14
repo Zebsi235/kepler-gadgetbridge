@@ -884,6 +884,7 @@ public class F91KeplerSupport extends AbstractBTLESingleDeviceSupport {
         versionCmd.fwVersion = fw;
         connectedFw = fw;
         handleGBDeviceEvent(versionCmd);
+        oad.checkAfterUpdate(fw);
         resendWideTimezone(fw);
         restorePhoneOwnedConfig(fw);
     }

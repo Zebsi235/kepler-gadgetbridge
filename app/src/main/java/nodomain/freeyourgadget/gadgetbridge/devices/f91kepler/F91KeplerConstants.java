@@ -452,6 +452,8 @@ public final class F91KeplerConstants {
      * read by the coordinator to offer the update.
      */
     public static final String PREF_OAD_SERVICE = "f91_oad_service";
+    /** Version sent by the last finished update, checked once on the next connect. */
+    public static final String PREF_OAD_EXPECT = "f91_oad_expect";
 
     /** Internal, not a setting: the watch did not confirm the stored image twice, so
      *  connects stop re-sending it. Cleared by every Send, also one while the watch is away. */

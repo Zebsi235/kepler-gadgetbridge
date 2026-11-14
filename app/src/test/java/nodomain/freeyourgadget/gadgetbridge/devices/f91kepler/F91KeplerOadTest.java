@@ -28,6 +28,16 @@ public class F91KeplerOadTest {
     // ---- image file -------------------------------------------------------
 
     @Test
+    public void versionAfterUpdate() {
+        assertEquals("4.0.0", F91KeplerOad.versionText("4000"));
+        assertTrue(F91KeplerOad.runsVersion("4.0.12", "4.0.12"));
+        assertTrue(F91KeplerOad.runsVersion("4.0.12-bl", "4.0.12"));
+        assertFalse(F91KeplerOad.runsVersion("4.0.1", "4.0.12"));
+        assertFalse(F91KeplerOad.runsVersion("4.0.120", "4.0.12"));
+        assertFalse(F91KeplerOad.runsVersion(null, "4.0.12"));
+    }
+
+    @Test
     public void parsesHeaderAndCutsIdentify() throws Exception {
         final byte[] file = image(5000, 0x58000L, "4012", true);
         final F91KeplerOad.Image img = F91KeplerOad.parse(file);

@@ -19,8 +19,10 @@ package nodomain.freeyourgadget.gadgetbridge.service.devices.f91kepler;
 import android.bluetooth.BluetoothGatt;
 import android.bluetooth.BluetoothGattCharacteristic;
 import android.content.Context;
+import android.content.SharedPreferences;
 import android.os.Handler;
 import android.os.Looper;
+import android.widget.Toast;
 
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
@@ -33,6 +35,7 @@ import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 
+import nodomain.freeyourgadget.gadgetbridge.GBApplication;
 import nodomain.freeyourgadget.gadgetbridge.R;
 import nodomain.freeyourgadget.gadgetbridge.devices.f91kepler.F91KeplerConstants;
 import nodomain.freeyourgadget.gadgetbridge.devices.f91kepler.F91KeplerOad;
@@ -43,6 +46,7 @@ import nodomain.freeyourgadget.gadgetbridge.install.InstallItem;
 import nodomain.freeyourgadget.gadgetbridge.install.InstallSession;
 import nodomain.freeyourgadget.gadgetbridge.service.btle.AbstractBTLESingleDeviceSupport;
 import nodomain.freeyourgadget.gadgetbridge.service.btle.TransactionBuilder;
+import nodomain.freeyourgadget.gadgetbridge.util.GB;
 
 /**
  * Runs one {@link F91KeplerOadSession} on the watch link: subscribes to the
@@ -324,6 +328,31 @@ final class F91KeplerOadRunner implements F91KeplerOadSession.Port {
         }
     }
 
+    /**
+     * First firmware string after an update: tell the user whether the new
+     * image runs or the watch went back to the old one (dual image rollback).
+     */
+    void checkAfterUpdate(@Nullable final String runningFw) {
+        if (runningFw == null) {
+            return;
+        }
+        final SharedPreferences prefs = GBApplication.getDeviceSpecificSharedPrefs(address());
+        final String expected = prefs.getString(F91KeplerConstants.PREF_OAD_EXPECT, null);
+        if (expected == null) {
+            return;
+        }
+        prefs.edit().remove(F91KeplerConstants.PREF_OAD_EXPECT).apply();
+        final Context context = support.getContext();
+        if (F91KeplerOad.runsVersion(runningFw, expected)) {
+            LOG.info("F91 OAD: the watch runs {} as expected", runningFw);
+            GB.toast(context, context.getString(R.string.f91_ota_now_runs, expected), Toast.LENGTH_LONG, GB.INFO);
+        } else {
+            LOG.warn("F91 OAD: expected {}, the watch runs {} (rolled back)", expected, runningFw);
+            GB.toast(context, context.getString(R.string.f91_ota_rolled_back, runningFw.trim(), expected),
+                    Toast.LENGTH_LONG, GB.WARN);
+        }
+    }
+
     @Override
     public void finished(final F91KeplerOadSession.Result result) {
         final Context context = support.getContext();
@@ -334,6 +363,8 @@ final class F91KeplerOadRunner implements F91KeplerOadSession.Port {
             switch (result.outcome) {
                 case DONE:
                     install.installed(item);
+                    GBApplication.getDeviceSpecificSharedPrefs(address()).edit()
+                            .putString(F91KeplerConstants.PREF_OAD_EXPECT, item.getPkg().version).apply();
                     break;
                 case CANCELLED:
                     install.failed(item, context.getString(R.string.f91_ota_cancelled));
