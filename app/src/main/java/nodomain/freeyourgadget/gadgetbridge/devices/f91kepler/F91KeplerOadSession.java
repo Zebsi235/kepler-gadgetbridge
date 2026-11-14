@@ -263,6 +263,8 @@ public final class F91KeplerOadSession {
         }
     }
 
+    private boolean identifyRetried;
+
     private void identify() {
         state = State.IDENTIFY;
         blocksTotal = image().blockCount(blockSize);
@@ -315,6 +317,12 @@ public final class F91KeplerOadSession {
 
     public void onTimeout() {
         if (state == State.ENDED || state == State.IDLE) {
+            return;
+        }
+        if (state == State.IDENTIFY && !identifyRetried) {
+            // 1-fw: right after a quick reconnect the watch may drop the first identify unanswered.
+            identifyRetried = true;
+            identify();
             return;
         }
         end(Outcome.FAILED, -1, "no answer from the watch in " + (STALL_MS / 1000) + " s", true);

@@ -107,6 +107,31 @@ public class F91KeplerOadTest {
     }
 
     @Test
+    public void identifyIsRetriedOnceOnTimeout() throws Exception {
+        final Rig rig = new Rig(244);
+        rig.watch.dropFirstIdentify = true;
+        rig.run(mcubootImage(20_000, 0x00000L, 4, 0, 1, 0));
+        assertNull(rig.result);                                  // first identify unanswered
+        rig.session.onTimeout();
+        rig.drain();
+        assertEquals(Outcome.DONE, rig.result.outcome);
+    }
+
+    @Test
+    public void identifyTimesOutAfterTheRetry() throws Exception {
+        final Rig rig = new Rig(244);
+        rig.watch.dropFirstIdentify = true;
+        rig.run(mcubootImage(20_000, 0x00000L, 4, 0, 1, 0));
+        rig.watch.dropFirstIdentify = true;                      // the retry is dropped too
+        rig.session.onTimeout();
+        rig.drain();
+        assertNull(rig.result);
+        rig.session.onTimeout();
+        assertEquals(Outcome.FAILED, rig.result.outcome);
+        assertTrue(rig.result.retryable);
+    }
+
+    @Test
     public void versionAfterUpdate() {
         assertEquals("4.0.0", F91KeplerOad.versionText("4000"));
         assertTrue(F91KeplerOad.runsVersion("4.0.12", "4.0.12"));
@@ -345,6 +370,10 @@ public class F91KeplerOadTest {
             }
             session = new F91KeplerOadSession(this, images);
             session.start();
+            drain();
+        }
+
+        void drain() {
             while (!queue.isEmpty() && result == null) {
                 queue.remove(0).run();
             }
@@ -419,6 +448,7 @@ public class F91KeplerOadTest {
         boolean enabled;
         boolean mcuboot;
         int batteryPercent = 80;
+        boolean dropFirstIdentify;
         /** Running image major.minor.revision; MCUboot boots only a newer one. */
         int[] running = {0, 0, 0};
         boolean unconfirmed;
@@ -456,6 +486,10 @@ public class F91KeplerOadTest {
         }
 
         List<byte[][]> write(final UUID c, final byte[] v) {
+            if (c.equals(F91KeplerOad.IMG_IDENTIFY) && dropFirstIdentify) {
+                dropFirstIdentify = false;                       // fresh link: no answer
+                return Collections.emptyList();
+            }
             if (c.equals(F91KeplerOad.IMG_IDENTIFY) && v.length == F91KeplerOad.MCUBOOT_IDENTIFY_LEN) {
                 // 1-fw's patched oad.c: image_header + u32 file length; slot by load address.
                 final ByteBuffer h = ByteBuffer.wrap(v).order(ByteOrder.LITTLE_ENDIAN);
