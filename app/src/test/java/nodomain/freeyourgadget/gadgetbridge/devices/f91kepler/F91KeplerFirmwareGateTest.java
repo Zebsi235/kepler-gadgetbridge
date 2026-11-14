@@ -252,6 +252,8 @@ public class F91KeplerFirmwareGateTest {
     @Test
     public void noKeplerTextNamesAFirmwareVersion() throws Exception {
         final Pattern hint = Pattern.compile("(?i)firmware|\\b[23]\\.\\d+(\\.\\d+)?\\b");
+        // The firmware update screens must say "firmware"; they still name no fixed version.
+        final Pattern version = Pattern.compile("\\b\\d+\\.\\d+(\\.\\d+)?\\b");
         final DocumentBuilderFactory f = DocumentBuilderFactory.newInstance();
         int checked = 0;
         final File[] dirs = resDir().listFiles((d, n) -> n.startsWith("values"));
@@ -270,7 +272,9 @@ public class F91KeplerFirmwareGateTest {
                     }
                     checked++;
                     assertFalse(dir.getName() + "/" + e.getAttribute("name") + " names a firmware version: "
-                            + e.getTextContent(), hint.matcher(e.getTextContent()).find());
+                            + e.getTextContent(),
+                            (e.getAttribute("name").startsWith("f91_ota_") ? version : hint)
+                                    .matcher(e.getTextContent()).find());
                 }
             }
         }
