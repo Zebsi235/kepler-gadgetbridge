@@ -29,6 +29,7 @@ import android.service.notification.StatusBarNotification;
 import android.text.format.DateFormat;
 import android.widget.Toast;
 
+import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import androidx.localbroadcastmanager.content.LocalBroadcastManager;
 
@@ -69,6 +70,7 @@ import nodomain.freeyourgadget.gadgetbridge.devices.f91kepler.F91KeplerImageCode
 import nodomain.freeyourgadget.gadgetbridge.devices.f91kepler.F91KeplerImageStore;
 import nodomain.freeyourgadget.gadgetbridge.devices.f91kepler.F91KeplerLivePicture;
 import nodomain.freeyourgadget.gadgetbridge.devices.f91kepler.F91KeplerModes;
+import nodomain.freeyourgadget.gadgetbridge.devices.f91kepler.F91KeplerOad;
 import nodomain.freeyourgadget.gadgetbridge.devices.f91kepler.F91KeplerTransfer;
 import nodomain.freeyourgadget.gadgetbridge.devices.f91kepler.F91KeplerZone;
 import nodomain.freeyourgadget.gadgetbridge.externalevents.NotificationListener;
@@ -79,6 +81,7 @@ import nodomain.freeyourgadget.gadgetbridge.model.DeviceService;
 import nodomain.freeyourgadget.gadgetbridge.model.NotificationSpec;
 import nodomain.freeyourgadget.gadgetbridge.model.NotificationType;
 import nodomain.freeyourgadget.gadgetbridge.model.WeatherSpec;
+import nodomain.freeyourgadget.gadgetbridge.install.InstallSession;
 import nodomain.freeyourgadget.gadgetbridge.model.weather.Weather;
 import nodomain.freeyourgadget.gadgetbridge.util.GB;
 import nodomain.freeyourgadget.gadgetbridge.service.btle.AbstractBTLESingleDeviceSupport;
@@ -141,6 +144,8 @@ public class F91KeplerSupport extends AbstractBTLESingleDeviceSupport {
     private volatile boolean imageCheckPending;
     /** Progress, done and failed for every transfer to the watch. */
     private final F91KeplerTransfers transfers = new F91KeplerTransfers(this);
+    /** Firmware updates over TI OAD, on watches that have the service (CC2652R7). */
+    private final F91KeplerOadRunner oad = new F91KeplerOadRunner(this);
 
     /**
      * Firmware 3.1 alarm read-back: the five slots as the watch holds them,
@@ -227,6 +232,7 @@ public class F91KeplerSupport extends AbstractBTLESingleDeviceSupport {
         addSupportedService(F91KeplerConstants.UUID_SERVICE_IMAGE);
         addSupportedService(GattService.SERVICE_BATTERY.uuid);
         addSupportedService(GattService.SERVICE_DEVICE_INFORMATION.uuid);
+        addSupportedService(F91KeplerOad.SERVICE);
 
         final IntentListener batteryListener = intent -> {
             if (BatteryInfoProfile.ACTION_BATTERY_INFO.equals(intent.getAction())) {
@@ -275,6 +281,7 @@ public class F91KeplerSupport extends AbstractBTLESingleDeviceSupport {
         soundAdopt = false;
         builder.setDeviceState(GBDevice.State.INITIALIZING);
         renameOldDefault();
+        recordOadService();
         if (GBApplication.getPrefs().syncTime()) {
             transfers.add(builder, F91KeplerTransfer.TIME, false, this::addSetTime);
         }
@@ -376,6 +383,9 @@ public class F91KeplerSupport extends AbstractBTLESingleDeviceSupport {
     public boolean onCharacteristicChanged(final BluetoothGatt gatt,
                                            final BluetoothGattCharacteristic characteristic,
                                            final byte[] value) {
+        if (oad.onNotify(characteristic.getUuid(), value)) {
+            return true;
+        }
         if (F91KeplerConstants.UUID_CHAR_MUSIC_CMD.equals(characteristic.getUuid())
                 && value != null && value.length >= 1) {
             final GBDeviceEventMusicControl.Event event = F91KeplerProtocol.musicCommand(value[0]);
@@ -628,11 +638,31 @@ public class F91KeplerSupport extends AbstractBTLESingleDeviceSupport {
         notificationExpiryHandler.removeCallbacksAndMessages(null);
         legacyAlarmHandler.removeCallbacksAndMessages(null);
         transfers.dispose();
+        oad.dispose();
         // The phone ring has no timer of its own: once disposed nothing else
         // would stop an alert ring, so stop it now.
         alertHandler.removeCallbacksAndMessages(null);
         stopAlertRing("the watch support was closed");
         super.dispose();
+    }
+
+    /**
+     * Remember whether this watch shows the OAD service, so the update is
+     * offered (and the install screen accepts a file) only for one that has it.
+     */
+    private void recordOadService() {
+        final boolean has = oad.available();
+        final SharedPreferences prefs = GBApplication.getDeviceSpecificSharedPrefs(getDevice().getAddress());
+        if (prefs.getBoolean(F91KeplerConstants.PREF_OAD_SERVICE, false) != has) {
+            prefs.edit().putBoolean(F91KeplerConstants.PREF_OAD_SERVICE, has).apply();
+            LOG.info("F91 OAD service {}", has ? "present: firmware updates offered" : "absent");
+        }
+    }
+
+    /** A firmware update picked on the install screen (see F91KeplerOadInstallHandler). */
+    @Override
+    public void onInstall(@NonNull final InstallSession session) {
+        oad.start(session);
     }
 
     private void onLinkInitialized() {
@@ -655,6 +685,7 @@ public class F91KeplerSupport extends AbstractBTLESingleDeviceSupport {
             // The queue is dropped without write callbacks, so nothing else would
             // end a transfer that was on the air.
             transfers.onLinkLost();
+            oad.onLinkLost();
             imageCheckPending = false;
             boolean bonded;
             try {

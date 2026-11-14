@@ -209,4 +209,17 @@
     <string name="f91_clear_pairings_confirm_title">Kopplungen der Uhr löschen?</string>
     <string name="f91_clear_pairings_confirm_message">Die Uhr löscht alle Kopplungen und startet neu. Entferne sie danach in Gadgetbridge, vergiss sie in den Bluetooth-Einstellungen von Android und kopple sie neu.</string>
     <string name="f91_control_not_connected">Verbinde zuerst die Uhr.</string>
+    <!-- Firmware-Update über Bluetooth (TI OAD, CC2652R7-Uhren) -->
+    <string name="f91_ota_item">Kepler-Firmware %1$s</string>
+    <string name="f91_ota_info">Installiert die Firmware %1$s auf der Uhr. Das dauert etwa eine Minute. Lass die Uhr neben dem Handy. Die Uhr behält ihre jetzige Firmware, bis die neue vollständig geprüft ist, und startet dann neu.</string>
+    <string name="f91_ota_confirm">Die Firmware der Uhr jetzt aktualisieren? Die Uhr startet am Ende neu.</string>
+    <string name="f91_ota_not_supported">Diese Uhr kann ihre Firmware nicht über Bluetooth aktualisieren.</string>
+    <string name="f91_ota_wrong_hardware">Dieses Update ist für ein anderes Uhrenmodell.</string>
+    <string name="f91_ota_bad_file">Kein Kepler-Firmware-Update: %1$s</string>
+    <string name="f91_ota_battery_low">Lade zuerst die Uhr: Der Akku steht bei %1$d %%, ein Update braucht %2$d %%.</string>
+    <string name="f91_ota_battery_unknown">Die Uhr hat ihren Akkustand noch nicht gemeldet. Versuch es gleich noch einmal.</string>
+    <string name="f91_ota_failed">Das Update wurde abgebrochen (%1$s). Die Uhr läuft weiter mit der alten Firmware.</string>
+    <string name="f91_ota_failed_retry">Das Update wurde abgebrochen (%1$s). Die Uhr läuft weiter mit der alten Firmware. Halte sie nah ans Handy und versuch es noch einmal.</string>
+    <string name="f91_ota_cancelled">Das Update wurde abgebrochen. Die Uhr läuft weiter mit der alten Firmware.</string>
+    <string name="f91_ota_busy">Firmware der Uhr wird aktualisiert</string>
 </resources>

@@ -16,7 +16,11 @@
     along with this program.  If not, see <https://www.gnu.org/licenses/>. */
 package nodomain.freeyourgadget.gadgetbridge.devices.f91kepler;
 
+import android.content.Context;
+import android.net.Uri;
+
 import androidx.annotation.NonNull;
+import androidx.annotation.Nullable;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -28,6 +32,7 @@ import nodomain.freeyourgadget.gadgetbridge.activities.devicesettings.DeviceSpec
 import nodomain.freeyourgadget.gadgetbridge.devices.AbstractBLEDeviceCoordinator;
 import nodomain.freeyourgadget.gadgetbridge.impl.GBDevice;
 import nodomain.freeyourgadget.gadgetbridge.impl.GBDeviceCandidate;
+import nodomain.freeyourgadget.gadgetbridge.install.InstallHandlerV2;
 import nodomain.freeyourgadget.gadgetbridge.model.DeviceType;
 import nodomain.freeyourgadget.gadgetbridge.service.DeviceSupport;
 import nodomain.freeyourgadget.gadgetbridge.service.devices.f91kepler.F91KeplerSupport;
@@ -229,5 +234,25 @@ public class F91KeplerCoordinator extends AbstractBLEDeviceCoordinator {
     @Override
     public int getDefaultIconResource() {
         return R.drawable.ic_device_kepler;
+    }
+
+    /** A watch that showed the OAD service takes firmware updates (CC2652R7 boards). */
+    @Override
+    public boolean supportsFlashing(@NonNull final GBDevice device) {
+        return F91KeplerOadInstallHandler.hasOad(device);
+    }
+
+    @Nullable
+    @Override
+    public InstallHandlerV2 findInstallHandlerV2(@NonNull final List<Uri> files, @NonNull final Context context) {
+        if (files.size() != 1) {
+            return null;
+        }
+        try {
+            F91KeplerOadInstallHandler.open(context, files.get(0));
+        } catch (final F91KeplerOad.BadImage e) {
+            return null;
+        }
+        return new F91KeplerOadInstallHandler(context);
     }
 }

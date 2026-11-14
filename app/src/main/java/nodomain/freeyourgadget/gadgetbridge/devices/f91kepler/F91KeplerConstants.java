@@ -446,6 +446,12 @@ public final class F91KeplerConstants {
     /** Internal, not a setting: the one-time rename of an old default name to
      *  "Kepler Watch" has run for this watch, so a name typed later is kept. */
     public static final String PREF_NAME_MIGRATED = "f91_name_kepler_watch";
+    /**
+     * The watch showed TI's OAD service (0xFFC0) on its last connect: it can take
+     * a firmware update over Bluetooth (CC2652R7 boards). Set by the support,
+     * read by the coordinator to offer the update.
+     */
+    public static final String PREF_OAD_SERVICE = "f91_oad_service";
 
     /** Internal, not a setting: the watch did not confirm the stored image twice, so
      *  connects stop re-sending it. Cleared by every Send, also one while the watch is away. */

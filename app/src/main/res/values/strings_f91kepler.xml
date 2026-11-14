@@ -63,4 +63,17 @@
     <string name="f91_clear_pairings_confirm_title">Erase the watch\'s pairings?</string>
     <string name="f91_clear_pairings_confirm_message">The watch erases all pairings and restarts. Then remove it in Gadgetbridge and forget it in Android\'s Bluetooth settings, and pair it again.</string>
     <string name="f91_control_not_connected">Connect the watch first.</string>
+    <!-- Firmware update over Bluetooth (TI OAD, CC2652R7 watches) -->
+    <string name="f91_ota_item">Kepler firmware %1$s</string>
+    <string name="f91_ota_info">Installs firmware %1$s on the watch. It takes about a minute. Keep the watch next to the phone. The watch keeps its current firmware until the new one is fully checked, then restarts.</string>
+    <string name="f91_ota_confirm">Update the watch firmware now? The watch restarts at the end.</string>
+    <string name="f91_ota_not_supported">This watch cannot update its firmware over Bluetooth.</string>
+    <string name="f91_ota_wrong_hardware">This update is for a different watch model.</string>
+    <string name="f91_ota_bad_file">Not a Kepler firmware update: %1$s</string>
+    <string name="f91_ota_battery_low">Charge the watch first: the battery is at %1$d %%, an update needs %2$d %%.</string>
+    <string name="f91_ota_battery_unknown">The watch has not reported its battery level yet. Try again in a moment.</string>
+    <string name="f91_ota_failed">The update stopped (%1$s). The watch still runs its old firmware.</string>
+    <string name="f91_ota_failed_retry">The update stopped (%1$s). The watch still runs its old firmware. Keep it close to the phone and try again.</string>
+    <string name="f91_ota_cancelled">The update was cancelled. The watch still runs its old firmware.</string>
+    <string name="f91_ota_busy">Updating the watch firmware</string>
 </resources>
