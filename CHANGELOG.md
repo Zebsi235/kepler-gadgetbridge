@@ -2,6 +2,22 @@
 
 <!-- For contributors: do not modify this file - the project maintainers will update it as needed -->
 
+#### 2026.11.1
+
+* Charts: Show sleep period chart total last, below a divider
+* Dashboard: Center axis labels under their bars
+* Dashboard: Fix manage widgets setting
+* Dashboard: Fix tiles reshuffling on long press
+* Dashboard: Improve support for large font sizes
+* Dashboard: Show awake sleep in the day widget
+* Dashboard: Use HRV weekly average chart color for the line
+* Dashboard: Use the sleep chart theme colors in widgets
+* Endurain: Fix SSO login callback
+* Fix crash on weather processing on Android < 13
+* Garmin: Fix regression in web request URL encoding
+* Health Connect: Fix skin temperature deltas relative to the baseline
+* Zepp OS: Improve BTBR packet handling
+
 #### 2026.11.0
 
 * Initial support for Anker Soundcore Motion+, R50i NC, V20i
