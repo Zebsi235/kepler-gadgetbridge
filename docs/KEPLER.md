@@ -15,7 +15,7 @@ Everything Kepler-specific is listed here; the rest is upstream Gadgetbridge.
 | `master` | mirrors upstream `master` only |
 | `archive/*` | kept history, not built |
 
-Tags `v<base>-kepler` (e.g. `v2026.11.1-kepler`; up to 0.95.1 `v<base>-kepler-<n>`,
+Tags `v<base>-kepler` (e.g. `v2026.11.1-kepler`; up to 0.95.1 also `v<base>-kepler-<n>`,
 e.g. `v0.95.1-kepler-2`): only the owner tags; a
 `v*` tag makes CI publish the GitHub Release. Upstream updates are merged, not
 rebased (published tags must stay ancestors); see `.github/agent-sync-task.md`.
