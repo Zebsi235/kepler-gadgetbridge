@@ -17,7 +17,7 @@ and install the `.apk` file from it.
 4. Open the app, tap **+**, pick your Kepler watch and allow the pairing request.
 
 Already using Gadgetbridge from F-Droid? This app uses the same app ID, so Android
-won't install it over that one. Export your data first (Settings → Data management),
+won't install it over that one. Export your data first (menu → Data management),
 then uninstall Gadgetbridge and install this app.
 
 Releases marked *Pre-release* are test builds. Use the one marked **Latest**.

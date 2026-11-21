@@ -87,7 +87,7 @@
     <string name="f91_pref_title_image">Bild hochladen</string>
     <string name="f91_pref_summary_image">Ein Foto für das Schwarz-Weiß-Display der Uhr umwandeln und in der Bild-Ansicht anzeigen.</string>
     <string name="f91_image_choose">Bild auswählen …</string>
-    <string name="f91_image_send">An Uhr senden</string>
+    <string name="f91_image_send">An die Uhr senden</string>
     <string name="f91_image_crop_hint">Mit zwei Fingern zoomen, zum Verschieben ziehen</string>
     <string name="f91_image_dither">Dithering (besser für Fotos)</string>
     <string name="f91_image_threshold">Helligkeitsschwelle</string>
