@@ -15,7 +15,8 @@ Everything Kepler-specific is listed here; the rest is upstream Gadgetbridge.
 | `master` | mirrors upstream `master` only |
 | `archive/*` | kept history, not built |
 
-Tags `v<base>-kepler-<n>` (e.g. `v0.95.1-kepler-2`): only the owner tags; a
+Tags `v<base>-kepler` (e.g. `v2026.11.1-kepler`; up to 0.95.1 also `v<base>-kepler-<n>`,
+e.g. `v0.95.1-kepler-2`): only the owner tags; a
 `v*` tag makes CI publish the GitHub Release. Upstream updates are merged, not
 rebased (published tags must stay ancestors); see `.github/agent-sync-task.md`.
 
@@ -42,7 +43,7 @@ has reported it. Rules:
   No "needs newer firmware" hints, no greyed-out entries.
 - Nothing is written to the watch for a feature its firmware does not have.
 - New gated settings go into the settings customizer's gate table, and
-  `F91KeplerFirmwareGateTest` checks them (from `next/v0.95.1-kepler-3` on).
+  `F91KeplerFirmwareGateTest` checks them (since `v2026.11.0-kepler`).
 
 ## Release notes
 
