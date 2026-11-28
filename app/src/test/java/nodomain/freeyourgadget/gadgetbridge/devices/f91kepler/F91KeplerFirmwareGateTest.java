@@ -205,11 +205,20 @@ public class F91KeplerFirmwareGateTest {
     }
 
     @Test
-    public void threeThreeTwoShowsEverything() throws Exception {
-        final Set<String> s = shown("3.3.2-bl");
+    public void dateLayoutNeeds336() throws Exception {
+        assertFalse(shown("3.3.2-bl").contains(F91KeplerConstants.PREF_DATE_LAYOUT));
+        assertFalse(shown("3.3.5").contains(F91KeplerConstants.PREF_DATE_LAYOUT));
+        assertFalse(shown(null).contains(F91KeplerConstants.PREF_DATE_LAYOUT));
+        assertTrue(shown("3.3.6-rc6-bl").contains(F91KeplerConstants.PREF_DATE_LAYOUT));
+        assertTrue(shown("3.3.6").contains(F91KeplerConstants.PREF_DATE_LAYOUT));
+    }
+
+    @Test
+    public void threeThreeSixShowsEverything() throws Exception {
+        final Set<String> s = shown("3.3.6-bl");
         for (final String key : keysWithParents().keySet()) {
             if (!key.equals(F91KeplerModes.PREF_MODES)) {
-                assertTrue(key + " hidden on 3.3.2", s.contains(key));
+                assertTrue(key + " hidden on 3.3.6", s.contains(key));
             }
         }
     }

@@ -96,6 +96,7 @@ public class F91KeplerSettingsCustomizer implements DeviceSpecificSettingsCustom
             F91KeplerConstants.PREF_SLEEP_ENABLED, F91KeplerConstants.PREF_SLEEP_START,
             F91KeplerConstants.PREF_SLEEP_END,
             F91KeplerConstants.PREF_WEEKDAY, F91KeplerConstants.PREF_WEEKDAY_LANG,
+            F91KeplerConstants.PREF_DATE_LAYOUT,
             F91KeplerConstants.PREF_QUIET_TEXT, F91KeplerConstants.PREF_HOURLY_CHIME,
             F91KeplerConstants.PREF_SECOND_ZONE, F91KeplerConstants.PREF_SECOND_ZONE_ID,
             F91KeplerConstants.PREF_SECOND_ZONE_NAME,
@@ -133,6 +134,8 @@ public class F91KeplerSettingsCustomizer implements DeviceSpecificSettingsCustom
         GATES.put(F91KeplerConstants.PREF_SECOND_ZONE, F91KeplerFirmware.MIN_SECOND_ZONE);
         GATES.put(F91KeplerConstants.PREF_SECOND_ZONE_ID, F91KeplerFirmware.MIN_SECOND_ZONE);
         GATES.put(F91KeplerConstants.PREF_SECOND_ZONE_NAME, F91KeplerFirmware.MIN_SECOND_ZONE);
+        // 3.3.6: UiOptions bit 5, the second date layout
+        GATES.put(F91KeplerConstants.PREF_DATE_LAYOUT, F91KeplerFirmware.MIN_DATE_LAYOUT);
     }
 
     /** The opposite: shown only while the watch is NOT known to run 3.1 --

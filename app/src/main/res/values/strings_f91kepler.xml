@@ -1,6 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!-- Kepler strings added after 0.95.1, kept out of strings.xml so upstream merges do not conflict. -->
 <resources>
+    <string name="f91_pref_title_date_layout">Date layout</string>
+    <string name="f91_date_layout_now">As now: weekday, day and small month, four notification icons</string>
+    <string name="f91_date_layout_c">Weekday, year, month and day, two notification icons</string>
     <string name="f91_pref_title_second_zone">Second time zone</string>
     <string name="f91_pref_summary_second_zone">Show the time of another zone where the seconds normally are, with a three-letter name. A + or - after the name means it is already tomorrow or still yesterday there. After a battery change it comes back as soon as the phone connects.</string>
     <string name="f91_pref_title_second_zone_id">Zone</string>

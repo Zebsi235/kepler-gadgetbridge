@@ -531,6 +531,17 @@ final class F91KeplerProtocol {
     }
 
     /**
+     * UiOptions bit 5 for the date-layout preference: set only for layout C on a
+     * watch known to run 3.3.6 or newer (an older watch refuses the whole write
+     * when it sees an unknown bit).
+     */
+    static int dateLayoutBit(final String firmware, final String layout) {
+        return F91KeplerFirmware.hasDateLayout(firmware)
+                && F91KeplerConstants.DATE_LAYOUT_C.equals(layout)
+                ? F91KeplerConstants.UIOPT_DATE_LAYOUT_C : 0;
+    }
+
+    /**
      * The SOUND_CFG payload of a Record read ({@code [0x06][0][payload]}): its
      * first 8 bytes (6 on rc1), without the settings CRC; null if it is not one.
      */
