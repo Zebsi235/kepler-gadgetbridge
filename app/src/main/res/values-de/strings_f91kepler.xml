@@ -45,7 +45,7 @@
     <string name="f91_pref_title_reconnect_on_bt_on">Neu verbinden, wenn Bluetooth angeht</string>
     <string name="f91_pref_summary_reconnect_on_bt_on">Sobald du Bluetooth am Telefon wieder einschaltest, verbindet sich die Uhr von selbst. Du musst die App dafür nicht öffnen.</string>
     <string name="f91_pref_title_date_layout">Datumsanzeige</string>
-    <string name="f91_date_layout_now">Wie bisher: Wochentag und Tag, vier Benachrichtigungssymbole</string>
+    <string name="f91_date_layout_now">Wie bisher: Wochentag, Tag und kleiner Monat, vier Benachrichtigungssymbole</string>
     <string name="f91_date_layout_c">Wochentag, Jahr, Monat und Tag, zwei Benachrichtigungssymbole</string>
     <string name="f91_pref_title_second_zone">Zweite Zeitzone</string>
     <string name="f91_pref_summary_second_zone">Die Uhrzeit einer weiteren Zeitzone dort zeigen, wo sonst die Sekunden stehen, mit einem Kürzel aus drei Buchstaben. Ein + oder - hinter dem Kürzel heißt: Dort ist schon morgen oder noch gestern. Nach einem Batteriewechsel ist sie wieder da, sobald sich das Telefon verbindet.</string>
