@@ -99,6 +99,9 @@ public final class F91KeplerFirmware {
     /** UiOptions bit 4 + Record ZONE 0x0E: the second time zone (3.3.2). */
     public static final int[] MIN_SECOND_ZONE = {3, 3, 2};
 
+    /** UiOptions bit 5: the second date layout on the Main face (3.3.6). */
+    public static final int[] MIN_DATE_LAYOUT = {3, 3, 6};
+
     private static final Pattern VERSION = Pattern.compile("^\\s*v?(\\d+)\\.(\\d+)\\.(\\d+)");
 
     /**
@@ -172,6 +175,10 @@ public final class F91KeplerFirmware {
 
     public static boolean hasSecondZone(@Nullable final String firmware) {
         return atLeast(firmware, MIN_SECOND_ZONE);
+    }
+
+    public static boolean hasDateLayout(@Nullable final String firmware) {
+        return atLeast(firmware, MIN_DATE_LAYOUT);
     }
 
     public static boolean hasToneChoice(@Nullable final String firmware) {

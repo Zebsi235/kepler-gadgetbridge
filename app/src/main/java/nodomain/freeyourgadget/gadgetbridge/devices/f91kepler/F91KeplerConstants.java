@@ -169,6 +169,13 @@ public final class F91KeplerConstants {
     public static final int UIOPT_HOURLY_CHIME = 1 << 3; // 1 s flash at the top of each hour
     /** Firmware 3.3.2: the second time zone (REC_ZONE) in the face's seconds corner. */
     public static final int UIOPT_SECOND_ZONE = 1 << 4;
+    /**
+     * Firmware 3.3.6: the second date layout on the Main face (three-letter
+     * weekday, year, month and day; two notification icons). Only has an effect
+     * while UIOPT_WEEKDAY is on; sent with or without it so the choice survives
+     * a weekday off/on.
+     */
+    public static final int UIOPT_DATE_LAYOUT_C = 1 << 5;
 
     /**
      * Record, encrypted read + write (firmware 3.1.0): one typed-record channel
@@ -310,6 +317,10 @@ public final class F91KeplerConstants {
     public static final String PREF_HOURLY_CHIME = "f91_hourly_chime";
     /** Firmware 3.3.2: second time zone on/off, its zone id, and an optional 3-letter name. */
     public static final String PREF_SECOND_ZONE = "f91_second_zone";
+    /** Firmware 3.3.6: Main face date layout, {@link #DATE_LAYOUT_NOW} or {@link #DATE_LAYOUT_C}. */
+    public static final String PREF_DATE_LAYOUT = "f91_date_layout";
+    public static final String DATE_LAYOUT_NOW = "now";
+    public static final String DATE_LAYOUT_C = "c";
     public static final String PREF_SECOND_ZONE_ID = "f91_second_zone_id";
     public static final String PREF_SECOND_ZONE_NAME = "f91_second_zone_name";
     // Firmware 3.2 sound switches (SOUND_CFG flags) and the test button.

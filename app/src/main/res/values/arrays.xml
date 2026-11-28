@@ -105,6 +105,14 @@
         <item>@string/f91_weekday_lang_en</item>
         <item>@string/f91_weekday_lang_de</item>
     </string-array>
+    <string-array name="f91_date_layout">
+        <item>@string/f91_date_layout_now</item>
+        <item>@string/f91_date_layout_c</item>
+    </string-array>
+    <string-array name="f91_date_layout_values" translatable="false">
+        <item>now</item>
+        <item>c</item>
+    </string-array>
     <string-array name="f91_weekday_lang_values" translatable="false">
         <item>auto</item>
         <item>en</item>

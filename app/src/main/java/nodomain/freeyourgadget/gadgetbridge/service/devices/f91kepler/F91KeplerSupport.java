@@ -2079,7 +2079,10 @@ public class F91KeplerSupport extends AbstractBTLESingleDeviceSupport {
                 prefs.getBoolean(F91KeplerConstants.PREF_QUIET_TEXT, false),
                 prefs.getBoolean(F91KeplerConstants.PREF_HOURLY_CHIME, false))
                 // only 3.3.2 knows the bit: an older watch refuses the whole write
-                | (secondZoneWanted() ? F91KeplerConstants.UIOPT_SECOND_ZONE : 0);
+                | (secondZoneWanted() ? F91KeplerConstants.UIOPT_SECOND_ZONE : 0)
+                // only 3.3.6 knows bit 5, same reason
+                | F91KeplerProtocol.dateLayoutBit(connectedFw,
+                        prefs.getString(F91KeplerConstants.PREF_DATE_LAYOUT, F91KeplerConstants.DATE_LAYOUT_NOW));
         builder.write(F91KeplerConstants.UUID_CHAR_UI_OPTIONS, F91KeplerProtocol.uiOptions(bits));
     }
 
@@ -2474,6 +2477,7 @@ public class F91KeplerSupport extends AbstractBTLESingleDeviceSupport {
             }
             case F91KeplerConstants.PREF_WEEKDAY:
             case F91KeplerConstants.PREF_WEEKDAY_LANG:
+            case F91KeplerConstants.PREF_DATE_LAYOUT:
             case F91KeplerConstants.PREF_QUIET_TEXT:
             case F91KeplerConstants.PREF_HOURLY_CHIME: {
                 // Away or pre-3.1: nothing to do now -- the next 3.1 connect

@@ -77,6 +77,33 @@ public class F91KeplerProtocol31Test {
                 F91KeplerProtocol.uiOptionBits(true, "en", Locale.GERMANY, false, false));
     }
 
+    @Test
+    public void dateLayoutBit_onlyLayoutCOn336OrNewer() {
+        final int c = F91KeplerConstants.UIOPT_DATE_LAYOUT_C;
+        assertEquals(0x20, c);
+        assertEquals(c, F91KeplerProtocol.dateLayoutBit("3.3.6", "c"));
+        assertEquals(c, F91KeplerProtocol.dateLayoutBit("3.3.6-rc6-bl", "c"));
+        assertEquals(c, F91KeplerProtocol.dateLayoutBit("3.4.0", "c"));
+        // "as now" never sets it
+        assertEquals(0, F91KeplerProtocol.dateLayoutBit("3.3.6", "now"));
+        assertEquals(0, F91KeplerProtocol.dateLayoutBit("3.3.6", null));
+        // an older or unknown watch refuses any unknown bit: never sent there
+        assertEquals(0, F91KeplerProtocol.dateLayoutBit("3.3.5", "c"));
+        assertEquals(0, F91KeplerProtocol.dateLayoutBit("3.3.2-bl", "c"));
+        assertEquals(0, F91KeplerProtocol.dateLayoutBit(null, "c"));
+    }
+
+    @Test
+    public void uiOptions_layoutCWithAndWithoutWeekday() {
+        // sent with or without the weekday bit, so the choice survives weekday off/on
+        final int on = F91KeplerProtocol.uiOptionBits(true, "en", Locale.ENGLISH, false, false)
+                | F91KeplerProtocol.dateLayoutBit("3.3.6", "c");
+        assertArrayEquals(b(0x21, 0x00), F91KeplerProtocol.uiOptions(on));
+        final int off = F91KeplerProtocol.uiOptionBits(false, "en", Locale.ENGLISH, false, false)
+                | F91KeplerProtocol.dateLayoutBit("3.3.6", "c");
+        assertArrayEquals(b(0x20, 0x00), F91KeplerProtocol.uiOptions(off));
+    }
+
     // --- Record framing -------------------------------------------------------
 
     @Test
